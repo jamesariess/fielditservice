@@ -86,6 +86,11 @@ $adminRoutes = [
     '/admin/audit' => APP_ROOT . '/public/pages/admin/audit.php',
     '/admin/statistics' => APP_ROOT . '/public/pages/admin/statistics.php',
     '/admin/settings' => APP_ROOT . '/public/pages/admin/settings.php',
+    '/admin/troubleshoot' => APP_ROOT . '/public/pages/admin-troubleshoot.php',
+    '/troubleshoot/submit' => APP_ROOT . '/public/pages/troubleshoot-submit.php',
+    '/api/troubleshooting/submissions' => APP_ROOT . '/api/troubleshooting/submissions.php',
+    '/api/troubleshooting/errors' => APP_ROOT . '/api/troubleshooting/errors.php',
+    '/api/troubleshooting/nodes' => APP_ROOT . '/api/troubleshooting/nodes.php',
 ];
 
 // Check for logout

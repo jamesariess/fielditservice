@@ -26,6 +26,7 @@ $sidebarItems = [
     ['id' => 'equipment', 'label' => 'Equipment', 'icon' => 'package', 'url' => '/equipment'],
     ['id' => 'commands', 'label' => 'Commands', 'icon' => 'terminal', 'url' => '/commands'],
     ['id' => 'tools', 'label' => 'Tools', 'icon' => 'wrench', 'url' => '/tools'],
+    ['id' => 'submit-steps', 'label' => 'Submit Steps', 'icon' => 'file-plus', 'url' => '/troubleshoot/submit'],
     ['section' => 'Work'],
     ['id' => 'tickets', 'label' => 'My Tickets', 'icon' => 'ticket', 'url' => '/tickets', 'badge' => '5'],
     ['id' => 'documentation', 'label' => 'Documentation', 'icon' => 'file-text', 'url' => '/documentation'],
@@ -40,6 +41,7 @@ $sidebarItems = [
     ['id' => 'audit', 'label' => 'Audit Logs', 'icon' => 'scroll-text', 'url' => '/admin/audit', 'perm' => 'audit.view'],
     ['id' => 'admin-ai', 'label' => 'AI Settings', 'icon' => 'bot', 'url' => '/admin/ai', 'perm' => 'ai.manage'],
     ['id' => 'admin-settings', 'label' => 'System Settings', 'icon' => 'settings-2', 'url' => '/admin/settings', 'perm' => 'system.settings'],
+    ['id' => 'admin-troubleshoot', 'label' => 'Troubleshoot Mgmt', 'icon' => 'settings-2', 'url' => '/admin/troubleshoot', 'perm' => 'system.settings'],
 ];
 
 $initials = '';

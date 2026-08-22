@@ -1,0 +1,369 @@
+[Sat Aug 22 20:49:51 2026] PHP 8.2.12 Development Server (http://0.0.0.0:8000) started
+[Sat Aug 22 20:50:24 2026] 127.0.0.1:53004 Accepted
+[Sat Aug 22 20:50:24 2026] 127.0.0.1:53004 Closing
+[Sat Aug 22 20:50:42 2026] 127.0.0.1:63736 Accepted
+[Sat Aug 22 20:50:42 2026] 127.0.0.1:63736 Closing
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63747 Accepted
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63747 Closing
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63758 Accepted
+[Sat Aug 22 20:50:43 2026] PHP Fatal error:  Uncaught ValueError: max(): Argument #1 ($value) must contain at least one element in C:\xampp\htdocs\fielditservice\public\pages\dashboard.php:570
+Stack trace:
+#0 C:\xampp\htdocs\fielditservice\public\pages\dashboard.php(570): max(Array)
+#1 C:\xampp\htdocs\fielditservice\public\index.php(124): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\fielditservice\public\pages\dashboard.php on line 570
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63758 Closing
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63764 Accepted
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63764 Closing
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63774 Accepted
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63775 Accepted
+[Sat Aug 22 20:50:43 2026] 127.0.0.1:63774 Closing
+[Sat Aug 22 20:50:44 2026] 127.0.0.1:63775 Closing
+[Sat Aug 22 20:50:48 2026] 127.0.0.1:52966 Accepted
+[Sat Aug 22 20:50:48 2026] 127.0.0.1:52966 Closing
+[Sat Aug 22 20:50:49 2026] 127.0.0.1:52968 Accepted
+[Sat Aug 22 20:50:49 2026] PHP Fatal error:  Uncaught ValueError: max(): Argument #1 ($value) must contain at least one element in C:\xampp\htdocs\fielditservice\public\pages\dashboard.php:570
+Stack trace:
+#0 C:\xampp\htdocs\fielditservice\public\pages\dashboard.php(570): max(Array)
+#1 C:\xampp\htdocs\fielditservice\public\index.php(124): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\fielditservice\public\pages\dashboard.php on line 570
+[Sat Aug 22 20:50:49 2026] 127.0.0.1:52968 Closing
+[Sat Aug 22 20:50:49 2026] 127.0.0.1:52972 Accepted
+[Sat Aug 22 20:50:49 2026] 127.0.0.1:52972 Closing
+[Sat Aug 22 20:50:49 2026] 127.0.0.1:52974 Accepted
+[Sat Aug 22 20:50:49 2026] 127.0.0.1:52975 Accepted
+[Sat Aug 22 20:50:49 2026] 127.0.0.1:52974 Closing
+[Sat Aug 22 20:50:49 2026] 127.0.0.1:52975 Closing
+[Sat Aug 22 20:50:54 2026] 127.0.0.1:53010 Accepted
+[Sat Aug 22 20:50:54 2026] 127.0.0.1:53010 Closing
+[Sat Aug 22 20:50:54 2026] 127.0.0.1:53032 Accepted
+[Sat Aug 22 20:50:54 2026] 127.0.0.1:53032 Closing
+[Sat Aug 22 20:50:54 2026] 127.0.0.1:53033 Accepted
+[Sat Aug 22 20:50:54 2026] 127.0.0.1:53034 Accepted
+[Sat Aug 22 20:50:54 2026] 127.0.0.1:53033 Closing
+[Sat Aug 22 20:50:54 2026] 127.0.0.1:53034 Closing
+[Sat Aug 22 20:50:57 2026] 127.0.0.1:53039 Accepted
+[Sat Aug 22 20:50:57 2026] 127.0.0.1:53039 Closing
+[Sat Aug 22 20:50:57 2026] 127.0.0.1:53042 Accepted
+[Sat Aug 22 20:50:57 2026] 127.0.0.1:53042 Closing
+[Sat Aug 22 20:50:57 2026] 127.0.0.1:53043 Accepted
+[Sat Aug 22 20:50:57 2026] 127.0.0.1:53044 Accepted
+[Sat Aug 22 20:50:57 2026] 127.0.0.1:53043 Closing
+[Sat Aug 22 20:50:58 2026] 127.0.0.1:53044 Closing
+[Sat Aug 22 20:50:58 2026] 127.0.0.1:53056 Accepted
+[Sat Aug 22 20:50:58 2026] 127.0.0.1:53056 Closing
+[Sat Aug 22 20:50:58 2026] 127.0.0.1:53058 Accepted
+[Sat Aug 22 20:50:59 2026] 127.0.0.1:53058 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:50:59 2026] 127.0.0.1:53058 Closing
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57958 Accepted
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57958 Closing
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57962 Accepted
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57962 Closing
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57963 Accepted
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57964 Accepted
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57963 Closing
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57964 Closing
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57970 Accepted
+[Sat Aug 22 20:52:14 2026] 127.0.0.1:57970 Closing
+[Sat Aug 22 20:52:15 2026] 127.0.0.1:57972 Accepted
+[Sat Aug 22 20:52:19 2026] 127.0.0.1:57972 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:52:19 2026] 127.0.0.1:57972 Closing
+[Sat Aug 22 20:53:09 2026] 127.0.0.1:61628 Accepted
+[Sat Aug 22 20:53:09 2026] 127.0.0.1:61628 Closing
+[Sat Aug 22 20:53:09 2026] 127.0.0.1:61632 Accepted
+[Sat Aug 22 20:53:09 2026] 127.0.0.1:61632 Closing
+[Sat Aug 22 20:53:10 2026] 127.0.0.1:61633 Accepted
+[Sat Aug 22 20:53:10 2026] 127.0.0.1:61634 Accepted
+[Sat Aug 22 20:53:10 2026] 127.0.0.1:61633 Closing
+[Sat Aug 22 20:53:10 2026] 127.0.0.1:61634 Closing
+[Sat Aug 22 20:53:10 2026] 127.0.0.1:61639 Accepted
+[Sat Aug 22 20:53:10 2026] 127.0.0.1:61639 Closing
+[Sat Aug 22 20:53:10 2026] 127.0.0.1:61641 Accepted
+[Sat Aug 22 20:53:11 2026] 127.0.0.1:61641 Closing
+[Sat Aug 22 20:53:12 2026] 127.0.0.1:61645 Accepted
+[Sat Aug 22 20:53:12 2026] 127.0.0.1:61646 Accepted
+[Sat Aug 22 20:53:12 2026] 127.0.0.1:61645 Closing
+[Sat Aug 22 20:53:12 2026] 127.0.0.1:61646 Closing
+[Sat Aug 22 20:53:12 2026] 127.0.0.1:61648 Accepted
+[Sat Aug 22 20:53:12 2026] 127.0.0.1:61648 Closing
+[Sat Aug 22 20:53:12 2026] 127.0.0.1:61650 Accepted
+[Sat Aug 22 20:53:14 2026] 127.0.0.1:61650 Closing
+[Sat Aug 22 20:53:14 2026] 127.0.0.1:61654 Accepted
+[Sat Aug 22 20:53:14 2026] 127.0.0.1:61655 Accepted
+[Sat Aug 22 20:53:14 2026] 127.0.0.1:61654 Closing
+[Sat Aug 22 20:53:14 2026] 127.0.0.1:61655 Closing
+[Sat Aug 22 20:53:15 2026] 127.0.0.1:61660 Accepted
+[Sat Aug 22 20:53:15 2026] 127.0.0.1:61660 Closing
+[Sat Aug 22 20:53:15 2026] 127.0.0.1:61662 Accepted
+[Sat Aug 22 20:53:15 2026] 127.0.0.1:61662 Closing
+[Sat Aug 22 20:53:15 2026] 127.0.0.1:61664 Accepted
+[Sat Aug 22 20:53:16 2026] 127.0.0.1:61664 Closing
+[Sat Aug 22 20:53:18 2026] 127.0.0.1:61674 Accepted
+[Sat Aug 22 20:53:18 2026] 127.0.0.1:61674 Closing
+[Sat Aug 22 20:53:19 2026] 127.0.0.1:59865 Accepted
+[Sat Aug 22 20:53:19 2026] 127.0.0.1:59865 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:53:19 2026] 127.0.0.1:59865 Closing
+[Sat Aug 22 20:53:21 2026] 127.0.0.1:59868 Accepted
+[Sat Aug 22 20:53:21 2026] 127.0.0.1:59868 Closing
+[Sat Aug 22 20:53:21 2026] 127.0.0.1:59870 Accepted
+[Sat Aug 22 20:53:29 2026] 127.0.0.1:59870 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:53:29 2026] 127.0.0.1:59870 Closing
+[Sat Aug 22 20:53:50 2026] 127.0.0.1:51818 Accepted
+[Sat Aug 22 20:53:50 2026] 127.0.0.1:51818 Closing
+[Sat Aug 22 20:53:59 2026] 127.0.0.1:51825 Accepted
+[Sat Aug 22 20:53:59 2026] 127.0.0.1:51825 Closing
+[Sat Aug 22 20:54:11 2026] 127.0.0.1:49926 Accepted
+[Sat Aug 22 20:54:11 2026] 127.0.0.1:49926 Closing
+[Sat Aug 22 20:54:11 2026] 127.0.0.1:49930 Accepted
+[Sat Aug 22 20:54:11 2026] 127.0.0.1:49930 Closing
+[Sat Aug 22 20:54:11 2026] 127.0.0.1:49931 Accepted
+[Sat Aug 22 20:54:11 2026] 127.0.0.1:49932 Accepted
+[Sat Aug 22 20:54:11 2026] 127.0.0.1:49931 Closing
+[Sat Aug 22 20:54:12 2026] 127.0.0.1:49932 Closing
+[Sat Aug 22 20:54:12 2026] 127.0.0.1:49939 Accepted
+[Sat Aug 22 20:54:12 2026] 127.0.0.1:49939 Closing
+[Sat Aug 22 20:54:12 2026] 127.0.0.1:63988 Accepted
+[Sat Aug 22 20:54:19 2026] 127.0.0.1:63988 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:54:19 2026] 127.0.0.1:63988 Closing
+[Sat Aug 22 20:54:32 2026] 127.0.0.1:56731 Accepted
+[Sat Aug 22 20:54:32 2026] 127.0.0.1:56731 Closing
+[Sat Aug 22 20:54:33 2026] 127.0.0.1:56735 Accepted
+[Sat Aug 22 20:54:33 2026] 127.0.0.1:56735 Closing
+[Sat Aug 22 20:54:33 2026] 127.0.0.1:56736 Accepted
+[Sat Aug 22 20:54:33 2026] 127.0.0.1:56737 Accepted
+[Sat Aug 22 20:54:33 2026] 127.0.0.1:56736 Closing
+[Sat Aug 22 20:54:33 2026] 127.0.0.1:56737 Closing
+[Sat Aug 22 20:54:34 2026] 127.0.0.1:56742 Accepted
+[Sat Aug 22 20:54:34 2026] 127.0.0.1:56742 Closing
+[Sat Aug 22 20:54:34 2026] 127.0.0.1:56744 Accepted
+[Sat Aug 22 20:54:39 2026] 127.0.0.1:56744 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:54:39 2026] 127.0.0.1:56744 Closing
+[Sat Aug 22 20:54:43 2026] 127.0.0.1:56747 Accepted
+[Sat Aug 22 20:54:43 2026] 127.0.0.1:56747 Closing
+[Sat Aug 22 20:54:44 2026] 127.0.0.1:56751 Accepted
+[Sat Aug 22 20:54:44 2026] 127.0.0.1:56751 Closing
+[Sat Aug 22 20:54:44 2026] 127.0.0.1:60396 Accepted
+[Sat Aug 22 20:54:44 2026] 127.0.0.1:60397 Accepted
+[Sat Aug 22 20:54:44 2026] 127.0.0.1:60396 Closing
+[Sat Aug 22 20:54:44 2026] 127.0.0.1:60397 Closing
+[Sat Aug 22 20:54:45 2026] 127.0.0.1:55518 Accepted
+[Sat Aug 22 20:54:45 2026] 127.0.0.1:55518 Closing
+[Sat Aug 22 20:54:45 2026] 127.0.0.1:55520 Accepted
+[Sat Aug 22 20:54:49 2026] 127.0.0.1:55520 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:54:49 2026] 127.0.0.1:55520 Closing
+[Sat Aug 22 20:54:56 2026] 127.0.0.1:61465 Accepted
+[Sat Aug 22 20:54:56 2026] 127.0.0.1:61465 Closing
+[Sat Aug 22 20:54:56 2026] 127.0.0.1:61469 Accepted
+[Sat Aug 22 20:54:56 2026] 127.0.0.1:61469 Closing
+[Sat Aug 22 20:54:56 2026] 127.0.0.1:61470 Accepted
+[Sat Aug 22 20:54:56 2026] 127.0.0.1:61471 Accepted
+[Sat Aug 22 20:54:56 2026] 127.0.0.1:61470 Closing
+[Sat Aug 22 20:54:57 2026] 127.0.0.1:61471 Closing
+[Sat Aug 22 20:54:57 2026] 127.0.0.1:61479 Accepted
+[Sat Aug 22 20:54:57 2026] 127.0.0.1:61479 Closing
+[Sat Aug 22 20:54:57 2026] 127.0.0.1:61481 Accepted
+[Sat Aug 22 20:54:59 2026] 127.0.0.1:61481 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:54:59 2026] 127.0.0.1:61481 Closing
+[Sat Aug 22 20:55:10 2026] 127.0.0.1:61531 Accepted
+[Sat Aug 22 20:55:10 2026] 127.0.0.1:61531 Closing
+[Sat Aug 22 20:55:10 2026] 127.0.0.1:61535 Accepted
+[Sat Aug 22 20:55:10 2026] 127.0.0.1:61535 Closing
+[Sat Aug 22 20:55:10 2026] 127.0.0.1:61536 Accepted
+[Sat Aug 22 20:55:10 2026] 127.0.0.1:61537 Accepted
+[Sat Aug 22 20:55:10 2026] 127.0.0.1:61536 Closing
+[Sat Aug 22 20:55:10 2026] 127.0.0.1:61537 Closing
+[Sat Aug 22 20:55:11 2026] 127.0.0.1:61541 Accepted
+[Sat Aug 22 20:55:11 2026] 127.0.0.1:61541 Closing
+[Sat Aug 22 20:55:11 2026] 127.0.0.1:61543 Accepted
+[Sat Aug 22 20:55:19 2026] 127.0.0.1:61543 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:55:19 2026] 127.0.0.1:61543 Closing
+[Sat Aug 22 20:55:24 2026] 127.0.0.1:61558 Accepted
+[Sat Aug 22 20:55:24 2026] 127.0.0.1:61558 Closing
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61562 Accepted
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61562 Closing
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61563 Accepted
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61564 Accepted
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61563 Closing
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61564 Closing
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61569 Accepted
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61569 Closing
+[Sat Aug 22 20:55:25 2026] 127.0.0.1:61571 Accepted
+[Sat Aug 22 20:55:29 2026] 127.0.0.1:61571 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:55:29 2026] 127.0.0.1:61571 Closing
+[Sat Aug 22 20:55:37 2026] 127.0.0.1:61581 Accepted
+[Sat Aug 22 20:55:37 2026] 127.0.0.1:61581 Closing
+[Sat Aug 22 20:55:37 2026] 127.0.0.1:61586 Accepted
+[Sat Aug 22 20:55:37 2026] 127.0.0.1:61586 Closing
+[Sat Aug 22 20:55:37 2026] 127.0.0.1:61587 Accepted
+[Sat Aug 22 20:55:37 2026] 127.0.0.1:61588 Accepted
+[Sat Aug 22 20:55:37 2026] 127.0.0.1:61587 Closing
+[Sat Aug 22 20:55:38 2026] 127.0.0.1:61588 Closing
+[Sat Aug 22 20:55:38 2026] 127.0.0.1:61598 Accepted
+[Sat Aug 22 20:55:38 2026] 127.0.0.1:61598 Closing
+[Sat Aug 22 20:55:38 2026] 127.0.0.1:61600 Accepted
+[Sat Aug 22 20:55:39 2026] 127.0.0.1:61600 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:55:39 2026] 127.0.0.1:61600 Closing
+[Sat Aug 22 20:55:57 2026] 127.0.0.1:61620 Accepted
+[Sat Aug 22 20:55:57 2026] 127.0.0.1:61620 Closing
+[Sat Aug 22 20:55:57 2026] 127.0.0.1:61623 Accepted
+[Sat Aug 22 20:55:59 2026] 127.0.0.1:61623 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 20:55:59 2026] 127.0.0.1:61623 Closing
+[Sat Aug 22 20:56:14 2026] 127.0.0.1:61649 Accepted
+[Sat Aug 22 20:56:14 2026] 127.0.0.1:61649 Closing
+[Sat Aug 22 20:56:14 2026] 127.0.0.1:61661 Accepted
+[Sat Aug 22 20:56:14 2026] 127.0.0.1:61661 Closing
+[Sat Aug 22 20:56:15 2026] 127.0.0.1:61673 Accepted
+[Sat Aug 22 20:56:15 2026] 127.0.0.1:61673 Closing
+[Sat Aug 22 20:56:15 2026] 127.0.0.1:61688 Accepted
+[Sat Aug 22 20:56:15 2026] 127.0.0.1:61688 Closing
+[Sat Aug 22 20:56:16 2026] 127.0.0.1:61700 Accepted
+[Sat Aug 22 20:56:16 2026] 127.0.0.1:61700 Closing
+[Sat Aug 22 20:56:17 2026] 127.0.0.1:61710 Accepted
+[Sat Aug 22 20:56:17 2026] 127.0.0.1:61710 Closing
+[Sat Aug 22 20:56:17 2026] 127.0.0.1:61721 Accepted
+[Sat Aug 22 20:56:17 2026] 127.0.0.1:61721 Closing
+[Sat Aug 22 20:56:17 2026] 127.0.0.1:61744 Accepted
+[Sat Aug 22 20:56:17 2026] 127.0.0.1:61744 Closing
+[Sat Aug 22 20:56:18 2026] 127.0.0.1:61757 Accepted
+[Sat Aug 22 20:56:18 2026] 127.0.0.1:61757 Closing
+[Sat Aug 22 20:56:18 2026] 127.0.0.1:61770 Accepted
+[Sat Aug 22 20:56:19 2026] 127.0.0.1:61770 Closing
+[Sat Aug 22 20:56:19 2026] 127.0.0.1:61783 Accepted
+[Sat Aug 22 20:56:19 2026] 127.0.0.1:61783 Closing
+[Sat Aug 22 20:56:20 2026] 127.0.0.1:61798 Accepted
+[Sat Aug 22 20:56:20 2026] 127.0.0.1:61798 Closing
+[Sat Aug 22 20:56:20 2026] 127.0.0.1:61815 Accepted
+[Sat Aug 22 20:56:20 2026] 127.0.0.1:61815 Closing
+[Sat Aug 22 20:56:21 2026] 127.0.0.1:61829 Accepted
+[Sat Aug 22 20:56:21 2026] 127.0.0.1:61829 Closing
+[Sat Aug 22 20:56:22 2026] 127.0.0.1:61842 Accepted
+[Sat Aug 22 20:56:22 2026] 127.0.0.1:61842 Closing
+[Sat Aug 22 20:56:22 2026] 127.0.0.1:61865 Accepted
+[Sat Aug 22 20:56:22 2026] 127.0.0.1:61865 Closing
+[Sat Aug 22 20:56:23 2026] 127.0.0.1:61875 Accepted
+[Sat Aug 22 20:56:23 2026] 127.0.0.1:61875 Closing
+[Sat Aug 22 20:56:24 2026] 127.0.0.1:61895 Accepted
+[Sat Aug 22 20:56:24 2026] 127.0.0.1:61895 Closing
+[Sat Aug 22 20:56:25 2026] 127.0.0.1:61913 Accepted
+[Sat Aug 22 20:56:25 2026] 127.0.0.1:61913 Closing
+[Sat Aug 22 20:56:26 2026] 127.0.0.1:61932 Accepted
+[Sat Aug 22 20:56:27 2026] 127.0.0.1:61932 Closing
+[Sat Aug 22 21:01:39 2026] 127.0.0.1:49932 Accepted
+[Sat Aug 22 21:01:39 2026] 127.0.0.1:49932 Closing
+[Sat Aug 22 21:01:39 2026] 127.0.0.1:49937 Accepted
+[Sat Aug 22 21:01:39 2026] 127.0.0.1:49937 Closing
+[Sat Aug 22 21:01:39 2026] 127.0.0.1:49938 Accepted
+[Sat Aug 22 21:01:39 2026] 127.0.0.1:49939 Accepted
+[Sat Aug 22 21:01:39 2026] 127.0.0.1:49938 Closing
+[Sat Aug 22 21:01:39 2026] 127.0.0.1:49939 Closing
+[Sat Aug 22 21:01:53 2026] 127.0.0.1:49960 Accepted
+[Sat Aug 22 21:01:53 2026] 127.0.0.1:49960 Closing
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49964 Accepted
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49964 Closing
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49965 Accepted
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49966 Accepted
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49965 Closing
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49966 Closing
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49971 Accepted
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49971 Closing
+[Sat Aug 22 21:01:54 2026] 127.0.0.1:49973 Accepted
+[Sat Aug 22 21:02:00 2026] 127.0.0.1:49973 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 21:02:00 2026] 127.0.0.1:49973 Closing
+[Sat Aug 22 21:02:06 2026] 127.0.0.1:49986 Accepted
+[Sat Aug 22 21:02:06 2026] 127.0.0.1:49986 Closing
+[Sat Aug 22 21:02:06 2026] 127.0.0.1:49989 Accepted
+[Sat Aug 22 21:02:06 2026] 127.0.0.1:49989 Closing
+[Sat Aug 22 21:02:06 2026] 127.0.0.1:49990 Accepted
+[Sat Aug 22 21:02:06 2026] 127.0.0.1:49991 Accepted
+[Sat Aug 22 21:02:06 2026] 127.0.0.1:49990 Closing
+[Sat Aug 22 21:02:06 2026] 127.0.0.1:49991 Closing
+[Sat Aug 22 21:02:15 2026] 127.0.0.1:50063 Accepted
+[Sat Aug 22 21:02:15 2026] 127.0.0.1:50063 Closing
+[Sat Aug 22 21:02:15 2026] 127.0.0.1:50067 Accepted
+[Sat Aug 22 21:02:15 2026] 127.0.0.1:50067 Closing
+[Sat Aug 22 21:02:15 2026] 127.0.0.1:50068 Accepted
+[Sat Aug 22 21:02:15 2026] 127.0.0.1:50069 Accepted
+[Sat Aug 22 21:02:15 2026] 127.0.0.1:50068 Closing
+[Sat Aug 22 21:02:16 2026] 127.0.0.1:50069 Closing
+[Sat Aug 22 21:02:16 2026] 127.0.0.1:50074 Accepted
+[Sat Aug 22 21:02:16 2026] 127.0.0.1:50074 Closing
+[Sat Aug 22 21:02:16 2026] 127.0.0.1:50076 Accepted
+[Sat Aug 22 21:02:20 2026] 127.0.0.1:50076 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 21:02:20 2026] 127.0.0.1:50076 Closing
+[Sat Aug 22 21:11:18 2026] 127.0.0.1:59807 Accepted
+[Sat Aug 22 21:11:18 2026] 127.0.0.1:59807 Closing
+[Sat Aug 22 21:11:18 2026] 127.0.0.1:59810 Accepted
+[Sat Aug 22 21:11:18 2026] 127.0.0.1:59810 Closing
+[Sat Aug 22 21:11:18 2026] 127.0.0.1:59811 Accepted
+[Sat Aug 22 21:11:18 2026] 127.0.0.1:59812 Accepted
+[Sat Aug 22 21:11:18 2026] 127.0.0.1:59811 Closing
+[Sat Aug 22 21:11:18 2026] PHP Fatal error:  Uncaught Error: Call to undefined method Auth::userRole() in C:\xampp\htdocs\fielditservice\api\troubleshooting\submissions.php:24
+Stack trace:
+#0 C:\xampp\htdocs\fielditservice\public\index.php(105): require()
+#1 {main}
+  thrown in C:\xampp\htdocs\fielditservice\api\troubleshooting\submissions.php on line 24
+[Sat Aug 22 21:11:18 2026] 127.0.0.1:59812 Closing
+[Sat Aug 22 21:11:19 2026] 127.0.0.1:59815 Accepted
+[Sat Aug 22 21:11:19 2026] 127.0.0.1:59815 Closing
+[Sat Aug 22 21:11:19 2026] 127.0.0.1:59817 Accepted
+[Sat Aug 22 21:11:20 2026] 127.0.0.1:59817 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 21:11:20 2026] 127.0.0.1:59817 Closing
+[Sat Aug 22 21:11:29 2026] 127.0.0.1:59834 Accepted
+[Sat Aug 22 21:11:29 2026] PHP Fatal error:  Uncaught Error: Call to undefined method Auth::userRole() in C:\xampp\htdocs\fielditservice\public\pages\admin-troubleshoot.php:7
+Stack trace:
+#0 C:\xampp\htdocs\fielditservice\public\index.php(105): require()
+#1 {main}
+  thrown in C:\xampp\htdocs\fielditservice\public\pages\admin-troubleshoot.php on line 7
+[Sat Aug 22 21:11:29 2026] 127.0.0.1:59834 Closing
+[Sat Aug 22 21:11:29 2026] 127.0.0.1:59837 Accepted
+[Sat Aug 22 21:11:29 2026] 127.0.0.1:59837 Closing
+[Sat Aug 22 21:11:29 2026] 127.0.0.1:59838 Accepted
+[Sat Aug 22 21:11:29 2026] 127.0.0.1:59839 Accepted
+[Sat Aug 22 21:11:29 2026] 127.0.0.1:59838 Closing
+[Sat Aug 22 21:11:29 2026] 127.0.0.1:59839 Closing
+[Sat Aug 22 21:11:45 2026] 127.0.0.1:59867 Accepted
+[Sat Aug 22 21:11:45 2026] PHP Fatal error:  Uncaught Error: Call to undefined method Auth::userRole() in C:\xampp\htdocs\fielditservice\api\troubleshooting\submissions.php:24
+Stack trace:
+#0 C:\xampp\htdocs\fielditservice\public\index.php(105): require()
+#1 {main}
+  thrown in C:\xampp\htdocs\fielditservice\api\troubleshooting\submissions.php on line 24
+[Sat Aug 22 21:11:45 2026] 127.0.0.1:59867 Closing
+[Sat Aug 22 21:12:29 2026] 127.0.0.1:59932 Accepted
+[Sat Aug 22 21:12:29 2026] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.name' in 'field list' in C:\xampp\htdocs\fielditservice\includes\Database.php:29
+Stack trace:
+#0 C:\xampp\htdocs\fielditservice\includes\Database.php(29): PDO->prepare('SELECT s.*, u.n...')
+#1 C:\xampp\htdocs\fielditservice\includes\Database.php(41): Database::query('SELECT s.*, u.n...', Array)
+#2 C:\xampp\htdocs\fielditservice\api\troubleshooting\submissions.php(71): Database::fetchAll('SELECT s.*, u.n...', Array)
+#3 C:\xampp\htdocs\fielditservice\public\index.php(105): require('C:\\xampp\\htdocs...')
+#4 {main}
+  thrown in C:\xampp\htdocs\fielditservice\includes\Database.php on line 29
+[Sat Aug 22 21:12:29 2026] 127.0.0.1:59932 Closing
+[Sat Aug 22 21:13:04 2026] 127.0.0.1:49978 Accepted
+[Sat Aug 22 21:13:04 2026] 127.0.0.1:49978 Closing
+[Sat Aug 22 21:13:13 2026] 127.0.0.1:49990 Accepted
+[Sat Aug 22 21:13:13 2026] 127.0.0.1:49990 Closing
+[Sat Aug 22 21:13:20 2026] 127.0.0.1:50064 Accepted
+[Sat Aug 22 21:13:20 2026] 127.0.0.1:50064 Closing
+[Sat Aug 22 21:13:38 2026] 127.0.0.1:56452 Accepted
+[Sat Aug 22 21:13:38 2026] 127.0.0.1:56452 Closing
+[Sat Aug 22 21:13:38 2026] 127.0.0.1:56459 Accepted
+[Sat Aug 22 21:13:38 2026] 127.0.0.1:56459 Closing
+[Sat Aug 22 21:13:56 2026] 127.0.0.1:56150 Accepted
+[Sat Aug 22 21:13:56 2026] 127.0.0.1:56150 Closing
+[Sat Aug 22 21:14:03 2026] 127.0.0.1:56164 Accepted
+[Sat Aug 22 21:14:03 2026] 127.0.0.1:56164 Closing
+[Sat Aug 22 21:14:03 2026] 127.0.0.1:56171 Accepted
+[Sat Aug 22 21:14:03 2026] 127.0.0.1:56171 Closing
+[Sat Aug 22 21:14:22 2026] 127.0.0.1:56183 Accepted
+[Sat Aug 22 21:14:22 2026] 127.0.0.1:56183 Closing
+[Sat Aug 22 21:20:42 2026] 127.0.0.1:57098 Accepted
+[Sat Aug 22 21:20:43 2026] 127.0.0.1:57098 Closing
+[Sat Aug 22 21:24:19 2026] 127.0.0.1:62010 Accepted
+[Sat Aug 22 21:24:19 2026] PHP Fatal error:  Uncaught TypeError: Database::update(): Argument #2 ($data) must be of type array, int given, called in C:\xampp\htdocs\fielditservice\api\troubleshooting\submissions.php on line 93 and defined in C:\xampp\htdocs\fielditservice\includes\Database.php:53
+Stack trace:
+#0 C:\xampp\htdocs\fielditservice\api\troubleshooting\submissions.php(93): Database::update('troubleshooting...', 1, Array)
+#1 C:\xampp\htdocs\fielditservice\public\index.php(105): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\fielditservice\includes\Database.php on line 53
+[Sat Aug 22 21:24:19 2026] 127.0.0.1:62010 Closing

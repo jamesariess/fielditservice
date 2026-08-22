@@ -2,7 +2,7 @@
 /**
  * API: Troubleshooting Decision Tree
  * GET  ?issue=<slug or id>  - get root node for an issue
- * POST { node_id, answer }  - answer yes/no and get next node
+ * POST { node_id, answer, issue_id, step_history }  - answer yes/no and get next node
  */
 if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(dirname(__DIR__)))); }
 require_once APP_ROOT . '/config/app.php';
@@ -19,26 +19,29 @@ if ($method === 'GET') {
     $issueParam = $_GET['issue'] ?? '';
     if (empty($issueParam)) { json_response(['error' => 'issue parameter required'], 400); exit; }
 
-    // Resolve issue - accept slug or numeric id
+    // Resolve issue (admins see all, users only see approved)
+    $roleName = $_SESSION['role_name'] ?? '';
+    $isAdmin = in_array(strtolower($roleName), ['admin', 'super admin', 'super_admin']);
+    $statusFilter = $isAdmin ? '' : " AND (i.status IS NULL OR i.status = 'approved')";
     if (is_numeric($issueParam)) {
         $issue = Database::fetch(
             "SELECT i.*, c.name as category_name, c.icon as category_icon
              FROM troubleshooting_issues i
              JOIN troubleshooting_categories c ON c.id = i.category_id
-             WHERE i.id = ?", [(int)$issueParam]
+             WHERE i.id = ?{$statusFilter}", [(int)$issueParam]
         );
     } else {
         $issue = Database::fetch(
             "SELECT i.*, c.name as category_name, c.icon as category_icon
              FROM troubleshooting_issues i
              JOIN troubleshooting_categories c ON c.id = i.category_id
-             WHERE i.slug = ?", [$issueParam]
+             WHERE i.slug = ?{$statusFilter}", [$issueParam]
         );
     }
 
     if (!$issue) { json_response(['error' => 'Issue not found'], 404); exit; }
 
-    // Get root node (parent_id IS NULL for this issue)
+    // Get root node
     $rootNode = Database::fetch(
         "SELECT * FROM decision_nodes WHERE issue_id = ? AND parent_id IS NULL LIMIT 1",
         [$issue['id']]
@@ -46,13 +49,14 @@ if ($method === 'GET') {
 
     if (!$rootNode) { json_response(['error' => 'No decision tree for this issue'], 404); exit; }
 
-    $totalNodes = Database::count('decision_nodes', 'issue_id = ? AND is_terminal = 0', [$issue['id']]);
+    $totalSteps = Database::count('decision_nodes', 'issue_id = ? AND is_terminal = 0', [$issue['id']]);
 
     json_response([
         'issue' => $issue,
         'node' => $rootNode,
-        'total_steps' => $totalNodes,
+        'total_steps' => $totalSteps,
         'current_step' => 1,
+        'progress_id' => uniqid('sess_'),
     ]);
     exit;
 }
@@ -61,6 +65,8 @@ if ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     $nodeId = (int)($input['node_id'] ?? 0);
     $answer = $input['answer'] ?? '';
+    $issueId = (int)($input['issue_id'] ?? 0);
+    $stepHistory = $input['step_history'] ?? [];
 
     if (!$nodeId || !in_array($answer, ['yes', 'no'])) {
         json_response(['error' => 'node_id and answer (yes/no) required'], 400);
@@ -71,72 +77,92 @@ if ($method === 'POST') {
     $currentNode = Database::fetch("SELECT * FROM decision_nodes WHERE id = ?", [$nodeId]);
     if (!$currentNode) { json_response(['error' => 'Node not found'], 404); exit; }
 
-    // Find next node based on answer
-    // The tree uses parent_id; children are ordered by id.
-    // For YES: follow first child node
-    // For NO: follow second child node
-    $children = Database::fetchAll(
-        "SELECT * FROM decision_nodes WHERE issue_id = ? AND parent_id = ? ORDER BY id ASC",
-        [$currentNode['issue_id'], $nodeId]
-    );
-
-    // Map: yes -> first child, no -> second child
-    $nextNode = null;
-    if ($answer === 'yes' && isset($children[0])) {
-        $nextNode = $children[0];
-    } elseif ($answer === 'no' && isset($children[1])) {
-        $nextNode = $children[1];
-    } elseif ($answer === 'yes' && isset($children[0])) {
-        $nextNode = $children[0];
+    // Use yes_next/no_next for branching
+    $nextNodeId = null;
+    if ($answer === 'yes' && !empty($currentNode['yes_next'])) {
+        $nextNodeId = $currentNode['yes_next'];
+    } elseif ($answer === 'no' && !empty($currentNode['no_next'])) {
+        $nextNodeId = $currentNode['no_next'];
     }
 
-    // If no children or next node not found, check if current node is a terminal
-    if (!$nextNode) {
-        // Treat as terminal
-        $resultType = 'escalation';
-        $solution = 'No further steps available. Escalate to supervisor.';
+    // If no next node, treat current as terminal
+    if (!$nextNodeId) {
+        $response = buildTerminalResponse($currentNode, $stepHistory);
+        json_response($response);
+        exit;
+    }
 
-        // Map result_type to response
-        json_response([
-            'solved' => ($currentNode['result_type'] ?? '') === 'solved',
-            'escalated' => ($currentNode['result_type'] ?? '') === 'escalation',
-            'hardware_replacement' => ($currentNode['result_type'] ?? '') === 'hardware',
-            'redirect' => ($currentNode['result_type'] ?? '') === 'redirect',
-            'message' => $currentNode['question'] ?? 'Troubleshooting complete',
-            'detail' => $currentNode['description'] ?? '',
-            'solution' => $currentNode['result_solution'] ?? $solution,
-            'result_type' => $currentNode['result_type'] ?? $resultType,
-            'redirect_slug' => $currentNode['result_type'] === 'redirect' ? $currentNode['result_solution'] : null,
-        ]);
+    // Get next node
+    $nextNode = Database::fetch("SELECT * FROM decision_nodes WHERE id = ?", [$nextNodeId]);
+    if (!$nextNode) {
+        $response = buildTerminalResponse($currentNode, $stepHistory);
+        json_response($response);
         exit;
     }
 
     // If next node is terminal, return terminal response
     if ($nextNode['is_terminal']) {
-        json_response([
-            'solved' => ($nextNode['result_type'] ?? '') === 'solved',
-            'escalated' => ($nextNode['result_type'] ?? '') === 'escalation',
-            'hardware_replacement' => ($nextNode['result_type'] ?? '') === 'hardware',
-            'redirect' => ($nextNode['result_type'] ?? '') === 'redirect',
-            'message' => $nextNode['question'] ?? 'Resolution',
-            'detail' => $nextNode['description'] ?? '',
-            'solution' => $nextNode['result_solution'] ?? '',
-            'result_type' => $nextNode['result_type'] ?? '',
-            'redirect_slug' => $nextNode['result_type'] === 'redirect' ? $nextNode['result_solution'] : null,
-        ]);
+        $response = buildTerminalResponse($nextNode, $stepHistory);
+        json_response($response);
         exit;
     }
 
     // Non-terminal - return next node
-    $totalNodes = Database::count('decision_nodes', 'issue_id = ? AND is_terminal = 0', [$nextNode['issue_id']]);
+    $totalSteps = Database::count('decision_nodes', 'issue_id = ? AND is_terminal = 0', [$nextNode['issue_id']]);
+    $currentStep = count($stepHistory) + 2;
 
     json_response([
         'solved' => false,
         'node' => $nextNode,
-        'total_steps' => $totalNodes,
-        'current_step' => 0,
+        'total_steps' => $totalSteps,
+        'current_step' => $currentStep,
     ]);
     exit;
 }
 
 json_response(['error' => 'Method not allowed'], 405);
+
+/**
+ * Build terminal response with summary report
+ */
+function buildTerminalResponse($node, $stepHistory = []) {
+    $resultType = $node['result_type'] ?? 'escalation';
+    
+    // Build summary from step history
+    $summaryLines = [];
+    foreach ($stepHistory as $i => $step) {
+        $num = $i + 1;
+        $question = $step['question'] ?? 'Unknown step';
+        $answer = strtoupper($step['answer'] ?? '?');
+        $summaryLines[] = "Step {$num}: {$question} → {$answer}";
+    }
+    $summary = implode("\n", $summaryLines);
+
+    // Build full report
+    $report = "TROUBLESHOOTING REPORT\n";
+    $report .= str_repeat("=", 40) . "\n";
+    $report .= "Issue: " . ($stepHistory[0]['issue_title'] ?? 'Unknown') . "\n";
+    $report .= "Date: " . date('Y-m-d H:i:s') . "\n";
+    $report .= "Technician: " . (Auth::userName() ?? 'Unknown') . "\n";
+    $report .= str_repeat("-", 40) . "\n\n";
+    $report .= "STEPS TAKEN:\n";
+    $report .= $summary . "\n\n";
+    $report .= str_repeat("-", 40) . "\n";
+    $report .= "RESULT: " . strtoupper($resultType) . "\n";
+    $report .= "SOLUTION: " . ($node['result_solution'] ?? 'No solution recorded') . "\n";
+    $report .= str_repeat("=", 40) . "\n";
+
+    return [
+        'solved' => $resultType === 'solved',
+        'escalated' => $resultType === 'escalation',
+        'hardware_replacement' => $resultType === 'hardware',
+        'redirect' => $resultType === 'redirect',
+        'message' => $node['question'] ?? 'Troubleshooting complete',
+        'detail' => $node['description'] ?? '',
+        'solution' => $node['result_solution'] ?? '',
+        'result_type' => $resultType,
+        'steps_taken' => count($stepHistory),
+        'summary' => $summary,
+        'report' => $report,
+    ];
+}
