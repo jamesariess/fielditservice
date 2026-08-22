@@ -3,6 +3,12 @@
  * All page-specific handlers included here.
  */
 
+// ==================== Base URL ====================
+var APP_BASE = (function() {
+    var m = window.location.pathname.match(/^(.*\/public)/);
+    return m ? m[1] + '/' : '/';
+})();
+
 // ==================== Dark Mode ====================
 function initDarkMode() {
     const mode = localStorage.getItem('theme');
@@ -54,6 +60,7 @@ function showToast(message, type) {
 
 // ==================== API Helper ====================
 function api(endpoint, options) {
+    if (endpoint.charAt(0) === '/') endpoint = APP_BASE + endpoint.substring(1);
     options = options || {};
     var csrfToken = '';
     var metaCsrf = document.querySelector('meta[name="csrf-token"]');
@@ -68,7 +75,7 @@ function api(endpoint, options) {
     return fetch(endpoint, merged).then(function(response) {
         return response.json().then(function(data) {
             if (!response.ok) {
-                if (response.status === 401) { window.location.href = '/login'; return; }
+                if (response.status === 401) { window.location.href = APP_BASE + 'login'; return; }
                 throw new Error(data.error || 'Request failed');
             }
             return data;
@@ -375,10 +382,52 @@ function ticketAnswer(ticketId, nodeId, answer) {
     if (!container) return;
     container.innerHTML = '<div style="text-align:center;padding:24px;"><div style="width:24px;height:24px;border:2px solid #2563eb;border-top-color:transparent;border-radius:50%;margin:0 auto;animation:spin 0.6s linear infinite;"></div></div>';
     api('/api/troubleshooting/decision', { method: 'POST', body: { node_id: nodeId, answer: answer } }).then(function(data) {
-        renderDecisionNode(ticketId, data);
+        // Terminal response (solved/escalated/hardware/redirect)
+        if (data.solved || data.escalated || data.hardware_replacement || data.redirect) {
+            renderTerminalResult(ticketId, data);
+        } else if (data.node) {
+            renderDecisionNode(ticketId, data);
+        } else {
+            renderTerminalResult(ticketId, { escalated: true, message: 'No further steps. Escalate to supervisor.', solution: '' });
+        }
     }).catch(function() {
         container.innerHTML = '<div style="padding:16px;"><p style="color:#dc2626;">Error processing answer.</p></div>';
     });
+}
+function renderTerminalResult(ticketId, data) {
+    var container = document.getElementById('troubleshoot-panel-' + ticketId);
+    if (!container) return;
+    var html = '<div style="padding:20px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+    html += '<h3 style="font-size:16px;font-weight:700;color:#111827;">Troubleshooting Result</h3>';
+    html += '<button onclick="ticketTroubleshoot(' + ticketId + ')" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:13px;">&#10005; Close</button>';
+    html += '</div>';
+    var icon, color, bgColor, borderColor, label;
+    if (data.solved) {
+        icon = 'check-circle'; color = '#16a34a'; bgColor = '#f0fdf4'; borderColor = '#bbf7d0'; label = 'Issue Resolved';
+    } else if (data.redirect) {
+        icon = 'arrow-right-circle'; color = '#2563eb'; bgColor = '#eff6ff'; borderColor = '#bfdbfe'; label = 'Redirect';
+    } else if (data.hardware_replacement) {
+        icon = 'cpu'; color = '#d97706'; bgColor = '#fffbeb'; borderColor = '#fde68a'; label = 'Hardware Replacement Needed';
+    } else {
+        icon = 'alert-triangle'; color = '#dc2626'; bgColor = '#fef2f2'; borderColor = '#fecaca'; label = 'Escalation Required';
+    }
+    html += '<div style="padding:16px;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:10px;margin-bottom:16px;">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><i data-lucide="' + icon + '" style="width:20px;height:20px;color:' + color + ';"></i><span style="font-size:15px;font-weight:700;color:' + color + ';">' + label + '</span></div>';
+    html += '<p style="font-size:13px;color:#374151;line-height:1.6;margin-bottom:8px;">' + (data.message || 'Resolution reached.') + '</p>';
+    if (data.detail) html += '<p style="font-size:12px;color:#64748b;">' + data.detail + '</p>';
+    if (data.solution) html += '<p style="font-size:12px;color:#475569;margin-top:8px;padding-top:8px;border-top:1px solid ' + borderColor + ';"><strong>Solution:</strong> ' + data.solution + '</p>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:8px;">';
+    if (data.solved) {
+        html += '<button onclick="ticketResolve(' + ticketId + ')" class="btn btn-success"><i data-lucide="check-circle" style="width:15px;height:15px;"></i> Mark as Resolved</button>';
+    } else if (data.escalated) {
+        html += '<button onclick="ticketEscalate(' + ticketId + ')" class="btn btn-warning"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i> Escalate Ticket</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+    container.innerHTML = html;
+    try { lucide.createIcons({ nodes: [container] }); } catch(e) {}
 }
 function ticketResolve(ticketId) {
     api('/api/tickets/action', { method: 'POST', body: { action: 'resolve', id: ticketId } }).then(function() {
@@ -613,6 +662,32 @@ document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openSearchModal(); }
     if (e.key === 'Escape') closeAllModals();
 });
+
+// ==================== Fix Base URLs for All Links ====================
+(function() {
+    function fixLinks() {
+        document.querySelectorAll('a[href]').forEach(function(a) {
+            var href = a.getAttribute('href');
+            if (href && href.charAt(0) === '/' && href.indexOf(APP_BASE) !== 0 && !href.match(/^\/(assets|css|js|images|fonts)/)) {
+                a.setAttribute('href', APP_BASE + href.substring(1));
+            }
+        });
+    }
+    // Fix links on DOM ready and after any AJAX content loads
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fixLinks);
+    } else {
+        fixLinks();
+    }
+    // Watch for new links added to DOM (modals, AJAX content)
+    var observer = new MutationObserver(function(mutations) {
+        var hasNewLinks = mutations.some(function(m) {
+            return m.addedNodes.length > 0;
+        });
+        if (hasNewLinks) fixLinks();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
 
 // ==================== Init ====================
 document.addEventListener('DOMContentLoaded', function() {

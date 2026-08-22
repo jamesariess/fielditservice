@@ -9,8 +9,7 @@ $demo = !defined('DEMO_MODE') || DEMO_MODE;
 $article = null;
 
 if (!$demo) {
-    $db = Database::getInstance();
-    $article = $db->fetch("SELECT ka.*, u.full_name as author_name FROM knowledge_articles ka LEFT JOIN users u ON ka.author_id = u.id WHERE ka.id = ?", [$articleId]);
+    $article = Database::fetch("SELECT ka.*, u.full_name as author_name FROM knowledge_articles ka LEFT JOIN users u ON ka.author_id = u.id WHERE ka.id = ?", [$articleId]);
 }
 
 // Demo data fallback
@@ -32,7 +31,7 @@ if (!$article) {
 }
 ?>
 <div style="max-width:800px;margin:0 auto;">
-    <a href="/knowledge" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#64748b;text-decoration:none;margin-bottom:20px;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#64748b'">
+    <a href="<?= $urlBase ?>knowledge" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#64748b;text-decoration:none;margin-bottom:20px;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#64748b'">
         <i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Back to Knowledge Base
     </a>
 
@@ -176,15 +175,15 @@ if (!$article) {
         <div class="card-header"><h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;"><i data-lucide="link" style="width:15px;height:15px;color:#64748b;"></i> Related Articles</h3></div>
         <div class="card-body">
             <div class="space-y-2">
-                <a href="/knowledge/view?id=2" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                <a href="<?= $urlBase ?>knowledge/view?id=2" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                     <i data-lucide="file-text" style="width:14px;height:14px;color:#64748b;"></i>
                     <span style="font-size:13px;color:#2563eb;font-weight:500;">Printer Offline — HP LaserJet Troubleshooting</span>
                 </a>
-                <a href="/knowledge/view?id=3" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                <a href="<?= $urlBase ?>knowledge/view?id=3" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                     <i data-lucide="file-text" style="width:14px;height:14px;color:#64748b;"></i>
                     <span style="font-size:13px;color:#2563eb;font-weight:500;">WiFi Connectivity Troubleshooting</span>
                 </a>
-                <a href="/knowledge/view?id=4" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                <a href="<?= $urlBase ?>knowledge/view?id=4" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                     <i data-lucide="file-text" style="width:14px;height:14px;color:#64748b;"></i>
                     <span style="font-size:13px;color:#2563eb;font-weight:500;">RAM Reseat Procedure</span>
                 </a>

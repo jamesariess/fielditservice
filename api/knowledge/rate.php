@@ -27,7 +27,7 @@ if (!$articleId || !$rating) {
     json_response(['error' => 'article_id and rating required'], 400);
 }
 
-if (!in_array($rating, ['helpful', 'not_helpful'])) {
+if (!in_array($rating, ['helpful', 'not_helpful', 'solved', 'partial', 'no'])) {
     json_response(['error' => 'Invalid rating'], 400);
 }
 
@@ -56,14 +56,16 @@ if ($existing) {
 }
 
 // Update article counters
-if ($rating === 'helpful') {
-    Database::query("UPDATE knowledge_articles SET helpful_count = helpful_count + 1, use_count = use_count + 1 WHERE id = ?", [$articleId]);
-} else {
-    Database::query("UPDATE knowledge_articles SET not_helpful_count = not_helpful_count + 1, use_count = use_count + 1 WHERE id = ?", [$articleId]);
-}
+$useCountUpdate = 'UPDATE knowledge_articles SET use_count = use_count + 1 WHERE id = ?';
+Database::query($useCountUpdate, [$articleId]);
 
-if ($solved === 'yes') {
-    Database::query("UPDATE knowledge_articles SET success_count = success_count + 1 WHERE id = ?", [$articleId]);
+if ($rating === 'helpful' || $rating === 'solved') {
+    Database::query("UPDATE knowledge_articles SET helpful_count = helpful_count + 1 WHERE id = ?", [$articleId]);
+    if ($rating === 'solved' || $solved === 'yes') {
+        Database::query("UPDATE knowledge_articles SET success_count = success_count + 1 WHERE id = ?", [$articleId]);
+    }
+} elseif ($rating === 'not_helpful' || $rating === 'no') {
+    Database::query("UPDATE knowledge_articles SET not_helpful_count = not_helpful_count + 1 WHERE id = ?", [$articleId]);
 }
 
 json_response(['success' => true]);

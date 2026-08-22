@@ -11,7 +11,7 @@ if (!$issue) { $issue = $issues[0]; $issueId = $issue['id']; }
 
 <div style="max-width:800px;margin:0 auto;">
     <!-- Back Button -->
-    <a href="/troubleshoot" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#64748b;text-decoration:none;margin-bottom:20px;transition:color 0.15s;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#64748b'">
+    <a href="<?= $urlBase ?>troubleshoot" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#64748b;text-decoration:none;margin-bottom:20px;transition:color 0.15s;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#64748b'">
         <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back to Troubleshoot
     </a>
     
@@ -107,7 +107,7 @@ let stepHistory = [];
 
 async function initWizard() {
     try {
-        const res = await fetch(`/api/troubleshooting/decision.php?issue=${issueId}`);
+        const res = await fetch(APP_BASE + 'api/troubleshooting/decision.php?issue=' + issueId);
         const data = await res.json();
         
         if (data.error) {
@@ -196,7 +196,7 @@ async function answerQuestion(answer) {
     document.getElementById('btn-no').disabled = true;
     
     try {
-        const res = await fetch('/api/troubleshooting/decision.php', {
+        const res = await fetch(APP_BASE + 'api/troubleshooting/decision.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -289,18 +289,18 @@ function showResult(type, data) {
     
     if (type === 'solved') {
         actions.innerHTML = `
-            <a href="/troubleshoot" class="btn btn-secondary btn-lg" style="flex:1;"><i data-lucide="arrow-left"></i> Back to Troubleshoot</a>
-            <a href="/tickets" class="btn btn-primary btn-lg" style="flex:1;"><i data-lucide="check-circle"></i> Mark Ticket Solved</a>
+            <a href="<?= $urlBase ?>troubleshoot" class="btn btn-secondary btn-lg" style="flex:1;"><i data-lucide="arrow-left"></i> Back to Troubleshoot</a>
+            <a href="<?= $urlBase ?>tickets" class="btn btn-primary btn-lg" style="flex:1;"><i data-lucide="check-circle"></i> Mark Ticket Solved</a>
         `;
     } else if (type === 'escalated') {
         actions.innerHTML = `
-            <a href="/troubleshoot" class="btn btn-secondary btn-lg" style="flex:1;"><i data-lucide="arrow-left"></i> Back to Troubleshoot</a>
+            <a href="<?= $urlBase ?>troubleshoot" class="btn btn-secondary btn-lg" style="flex:1;"><i data-lucide="arrow-left"></i> Back to Troubleshoot</a>
             <button class="btn btn-danger btn-lg" style="flex:1;" onclick="escalateTicket()"><i data-lucide="send"></i> Escalate to Supervisor</button>
         `;
     } else {
         actions.innerHTML = `
-            <a href="/troubleshoot" class="btn btn-secondary btn-lg" style="flex:1;"><i data-lucide="arrow-left"></i> Back to Troubleshoot</a>
-            ${data.redirect_issue ? `<a href="/troubleshoot/wizard?issue=${data.redirect_issue === 'power' ? 4 : 1}" class="btn btn-primary btn-lg" style="flex:1;"><i data-lucide="arrow-right"></i> Go to ${data.redirect_issue === 'power' ? 'No Power' : 'Related'} Guide</a>` : ''}
+            <a href="<?= $urlBase ?>troubleshoot" class="btn btn-secondary btn-lg" style="flex:1;"><i data-lucide="arrow-left"></i> Back to Troubleshoot</a>
+            ${data.redirect_issue ? `<a href="${APP_BASE}troubleshoot/wizard?issue=${data.redirect_issue === 'power' ? 4 : 1}" class="btn btn-primary btn-lg" style="flex:1;"><i data-lucide="arrow-right"></i> Go to ${data.redirect_issue === 'power' ? 'No Power' : 'Related'} Guide</a>` : ''}
         `;
     }
     
@@ -309,7 +309,7 @@ function showResult(type, data) {
 
 function escalateTicket() {
     showToast('Ticket escalated to supervisor with full diagnostic report.', 'success');
-    setTimeout(() => window.location.href = '/tickets', 1500);
+    setTimeout(() => window.location.href = APP_BASE + 'tickets', 1500);
 }
 
 function showError(msg) {
@@ -318,7 +318,7 @@ function showError(msg) {
             <i data-lucide="alert-circle" style="width:48px;height:48px;color:#dc2626;margin-bottom:16px;"></i>
             <h3 style="font-size:16px;font-weight:700;color:#111827;margin-bottom:8px;">Error</h3>
             <p style="font-size:13px;color:#64748b;">${msg}</p>
-            <a href="/troubleshoot" class="btn btn-primary" style="margin-top:16px;">Back to Troubleshoot</a>
+            <a href="<?= $urlBase ?>troubleshoot" class="btn btn-primary" style="margin-top:16px;">Back to Troubleshoot</a>
         </div>
     `;
     lucide.createIcons();

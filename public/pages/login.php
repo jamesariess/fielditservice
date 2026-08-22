@@ -95,9 +95,9 @@ if (session_status() === PHP_SESSION_NONE) session_start();
         errDiv.style.display = 'none';
         const fd = new FormData(e.target);
         try {
-            const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:fd.get('email'),password:fd.get('password'),remember:fd.get('remember')==='on'}) });
+            var base = (window.location.pathname.match(/^(.*\/public)/) || ['',''])[1]; const r = await fetch(base + '/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:fd.get('email'),password:fd.get('password'),remember:fd.get('remember')==='on'}) });
             const d = await r.json();
-            if (r.ok && d.success) window.location.href = d.redirect || '/';
+            if (r.ok && d.success) window.location.href = (d.redirect || '/').replace(/^\//, base + '/');
             else { errDiv.textContent = d.error || 'Invalid credentials'; errDiv.style.display = ''; }
         } catch(err) { errDiv.textContent = 'Connection error.'; errDiv.style.display = ''; }
         btn.disabled = false;

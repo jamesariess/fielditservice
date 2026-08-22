@@ -8,18 +8,26 @@ $tickets = [];
 
 if (!$demo) {
     try {
-        $db = Database::getInstance();
-        $tickets = $db->fetchAll("SELECT ts.*, u.full_name as assignee_name, tc.name as category_name FROM troubleshooting_sessions ts LEFT JOIN users u ON ts.assigned_to = u.id LEFT JOIN troubleshooting_categories tc ON ts.category_id = tc.id WHERE ts.user_id = ? ORDER BY ts.created_at DESC", [Auth::userId()]);
+        $tickets = Database::fetchAll(
+            "SELECT ts.*, i.title as issue_title, i.slug as issue_slug, c.name as category_name
+             FROM troubleshooting_sessions ts
+             LEFT JOIN troubleshooting_issues i ON ts.issue_id = i.id
+             LEFT JOIN troubleshooting_categories c ON i.category_id = c.id
+             WHERE ts.user_id = ?
+             ORDER BY ts.created_at DESC",
+            [Auth::userId()]
+        );
     } catch (Exception $e) {}
 }
 
+// Build issue slug lookup for fallback
 if (empty($tickets)) {
     $tickets = [
-        ['id'=>1001,'ticket_id'=>'TK-1001','title'=>'No Display — Desktop PC','description'=>'User reports black screen on Dell OptiPlex 7090','status'=>'solved','priority'=>'high','category_name'=>'Display','device'=>'Dell OptiPlex 7090','department'=>'Finance','location'=>'Floor 3, Desk 42','assignee_name'=>'Juan D.','created_at'=>'2026-08-22 09:15:00','issue_slug'=>'no-display'],
-        ['id'=>1002,'ticket_id'=>'TK-1002','title'=>'Network Slow — Floor 3','description'=>'Intermittent slow network on Floor 3','status'=>'in_progress','priority'=>'medium','category_name'=>'Network','device'=>'HP ProBook 450','department'=>'HR','location'=>'Floor 3, Room 301','assignee_name'=>'Maria S.','created_at'=>'2026-08-22 11:00:00','issue_slug'=>'network-slow'],
-        ['id'=>1003,'ticket_id'=>'TK-1003','title'=>'Printer Offline — Reception','description'=>'HP LaserJet Pro M404 not responding','status'=>'escalated','priority'=>'high','category_name'=>'Printer','device'=>'HP LaserJet Pro M404','department'=>'Reception','location'=>'Ground Floor, Reception','assignee_name'=>'You','created_at'=>'2026-08-22 08:30:00','issue_slug'=>'printer-offline'],
-        ['id'=>1004,'ticket_id'=>'TK-1004','title'=>'No Sound — Meeting Room','description'=>'No audio output from Lenovo ThinkCentre','status'=>'solved','priority'=>'medium','category_name'=>'Sound','device'=>'Lenovo ThinkCentre M70s','department'=>'Operations','location'=>'Floor 2, Meeting Room A','assignee_name'=>'Carlos R.','created_at'=>'2026-08-22 10:45:00','issue_slug'=>'no-sound'],
-        ['id'=>1005,'ticket_id'=>'TK-1005','title'=>'WiFi Not Connecting','description'=>'Cannot connect to WiFi on Dell Latitude','status'=>'in_progress','priority'=>'low','category_name'=>'Network','device'=>'Dell Latitude 5520','department'=>'Sales','location'=>'Floor 1, Sales Area','assignee_name'=>'Ana T.','created_at'=>'2026-08-22 11:30:00','issue_slug'=>'wifi-issue'],
+        ['id'=>1,'ticket_number'=>'TK-1001','problem_description'=>'User reports black screen on Dell OptiPlex 7090','status'=>'solved','priority'=>'high','category_name'=>'Display','model'=>'Dell OptiPlex 7090','department'=>'Finance','location'=>'Floor 3, Desk 42','customer_name'=>'Juan D.','created_at'=>'2026-08-22 09:15:00','issue_slug'=>'no-display','issue_title'=>'No Display'],
+        ['id'=>2,'ticket_number'=>'TK-1002','problem_description'=>'Intermittent slow network on Floor 3','status'=>'in_progress','priority'=>'medium','category_name'=>'Network','model'=>'HP ProBook 450','department'=>'HR','location'=>'Floor 3, Room 301','customer_name'=>'Maria S.','created_at'=>'2026-08-22 11:00:00','issue_slug'=>'network-slow','issue_title'=>'Network Slow'],
+        ['id'=>3,'ticket_number'=>'TK-1003','problem_description'=>'HP LaserJet Pro M404 not responding','status'=>'escalated','priority'=>'high','category_name'=>'Printer','model'=>'HP LaserJet Pro M404','department'=>'Reception','location'=>'Ground Floor, Reception','customer_name'=>'You','created_at'=>'2026-08-22 08:30:00','issue_slug'=>'printer-offline','issue_title'=>'Printer Offline'],
+        ['id'=>4,'ticket_number'=>'TK-1004','problem_description'=>'No audio output from Lenovo ThinkCentre','status'=>'solved','priority'=>'medium','category_name'=>'Sound','model'=>'Lenovo ThinkCentre M70s','department'=>'Operations','location'=>'Floor 2, Meeting Room A','customer_name'=>'Carlos R.','created_at'=>'2026-08-22 10:45:00','issue_slug'=>'no-sound','issue_title'=>'No Sound'],
+        ['id'=>5,'ticket_number'=>'TK-1005','problem_description'=>'Cannot connect to WiFi on Dell Latitude','status'=>'in_progress','priority'=>'low','category_name'=>'Network','model'=>'Dell Latitude 5520','department'=>'Sales','location'=>'Floor 1, Sales Area','customer_name'=>'Ana T.','created_at'=>'2026-08-22 11:30:00','issue_slug'=>'wifi-not-connecting','issue_title'=>'WiFi Not Connecting'],
     ];
 }
 
@@ -114,26 +122,31 @@ $departments = ['IT','Finance','HR','Operations','Sales','Reception','Marketing'
         <button onclick="ticketFilter('escalated')" class="btn btn-sm btn-secondary filter-btn" data-filter="escalated">Escalated</button>
     </div>
     <?php foreach ($tickets as $t):
+        $ticketId = $t['id'];
+        $ticketNum = $t['ticket_number'] ?? ('TK-' . $t['id']);
+        $title = ($t['issue_title'] ?? $t['issue_slug'] ?? 'Issue') . ' — ' . ($t['model'] ?? $t['device_type'] ?? '');
         $statusColor = $t['status'] === 'solved' ? '#16a34a' : ($t['status'] === 'escalated' ? '#dc2626' : '#d97706');
         $statusBg = $t['status'] === 'solved' ? '#f0fdf4' : ($t['status'] === 'escalated' ? '#fef2f2' : '#fffbeb');
         $priorityColor = ($t['priority'] ?? 'medium') === 'high' ? '#dc2626' : (($t['priority'] ?? '') === 'low' ? '#16a34a' : '#d97706');
         $timeAgo = isset($t['created_at']) ? date('M d, g:i A', strtotime($t['created_at'])) : 'Aug 22';
+        $assignee = $t['customer_name'] ?? $t['assignee_name'] ?? 'You';
+        $device = $t['model'] ?? $t['device'] ?? $t['device_type'] ?? '';
     ?>
     <div class="card ticket-card" data-status="<?= e($t['status']) ?>" style="margin-bottom:12px;">
         <div class="card-body">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
                 <div style="flex:1;">
                     <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
-                        <span style="font-size:12px;color:#64748b;font-weight:600;"><?= e($t['ticket_id'] ?? 'TK-'.$t['id']) ?></span>
+                        <span style="font-size:12px;color:#64748b;font-weight:600;"><?= e($ticketNum) ?></span>
                         <span class="badge" style="background:<?= $statusBg ?>;color:<?= $statusColor ?>;"><?= e(ucwords(str_replace('_',' ',$t['status']))) ?></span>
                         <span class="badge" style="background:<?= $priorityColor ?>20;color:<?= $priorityColor ?>;"><?= e(ucfirst($t['priority'] ?? 'medium')) ?></span>
                     </div>
-                    <h3 style="font-size:15px;font-weight:700;color:#111827;margin-bottom:4px;"><?= e($t['title']) ?></h3>
+                    <h3 style="font-size:15px;font-weight:700;color:#111827;margin-bottom:4px;"><?= e($title) ?></h3>
                     <div style="display:flex;gap:12px;font-size:12px;color:#94a3b8;flex-wrap:wrap;">
-                        <span>&#128187; <?= e($t['device'] ?? '') ?></span>
+                        <span>&#128187; <?= e($device) ?></span>
                         <span>&#127970; <?= e($t['department'] ?? '') ?></span>
                         <span>&#128205; <?= e($t['location'] ?? '') ?></span>
-                        <span>&#128100; <?= e($t['assignee_name'] ?? 'You') ?></span>
+                        <span>&#128100; <?= e($assignee) ?></span>
                     </div>
                 </div>
                 <div style="text-align:right;flex-shrink:0;">
@@ -141,13 +154,13 @@ $departments = ['IT','Finance','HR','Operations','Sales','Reception','Marketing'
                     <?php if ($t['status'] === 'solved'): ?>
                         <span style="color:#16a34a;font-size:13px;font-weight:600;">&#10004; Resolved</span>
                     <?php elseif ($t['status'] !== 'escalated'): ?>
-                        <button onclick="ticketTroubleshoot(<?= $t['id'] ?>, '<?= e($t['issue_slug'] ?? 'no-display') ?>')" class="btn btn-primary btn-sm"><i data-lucide="stethoscope" style="width:14px;height:14px;"></i> Troubleshoot</button>
+                        <button onclick="ticketTroubleshoot(<?= $ticketId ?>, '<?= e($t['issue_slug'] ?? 'no-display') ?>')" class="btn btn-primary btn-sm"><i data-lucide="stethoscope" style="width:14px;height:14px;"></i> Troubleshoot</button>
                     <?php else: ?>
                         <span style="color:#dc2626;font-size:12px;font-weight:600;">Escalated</span>
                     <?php endif; ?>
                 </div>
             </div>
-            <div id="troubleshoot-panel-<?= $t['id'] ?>" style="display:none;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:16px;"></div>
+            <div id="troubleshoot-panel-<?= $ticketId ?>" style="display:none;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:16px;"></div>
         </div>
     </div>
     <?php endforeach; ?>

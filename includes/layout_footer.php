@@ -8,12 +8,18 @@ $currentUser = [
     'role' => $_SESSION['role_name'] ?? 'User',
 ];
 
+$fUrlBase = '/';
+if (preg_match('#^(.*/public)#', $_SERVER['REQUEST_URI'] ?? '', $fm)) {
+    $fUrlBase = $fm[1] . '/';
+} elseif (php_sapi_name() === 'cli-server') {
+    $fUrlBase = '/';
+}
 $mainNav = [
-    ['id' => 'dashboard', 'label' => 'Home', 'icon' => 'layout-dashboard', 'url' => '/'],
-    ['id' => 'troubleshoot', 'label' => 'Fix', 'icon' => 'stethoscope', 'url' => '/troubleshoot'],
-    ['id' => 'ai', 'label' => 'AI', 'icon' => 'sparkles', 'url' => '/ai'],
-    ['id' => 'knowledge', 'label' => 'KB', 'icon' => 'book-open', 'url' => '/knowledge'],
-    ['id' => 'tickets', 'label' => 'Tickets', 'icon' => 'ticket', 'url' => '/tickets'],
+    ['id' => 'dashboard', 'label' => 'Home', 'icon' => 'layout-dashboard', 'url' => $fUrlBase],
+    ['id' => 'troubleshoot', 'label' => 'Fix', 'icon' => 'stethoscope', 'url' => $fUrlBase . 'troubleshoot'],
+    ['id' => 'ai', 'label' => 'AI', 'icon' => 'sparkles', 'url' => $fUrlBase . 'ai'],
+    ['id' => 'knowledge', 'label' => 'KB', 'icon' => 'book-open', 'url' => $fUrlBase . 'knowledge'],
+    ['id' => 'tickets', 'label' => 'Tickets', 'icon' => 'ticket', 'url' => $fUrlBase . 'tickets'],
 ];
 ?>
         </div>
@@ -46,7 +52,14 @@ $mainNav = [
         </div>
     </div>
 
-    <script src="/assets/js/app.js"></script>
+    <?php
+    $fUrlBase2 = '/';
+    if (preg_match('#^(.*/public)#', $_SERVER['REQUEST_URI'] ?? '', $fm2)) {
+        $fUrlBase2 = $fm2[1] . '/';
+    } elseif (php_sapi_name() === 'cli-server') {
+        $fUrlBase2 = '/';
+    }
+    ?>
     <script>lucide.createIcons();</script>
 </body>
 </html>

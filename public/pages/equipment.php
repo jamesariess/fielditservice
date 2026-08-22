@@ -80,7 +80,7 @@ require APP_ROOT . '/includes/layout_header.php';
                     ['mfg' => 'Hikvision', 'model' => 'DS-2CD2143G2-I', 'type' => 'CCTV Camera', 'issues' => 1, 'guides' => 2],
                 ];
                 foreach ($models as $m): ?>
-                    <tr class="table-row cursor-pointer" onclick="window.location='/equipment/model.php'">
+                    <tr class="table-row cursor-pointer" onclick="window.location=APP_BASE+'equipment/model.php'">
                         <td class="px-5 py-3">
                             <div class="flex items-center gap-2">
                                 <div class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">

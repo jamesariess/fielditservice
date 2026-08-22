@@ -42,6 +42,28 @@ $sidebarItems = [
     ['id' => 'admin-settings', 'label' => 'System Settings', 'icon' => 'settings-2', 'url' => '/admin/settings', 'perm' => 'system.settings'],
 ];
 
+$initials = '';
+foreach (explode(' ', $currentUser['name']) as $p) { $initials .= strtoupper(substr($p, 0, 1)); if (strlen($initials) >= 2) break; }
+
+// Calculate base URL from request URI (handles both direct Apache access and PHP built-in server)
+$urlBase = '/';
+if (preg_match('#^(.*/public)#', $_SERVER['REQUEST_URI'] ?? '', $m)) {
+    $urlBase = $m[1] . '/';
+} elseif (php_sapi_name() === 'cli-server') {
+    // PHP built-in server: started with -t public, so / is the base
+    $urlBase = '/';
+}
+
+// Prepend base to all sidebar/nav URLs
+foreach ($sidebarItems as &$item) {
+    if (isset($item['url'])) $item['url'] = $urlBase . ltrim($item['url'], '/');
+}
+unset($item);
+foreach ($mainNav as &$item) {
+    if (isset($item['url'])) $item['url'] = $urlBase . ltrim($item['url'], '/');
+}
+unset($item);
+
 $filteredSidebar = [];
 foreach ($sidebarItems as $item) {
     if (isset($item['section'])) {
@@ -54,9 +76,6 @@ foreach ($sidebarItems as $item) {
         $filteredSidebar[] = $item;
     }
 }
-
-$initials = '';
-foreach (explode(' ', $currentUser['name']) as $p) { $initials .= strtoupper(substr($p, 0, 1)); if (strlen($initials) >= 2) break; }
 ?>
 <!DOCTYPE html>
 <html lang="en" class="h-full">
@@ -76,7 +95,8 @@ foreach (explode(' ', $currentUser['name']) as $p) { $initials .= strtoupper(sub
         }
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="/assets/css/app.css">
+    <link rel="stylesheet" href="<?= $urlBase ?>assets/css/app.css">
+    <script src="<?= $urlBase ?>assets/js/app.js"></script>
     <style>
         .bottom-nav { display:none; position:fixed; bottom:0; left:0; right:0; z-index:60; background:rgba(255,255,255,0.95); backdrop-filter:blur(12px); border-top:1px solid #e5e7eb; padding:6px 0 env(safe-area-inset-bottom,6px); }
         .bottom-nav a { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 4px; font-size:10px; font-weight:600; color:#94a3b8; text-decoration:none; transition:color 0.15s; }
@@ -126,7 +146,7 @@ foreach (explode(' ', $currentUser['name']) as $p) { $initials .= strtoupper(sub
                 <div class="sidebar-user-name"><?= e($currentUser['name']) ?></div>
                 <div class="sidebar-user-role"><?= e($currentUser['role']) ?></div>
             </div>
-            <a href="/logout" class="header-btn" data-tooltip="Logout"><i data-lucide="log-out" style="width:16px;height:16px;"></i></a>
+            <a href="<?= $urlBase ?>logout" class="header-btn" data-tooltip="Logout"><i data-lucide="log-out" style="width:16px;height:16px;"></i></a>
         </div>
     </aside>
     <div class="app-main">

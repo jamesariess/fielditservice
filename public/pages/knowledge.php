@@ -11,7 +11,7 @@ require APP_ROOT . '/includes/layout_header.php';
             <p style="font-size:13px;color:#64748b;margin-top:2px;">Approved troubleshooting guides and technical documentation</p>
         </div>
         <?php if (Auth::hasPermission('documentation.create')): ?>
-            <a href="/documentation" class="btn btn-primary"><i data-lucide="plus" style="width:15px;height:15px;"></i> Submit Article</a>
+            <a href="<?= $urlBase ?>documentation" class="btn btn-primary"><i data-lucide="plus" style="width:15px;height:15px;"></i> Submit Article</a>
         <?php endif; ?>
     </div>
 
@@ -74,7 +74,7 @@ require APP_ROOT . '/includes/layout_header.php';
         foreach ($articles as $a):
             $cc = $catColors[$a['cat']] ?? ['bg'=>'#f1f5f9','fg'=>'#475569'];
         ?>
-            <a href="/knowledge/view?id=1" class="card card-hover" style="text-decoration:none;display:flex;flex-direction:column;">
+            <a href="<?= $urlBase ?>knowledge/view?id=1" class="card card-hover" style="text-decoration:none;display:flex;flex-direction:column;">
                 <div class="card-body" style="flex:1;">
                     <div style="display:flex;gap:6px;margin-bottom:10px;">
                         <span class="badge" style="background:<?= $cc['bg'] ?>;color:<?= $cc['fg'] ?>;"><?= ucfirst($a['cat']) ?></span>

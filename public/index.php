@@ -22,7 +22,12 @@ Auth::start();
 // Serve static files directly
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 if (preg_match('/\.(css|js|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|eot)$/', $uri)) {
-    $filePath = __DIR__ . $uri;
+    // For static files, use the full URI path relative to the server document root
+    // Try document root first (Apache), then __DIR__ (built-in server)
+    $filePath = $_SERVER['DOCUMENT_ROOT'] . $uri;
+    if (!file_exists($filePath)) {
+        $filePath = __DIR__ . $uri;
+    }
     if (file_exists($filePath)) {
         $mimeTypes = [
             'css' => 'text/css', 'js' => 'application/javascript', 'png' => 'image/png',
@@ -38,6 +43,12 @@ if (preg_match('/\.(css|js|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|eot)$/',
     }
     http_response_code(404);
     exit;
+}
+
+// Strip base path when accessed through Apache (e.g., /fielditservice/public/login -> /login)
+$publicPos = strpos($uri, '/public/');
+if ($publicPos !== false) {
+    $uri = substr($uri, $publicPos + 7); // +7 for '/public/'
 }
 
 // Strip .php extension for clean URLs

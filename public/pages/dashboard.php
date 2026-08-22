@@ -21,8 +21,8 @@ require APP_ROOT . '/includes/layout_header.php';
                    class="dark-input"
                    onfocus="this.style.boxShadow='0 0 0 3px rgba(37,99,235,0.12)';this.style.borderColor='#2563eb'"
                    onblur="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)';this.style.borderColor='#e5e7eb'"
-                   onkeydown="if(event.key==='Enter') window.location.href='/troubleshoot?q='+encodeURIComponent(this.value)">
-            <button onclick="window.location.href='/troubleshoot?q='+encodeURIComponent(document.getElementById('hero-search').value)"
+                   onkeydown="if(event.key==='Enter') window.location.href=APP_BASE+'troubleshoot?q='+encodeURIComponent(this.value)">
+            <button onclick="window.location.href=APP_BASE+'troubleshoot?q='+encodeURIComponent(document.getElementById('hero-search').value)"
                     style="position:absolute;right:6px;top:50%;transform:translateY(-50%);padding:8px 20px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background 0.15s;"
                     onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
                 <i data-lucide="zap" style="width:14px;height:14px;"></i>
@@ -36,7 +36,7 @@ require APP_ROOT . '/includes/layout_header.php';
 <div class="mb-10">
     <div class="flex items-center justify-between mb-5">
         <h2 class="text-[17px] font-bold text-gray-900 dark:text-white">Quick Troubleshooting</h2>
-        <a href="/troubleshoot" class="text-[13px] font-semibold text-brand-600 hover:text-brand-700 transition">View all <i data-lucide="arrow-right" style="width:13px;height:13px;display:inline;"></i></a>
+        <a href="<?= $urlBase ?>troubleshoot" class="text-[13px] font-semibold text-brand-600 hover:text-brand-700 transition">View all <i data-lucide="arrow-right" style="width:13px;height:13px;display:inline;"></i></a>
     </div>
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
         <?php
@@ -55,7 +55,7 @@ require APP_ROOT . '/includes/layout_header.php';
             ['icon' => 'smartphone', 'label' => 'Other', 'query' => 'other device', 'bg' => '#f1f5f9', 'fg' => '#64748b'],
         ];
         foreach ($categories as $cat): ?>
-            <a href="/troubleshoot?q=<?= urlencode($cat['query']) ?>" class="quick-card" style="border-color:#e5e7eb;">
+            <a href="<?= $urlBase ?>troubleshoot?q=<?= urlencode($cat['query']) ?>" class="quick-card" style="border-color:#e5e7eb;">
                 <div class="quick-card-icon" style="background:<?= $cat['bg'] ?>;color:<?= $cat['fg'] ?>;">
                     <i data-lucide="<?= $cat['icon'] ?>"></i>
                 </div>
@@ -103,7 +103,7 @@ require APP_ROOT . '/includes/layout_header.php';
                     <i data-lucide="clock" style="width:16px;height:16px;color:#64748b;"></i>
                     <h3 class="text-[15px] font-bold text-gray-900 dark:text-white">Recent Troubleshooting</h3>
                 </div>
-                <a href="/tickets" class="text-[13px] font-semibold text-brand-600 hover:text-brand-700">View all</a>
+                <a href="<?= $urlBase ?>tickets" class="text-[13px] font-semibold text-brand-600 hover:text-brand-700">View all</a>
             </div>
             <div class="card-body" style="padding-top:0;">
                 <div class="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -116,7 +116,7 @@ require APP_ROOT . '/includes/layout_header.php';
                         ['title' => 'WiFi Not Connecting', 'status' => 'In Progress', 'badge' => 'badge-yellow', 'user' => 'Ana T.', 'time' => '1d ago', 'device' => 'Dell Latitude 5520'],
                     ];
                     foreach ($recent as $i => $r): ?>
-                        <a href="/troubleshoot/wizard?issue=no-display" class="flex items-center gap-4 py-3.5 -mx-1 px-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group" style="text-decoration:none;">
+                        <a href="<?= $urlBase ?>troubleshoot/wizard?issue=no-display" class="flex items-center gap-4 py-3.5 -mx-1 px-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group" style="text-decoration:none;">
                             <div class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
                                 <i data-lucide="<?= $i === 0 ? 'monitor' : ($i === 1 ? 'wifi' : ($i === 2 ? 'printer' : ($i === 3 ? 'volume-2' : 'wifi'))) ?>" style="width:18px;height:18px;color:#64748b;"></i>
                             </div>
@@ -191,7 +191,7 @@ require APP_ROOT . '/includes/layout_header.php';
                         ['icon' => 'arrow-up-right', 'label' => 'Escalate Issue', 'url' => '/tickets?action=escalate', 'color' => '#dc2626', 'bg' => '#fef2f2'],
                     ];
                     foreach ($actions as $a): ?>
-                        <a href="<?= $a['url'] ?>" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group" style="text-decoration:none;">
+                        <a href="<?= $urlBase . ltrim($a['url'], '/') ?>" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group" style="text-decoration:none;">
                             <div style="width:32px;height:32px;border-radius:8px;background:<?= $a['bg'] ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform 0.15s;" class="group-hover:scale-110">
                                 <i data-lucide="<?= $a['icon'] ?>" style="width:15px;height:15px;color:<?= $a['color'] ?>;"></i>
                             </div>
@@ -251,7 +251,7 @@ require APP_ROOT . '/includes/layout_header.php';
                 <p class="text-[13px] text-gray-600 dark:text-gray-300 leading-relaxed">
                     Before replacing a component, test the suspected component against a known-good component whenever practical. This saves time and prevents unnecessary replacements.
                 </p>
-                <a href="/tools" class="inline-flex items-center gap-1 mt-3 text-[12px] font-semibold text-brand-600 hover:text-brand-700" style="text-decoration:none;">
+                <a href="<?= $urlBase ?>tools" class="inline-flex items-center gap-1 mt-3 text-[12px] font-semibold text-brand-600 hover:text-brand-700" style="text-decoration:none;">
                     More tips <i data-lucide="arrow-right" style="width:12px;height:12px;"></i>
                 </a>
             </div>
