@@ -40,6 +40,58 @@ function closeSidebar() {
     document.getElementById('sidebar-overlay').classList.remove('active');
 }
 
+// ==================== Notifications ====================
+function toggleNotifications() {
+    var dd = document.getElementById('notif-dropdown');
+    if (dd) dd.classList.toggle('open');
+}
+function loadNotifications() {
+    var list = document.getElementById('notif-list');
+    if (!list) return;
+    api('/api/notifications').then(function(data) {
+        var items = data.notifications || data;
+        if (!items || !items.length) {
+            list.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">No notifications yet</div>';
+            return;
+        }
+        var html = '';
+        items.forEach(function(n) {
+            var readClass = n.is_read ? 'notif-dot-read' : 'notif-dot-unread';
+            var time = '';
+            if (n.created_at) {
+                var diff = (Date.now() - new Date(n.created_at).getTime()) / 1000;
+                if (diff < 60) time = 'Just now';
+                else if (diff < 3600) time = Math.floor(diff/60) + 'm ago';
+                else if (diff < 86400) time = Math.floor(diff/3600) + 'h ago';
+                else time = Math.floor(diff/86400) + 'd ago';
+            }
+            html += '<div class="notif-item">' +
+                '<div class="' + readClass + '"></div>' +
+                '<div style="flex:1;min-width:0;">' +
+                    '<div style="font-size:13px;font-weight:600;color:#111827;">' + (n.title || 'Notification') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">' + (n.message || '') + '</div>' +
+                    '<div style="font-size:11px;color:#cbd5e1;margin-top:4px;">' + time + '</div>' +
+                '</div>' +
+            '</div>';
+        });
+        list.innerHTML = html;
+        var dot = document.getElementById('notif-dot');
+        if (dot) {
+            var unread = items.filter(function(n) { return !n.is_read; }).length;
+            dot.style.display = unread > 0 ? '' : 'none';
+        }
+    }).catch(function() {
+        list.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">No notifications</div>';
+    });
+}
+document.addEventListener('click', function(e) {
+    var dd = document.getElementById('notif-dropdown');
+    var btn = document.getElementById('notif-btn');
+    if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
+        dd.classList.remove('open');
+    }
+});
+
 // ==================== Toasts ====================
 function showToast(message, type) {
     type = type || 'info';
@@ -680,13 +732,15 @@ document.addEventListener('keydown', function(e) {
         fixLinks();
     }
     // Watch for new links added to DOM (modals, AJAX content)
-    var observer = new MutationObserver(function(mutations) {
-        var hasNewLinks = mutations.some(function(m) {
-            return m.addedNodes.length > 0;
+    if (document.body) {
+        var observer = new MutationObserver(function(mutations) {
+            var hasNewLinks = mutations.some(function(m) {
+                return m.addedNodes.length > 0;
+            });
+            if (hasNewLinks) fixLinks();
         });
-        if (hasNewLinks) fixLinks();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
 })();
 
 // ==================== Init ====================
@@ -711,4 +765,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('offline', updateConn);
     // Init icons
     try { lucide.createIcons(); } catch(e) {}
+    // Load notifications if dropdown exists
+    if (document.getElementById('notif-list')) loadNotifications();
 });

@@ -162,7 +162,24 @@ foreach ($sidebarItems as $item) {
                     <i data-lucide="sun" style="width:18px;height:18px;" class="dark:hidden"></i>
                     <i data-lucide="moon" style="width:18px;height:18px;" class="hidden dark:block"></i>
                 </button>
-                <button class="header-btn" data-tooltip="Notifications"><i data-lucide="bell" style="width:18px;height:18px;"></i><span class="dot"></span></button>
+                <div style="position:relative;">
+                    <button id="notif-btn" class="header-btn" data-tooltip="Notifications" onclick="toggleNotifications()" style="position:relative;">
+                        <i data-lucide="bell" style="width:18px;height:18px;"></i>
+                        <span class="dot" id="notif-dot"></span>
+                    </button>
+                    <div id="notif-dropdown" class="notif-dropdown">
+                        <div style="padding:16px 16px 12px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+                            <span style="font-size:14px;font-weight:700;color:#111827;">Notifications</span>
+                            <button onclick="document.getElementById('notif-dot').style.display='none'" style="font-size:12px;color:#2563eb;background:none;border:none;cursor:pointer;font-weight:600;">Mark all read</button>
+                        </div>
+                        <div id="notif-list" style="max-height:360px;overflow-y:auto;">
+                            <div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">Loading notifications...</div>
+                        </div>
+                        <div style="padding:12px 16px;border-top:1px solid #f1f5f9;text-align:center;">
+                            <a href="<?= $urlBase ?>admin/audit-logs" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;">View all activity</a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
         <div class="page-content">
