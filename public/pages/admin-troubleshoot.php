@@ -716,18 +716,18 @@ if (!in_array(strtolower($roleName), ['admin', 'super admin', 'super_admin'])) {
         <h3 id="node-panel-title">Add Step</h3>
         <button class="tm-panel-close" onclick="closeNodePanel()"><i data-lucide="x"></i></button>
     </div>
-    <div class="tm-panel-body">
-        <!-- Step Title -->
+    <div class="tm-panel-body" id="node-panel-body">
+        <!-- Title -->
         <div class="tm-fg">
-            <label class="tm-fl">Step Title *</label>
-            <input class="tm-fi" id="en-question" placeholder="e.g., Reseat the RAM modules">
+            <label class="tm-fl">Title *</label>
+            <input class="tm-fi" id="en-question" placeholder="e.g., Is the power cable connected?">
         </div>
-        <!-- Instructions -->
+        <!-- Instructions / Description -->
         <div class="tm-fg">
             <label class="tm-fl">Instructions *</label>
             <textarea class="tm-ft" id="en-desc" placeholder="Detailed instructions for the technician..." style="min-height:70px;"></textarea>
         </div>
-        <!-- Risk Level -->
+        <!-- Risk Level + Step Order (auto) -->
         <div class="tm-fr">
             <div class="tm-fg">
                 <label class="tm-fl">Risk Level</label>
@@ -736,65 +736,70 @@ if (!in_array(strtolower($roleName), ['admin', 'super admin', 'super_admin'])) {
                 </select>
             </div>
             <div class="tm-fg">
-                <label class="tm-fl">Step Order</label>
-                <input class="tm-fi" id="en-steporder" type="number" value="10" min="1">
+                <label class="tm-fl">Order (auto)</label>
+                <input class="tm-fi" id="en-steporder" type="number" value="10" min="1" readonly style="background:#f8fafc;">
             </div>
         </div>
+        <!-- Device -->
         <div class="tm-fg">
-            <label class="tm-fl">Visible on Device</label>
+            <label class="tm-fl">Device</label>
             <select class="tm-fs" id="en-device">
                 <option value="all">All Devices</option>
             </select>
-            <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Which device does this step apply to? "All" shows for every device.</div>
         </div>
-        <!-- Visual Guide Groups -->
-        <div class="tm-fg">
-            <label class="tm-fl">Visual Guides (sequential steps)</label>
-            <div id="en-guides-area">
-                <div id="en-guides-list"></div>
-                <button class="tm-btn tm-btn-secondary" onclick="addGuideGroup()" style="margin-top:8px;font-size:12px;padding:6px 12px;">
-                    <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Guide Step
-                </button>
-                <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Add sequential steps the technician follows. Each step has instructions and an optional image.</div>
+        <!-- ===== QUESTION-ONLY FIELDS ===== -->
+        <div id="question-fields">
+            <div class="tm-fg">
+                <label class="tm-fl">Why must this question be answered?</label>
+                <textarea class="tm-ft" id="en-whyanswer" placeholder="e.g., This determines if the issue is power-related or cable-related..." style="min-height:50px;"></textarea>
+                <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Explain to the technician why this diagnostic question matters.</div>
             </div>
-        </div>
-        <!-- Expected Result -->
-        <div class="tm-fg">
-            <label class="tm-fl">Expected Result</label>
-            <input class="tm-fi" id="en-expected" placeholder="What should happen after this step (e.g., Display shows POST screen)">
-        </div>
-        <!-- Tools Needed -->
-        <div class="tm-fg">
-            <label class="tm-fl">Tools Needed</label>
-            <div id="en-tools-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
-            <div style="display:flex;gap:6px;">
-                <input class="tm-fi" id="en-tools-input" placeholder="Type a tool and press Add" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addTool();}">
-                <button class="tm-btn tm-btn-secondary" onclick="addTool()" style="padding:8px 12px;font-size:12px;">Add</button>
-            </div>
-        </div>
-        <!-- Visibility -->
-        <div class="tm-fg" style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;">
-            <label class="tm-fl" style="color:#2563eb;margin-bottom:8px;">👁️ When is this step visible?</label>
-            <div class="tm-fr" style="gap:10px;">
-                <div class="tm-fg" style="margin-bottom:0;">
-                    <label class="tm-fl" style="font-size:11px;">Linked to Question</label>
-                    <select class="tm-fs" id="en-via" style="font-size:13px;">
-                        <option value="">Always (no question filter)</option>
-                    </select>
-                </div>
-                <div class="tm-fg" style="margin-bottom:0;">
-                    <label class="tm-fl" style="font-size:11px;">Show when answer is</label>
-                    <select class="tm-fs" id="en-visibility" style="font-size:13px;">
-                        <option value="always">Always</option>
-                        <option value="yes_only">YES only</option>
-                        <option value="no_only">NO only</option>
-                        <option value="both">BOTH (YES or NO)</option>
-                    </select>
+            <!-- Step Visibility Assignment -->
+            <div class="tm-fg" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;">
+                <label class="tm-fl" style="color:#16a34a;margin-bottom:6px;">Assign Steps to YES / NO / BOTH</label>
+                <div style="font-size:11px;color:#64748b;margin-bottom:10px;">Check which troubleshooting steps appear when the technician answers YES, NO, or BOTH to this question.</div>
+                <div id="step-visibility-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                    <div>
+                        <div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px;display:flex;align-items:center;gap:4px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#dcfce7;border-radius:4px;font-size:10px;">Y</span> YES only</div>
+                        <div id="sv-yes" style="max-height:150px;overflow-y:auto;border:1px solid #d1fae5;border-radius:8px;padding:6px;background:#fff;"></div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:6px;display:flex;align-items:center;gap:4px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#fee2e2;border-radius:4px;font-size:10px;">N</span> NO only</div>
+                        <div id="sv-no" style="max-height:150px;overflow-y:auto;border:1px solid #fecaca;border-radius:8px;padding:6px;background:#fff;"></div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:6px;display:flex;align-items:center;gap:4px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#fef3c7;border-radius:4px;font-size:10px;">B</span> BOTH</div>
+                        <div id="sv-both" style="max-height:150px;overflow-y:auto;border:1px solid #fde68a;border-radius:8px;padding:6px;background:#fff;"></div>
+                    </div>
                 </div>
             </div>
-            <div style="font-size:11px;color:#64748b;margin-top:6px;">Link this step to a diagnostic question. If "Always", it shows regardless of the answer.</div>
         </div>
-        <!-- Result Type (for terminal nodes) -->
+        <!-- ===== STEP-ONLY FIELDS ===== -->
+        <div id="step-fields" style="display:none;">
+            <div class="tm-fg">
+                <label class="tm-fl">Visual Guides (sequential steps)</label>
+                <div id="en-guides-area">
+                    <div id="en-guides-list"></div>
+                    <button class="tm-btn tm-btn-secondary" onclick="addGuideGroup()" style="margin-top:8px;font-size:12px;padding:6px 12px;">
+                        <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Guide Step
+                    </button>
+                    <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Sequential sub-steps the technician follows. Each has text and an optional image.</div>
+                </div>
+            </div>
+            <div class="tm-fg">
+                <label class="tm-fl">Expected Result</label>
+                <input class="tm-fi" id="en-expected" placeholder="What should happen (e.g., Display shows POST screen)">
+            </div>
+            <div class="tm-fg">
+                <label class="tm-fl">Tools Needed</label>
+                <div id="en-tools-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+                <div style="display:flex;gap:6px;">
+                    <input class="tm-fi" id="en-tools-input" placeholder="Type a tool and press Add" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addTool();}">
+                    <button class="tm-btn tm-btn-secondary" onclick="addTool()" style="padding:8px 12px;font-size:12px;">Add</button>
+                </div>
+            </div>
+        </div>
+        <!-- ===== TERMINAL FIELDS ===== -->
         <div id="terminal-fields" style="display:none;">
             <div class="tm-fr">
                 <div class="tm-fg">
@@ -812,8 +817,8 @@ if (!in_array(strtolower($roleName), ['admin', 'super admin', 'super_admin'])) {
     </div>
     <div class="tm-panel-foot">
         <button class="tm-btn tm-btn-secondary" onclick="closeNodePanel()">Cancel</button>
-        <button class="tm-btn tm-btn-primary" id="node-save-btn" onclick="saveStepFromPanel()">
-            <i data-lucide="save"></i> Save Step
+        <button class="tm-btn tm-btn-primary" id="node-save-btn" onclick="saveFromPanel()">
+            <i data-lucide="save"></i> Save
         </button>
     </div>
 </div>
@@ -1201,7 +1206,7 @@ function renderTreeEditor(terminals) {
     // Terminal nodes
     if (terminals && terminals.length) {
         html += '<div class="tm-tree-section">';
-        html += '<div class="tm-tree-section-head"><h3>Terminal Results</h3><span class="count">'+terminals.length+' results</span></div>';
+        html += '<div class="tm-tree-section-head"><h3>Terminal Results</h3><span class="count">'+terminals.length+' results</span><button class="tm-btn tm-btn-primary" style="padding:6px 12px;font-size:12px;" onclick="event.stopPropagation();addTerminalToTree()"><i data-lucide="plus"></i> Add Result</button></div>';
         html += '<div>';
         terminals.forEach(function(t) {
             var typeC = t.result_type==='solved'?'#16a34a':t.result_type==='hardware'?'#d97706':'#dc2626';
@@ -1209,6 +1214,7 @@ function renderTreeEditor(terminals) {
             html += '<div class="step-head">';
             html += '<span class="step-title">'+esc(t.question)+'</span>';
             html += '<span class="tm-sev '+(t.result_type==='solved'?'low':t.result_type==='hardware'?'medium':'critical')+'" style="font-size:10px;">'+t.result_type+'</span>';
+            html += '<button class="tm-icon-btn edit" onclick="editTerminal('+t.id+')" title="Edit"><i data-lucide="pencil"></i></button>';
             html += '<button class="tm-icon-btn del" onclick="deleteNode('+t.id+')" title="Delete"><i data-lucide="trash-2"></i></button>';
             html += '</div>';
             if (t.result_solution) html += '<div class="step-desc">'+esc(t.result_solution)+'</div>';
@@ -1221,104 +1227,196 @@ function renderTreeEditor(terminals) {
 }
 
 // ===== QUESTION OPERATIONS =====
+var currentFormMode = 'step'; // 'question', 'step', or 'terminal'
+
 function addQuestionToTree() {
     editingNodeId = null;
+    currentFormMode = 'question';
     document.getElementById('node-panel-title').textContent = 'Add Diagnostic Question';
     document.getElementById('en-question').value = '';
     document.getElementById('en-desc').value = '';
     document.getElementById('en-risk').value = 'safe';
-    document.getElementById('en-steporder').value = 10;
+    document.getElementById('en-whyanswer').value = '';
     currentTools = []; guideGroups = [];
     renderToolTags(); renderGuideGroups();
     populateDeviceDropdown(selectedDevice);
-    hideStepFields();
+    // Auto order: max existing question order + 10
+    var maxOrder = 0;
+    treeQuestions.forEach(function(q) { if (q.step_order > maxOrder) maxOrder = q.step_order; });
+    document.getElementById('en-steporder').value = maxOrder + 10;
+    // Show/hide sections
+    document.getElementById('question-fields').style.display = '';
+    document.getElementById('step-fields').style.display = 'none';
+    document.getElementById('terminal-fields').style.display = 'none';
+    document.getElementById('node-save-btn').innerHTML = '<i data-lucide="save"></i> Save Question';
+    // Build step visibility checkboxes
+    buildStepVisibilityGrid(null, null, null);
     document.getElementById('node-overlay').classList.add('open');
     document.getElementById('node-panel').classList.add('open'); lucide.createIcons();
 }
+
 function editQuestion(qId) {
     var q = treeQuestions.find(function(x){return x.id==qId;});
     if (!q) return;
     editingNodeId = qId;
+    currentFormMode = 'question';
     document.getElementById('node-panel-title').textContent = 'Edit Question';
     document.getElementById('en-question').value = q.question || '';
     document.getElementById('en-desc').value = q.description || '';
     document.getElementById('en-risk').value = q.risk || 'safe';
     document.getElementById('en-steporder').value = q.step_order || 10;
+    document.getElementById('en-whyanswer').value = q.why_answer || '';
     currentTools = []; guideGroups = [];
     renderToolTags(); renderGuideGroups();
     populateDeviceDropdown(q.device_type || 'all');
-    hideStepFields();
+    document.getElementById('question-fields').style.display = '';
+    document.getElementById('step-fields').style.display = 'none';
+    document.getElementById('terminal-fields').style.display = 'none';
+    document.getElementById('node-save-btn').innerHTML = '<i data-lucide="save"></i> Save Question';
+    // Build step visibility — pre-check steps linked to this question
+    buildStepVisibilityGrid(qId, q.device_type || 'all');
     document.getElementById('node-overlay').classList.add('open');
     document.getElementById('node-panel').classList.add('open'); lucide.createIcons();
 }
 
-function hideStepFields() {
-    ['en-guides-area','en-expected'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) { var p = el.closest('.tm-fg'); if (p) p.style.display = 'none'; }
+// Build the YES / NO / BOTH step checkboxes for a question
+function buildStepVisibilityGrid(questionId, filterDevice) {
+    // Get steps for this issue + device
+    var device = filterDevice || selectedDevice || 'all';
+    var stepsForDevice = treeSteps.filter(function(s) {
+        return s.node_type === 'step' && !s.is_terminal &&
+            (s.device_type === 'all' || s.device_type === device || device === 'all');
     });
-    var toolsFg = document.getElementById('en-tools-list');
-    if (toolsFg) { var tp = toolsFg.closest('.tm-fg'); if (tp) tp.style.display = 'none'; }
-    var toolsDiv = document.getElementById('en-tools-input');
-    if (toolsDiv) { var td = toolsDiv.closest('div'); if (td) td.style.display = 'none'; }
-    var viaFg = document.getElementById('en-via');
-    if (viaFg) { var vp = viaFg.closest('.tm-fg'); if (vp) vp.parentElement.style.display = 'none'; }
-    document.getElementById('terminal-fields').style.display = 'none';
-}
-function showStepFields() {
-    ['en-guides-area','en-expected'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) { var p = el.closest('.tm-fg'); if (p) p.style.display = ''; }
+    // Also include steps with device 'all' when filtering
+    var allSteps = treeSteps.filter(function(s) {
+        return s.node_type === 'step' && !s.is_terminal;
     });
-    var toolsFg = document.getElementById('en-tools-list');
-    if (toolsFg) { var tp = toolsFg.closest('.tm-fg'); if (tp) tp.style.display = ''; }
-    var toolsDiv = document.getElementById('en-tools-input');
-    if (toolsDiv) { var td = toolsDiv.closest('div'); if (td) td.style.display = ''; }
-    var viaFg = document.getElementById('en-via');
-    if (viaFg) { var vp = viaFg.closest('.tm-fg'); if (vp) vp.parentElement.style.display = ''; }
-    document.getElementById('terminal-fields').style.display = 'none';
+
+    var yesHtml = '', noHtml = '', bothHtml = '';
+    var targetSteps = stepsForDevice.length > 0 ? stepsForDevice : allSteps;
+
+    if (!targetSteps.length) {
+        var msg = '<div style="text-align:center;padding:12px;color:#94a3b8;font-size:11px;">No steps yet. Add troubleshooting steps first.</div>';
+        document.getElementById('sv-yes').innerHTML = msg;
+        document.getElementById('sv-no').innerHTML = msg;
+        document.getElementById('sv-both').innerHTML = msg;
+        return;
+    }
+
+    targetSteps.forEach(function(s) {
+        var label = esc(s.question || 'Step #' + s.id);
+        var checked_yes = '', checked_no = '', checked_both = '';
+        if (questionId && s.visible_for_question_id == questionId) {
+            if (s.visibility_mode === 'yes_only') checked_yes = 'checked';
+            else if (s.visibility_mode === 'no_only') checked_no = 'checked';
+            else if (s.visibility_mode === 'both') checked_both = 'checked';
+            else if (s.visibility_mode === 'always') { checked_yes = 'checked'; checked_no = 'checked'; checked_both = 'checked'; }
+        }
+        var cb = '<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:11px;cursor:pointer;border-radius:4px;transition:background 0.15s;" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'transparent\'">';
+        yesHtml += cb + '<input type="radio" name="sv_'+s.id+'" value="yes_only" ' + checked_yes + ' style="accent-color:#16a34a;"> ' + label + '</label>';
+        noHtml += cb + '<input type="radio" name="sv_'+s.id+'" value="no_only" ' + checked_no + ' style="accent-color:#dc2626;"> ' + label + '</label>';
+        bothHtml += cb + '<input type="radio" name="sv_'+s.id+'" value="both" ' + checked_both + ' style="accent-color:#d97706;"> ' + label + '</label>';
+    });
+    document.getElementById('sv-yes').innerHTML = yesHtml || '<div style="padding:8px;color:#94a3b8;font-size:11px;">No steps</div>';
+    document.getElementById('sv-no').innerHTML = noHtml || '<div style="padding:8px;color:#94a3b8;font-size:11px;">No steps</div>';
+    document.getElementById('sv-both').innerHTML = bothHtml || '<div style="padding:8px;color:#94a3b8;font-size:11px;">No steps</div>';
 }
 
 // ===== STEP OPERATIONS =====
 function addStepToTree() {
     editingNodeId = null;
+    currentFormMode = 'step';
     document.getElementById('node-panel-title').textContent = 'Add Troubleshooting Step';
     document.getElementById('en-question').value = '';
     document.getElementById('en-desc').value = '';
     document.getElementById('en-risk').value = 'safe';
-    document.getElementById('en-steporder').value = treeSteps.length + 1;
     document.getElementById('en-expected').value = '';
-    document.getElementById('en-visibility').value = 'always';
     currentTools = []; guideGroups = [];
     renderToolTags(); renderGuideGroups();
     populateDeviceDropdown(selectedDevice);
-    showStepFields();
-    buildQuestionDropdown(null);
+    // Auto order: max existing step order + 10
+    var maxOrder = 0;
+    treeSteps.forEach(function(s) { if (!s.is_terminal && s.step_order > maxOrder) maxOrder = s.step_order; });
+    document.getElementById('en-steporder').value = maxOrder + 10;
+    document.getElementById('question-fields').style.display = 'none';
+    document.getElementById('step-fields').style.display = '';
+    document.getElementById('terminal-fields').style.display = 'none';
+    document.getElementById('node-save-btn').innerHTML = '<i data-lucide="save"></i> Save Step';
     document.getElementById('node-overlay').classList.add('open');
     document.getElementById('node-panel').classList.add('open'); lucide.createIcons();
 }
+
 function editStep(stepId) {
     var s = treeSteps.find(function(x){return x.id==stepId;});
     if (!s) return;
     editingNodeId = stepId;
+    currentFormMode = 'step';
     document.getElementById('node-panel-title').textContent = 'Edit Step';
     document.getElementById('en-question').value = s.question || '';
     document.getElementById('en-desc').value = s.description || '';
     document.getElementById('en-risk').value = s.risk || 'safe';
     document.getElementById('en-steporder').value = s.step_order || 10;
     document.getElementById('en-expected').value = s.expected_result || '';
-    document.getElementById('en-visibility').value = s.visibility_mode || 'always';
     currentTools = s.tools_needed ? s.tools_needed.split(',').map(function(t){return t.trim();}).filter(Boolean) : [];
     renderToolTags();
     guideGroups = [];
     if (s.visual_guide_images) { try { guideGroups = JSON.parse(s.visual_guide_images); } catch(e) {} }
     renderGuideGroups();
     populateDeviceDropdown(s.device_type || 'all');
-    showStepFields();
-    buildQuestionDropdown(s.visible_for_question_id);
+    document.getElementById('question-fields').style.display = 'none';
+    document.getElementById('step-fields').style.display = '';
+    document.getElementById('terminal-fields').style.display = 'none';
+    document.getElementById('node-save-btn').innerHTML = '<i data-lucide="save"></i> Save Step';
     document.getElementById('node-overlay').classList.add('open');
     document.getElementById('node-panel').classList.add('open'); lucide.createIcons();
 }
+
+function addTerminalToTree() {
+    editingNodeId = null;
+    currentFormMode = 'terminal';
+    document.getElementById('node-panel-title').textContent = 'Add Terminal Result';
+    document.getElementById('en-question').value = '';
+    document.getElementById('en-desc').value = '';
+    document.getElementById('en-risk').value = 'safe';
+    document.getElementById('en-result').value = 'solved';
+    document.getElementById('en-solution').value = '';
+    currentTools = []; guideGroups = [];
+    renderToolTags(); renderGuideGroups();
+    populateDeviceDropdown(selectedDevice);
+    var maxOrder = 0;
+    treeSteps.forEach(function(s) { if (s.step_order > maxOrder) maxOrder = s.step_order; });
+    document.getElementById('en-steporder').value = maxOrder + 10;
+    document.getElementById('question-fields').style.display = 'none';
+    document.getElementById('step-fields').style.display = 'none';
+    document.getElementById('terminal-fields').style.display = '';
+    document.getElementById('node-save-btn').innerHTML = '<i data-lucide="save"></i> Save Result';
+    document.getElementById('node-overlay').classList.add('open');
+    document.getElementById('node-panel').classList.add('open'); lucide.createIcons();
+}
+
+function editTerminal(termId) {
+    var t = treeSteps.find(function(x){return x.id==termId;});
+    if (!t) return;
+    editingNodeId = termId;
+    currentFormMode = 'terminal';
+    document.getElementById('node-panel-title').textContent = 'Edit Terminal Result';
+    document.getElementById('en-question').value = t.question || '';
+    document.getElementById('en-desc').value = t.description || '';
+    document.getElementById('en-risk').value = t.risk || 'safe';
+    document.getElementById('en-steporder').value = t.step_order || 10;
+    document.getElementById('en-result').value = t.result_type || 'solved';
+    document.getElementById('en-solution').value = t.result_solution || '';
+    currentTools = []; guideGroups = [];
+    renderToolTags(); renderGuideGroups();
+    populateDeviceDropdown(t.device_type || 'all');
+    document.getElementById('question-fields').style.display = 'none';
+    document.getElementById('step-fields').style.display = 'none';
+    document.getElementById('terminal-fields').style.display = '';
+    document.getElementById('node-save-btn').innerHTML = '<i data-lucide="save"></i> Save Result';
+    document.getElementById('node-overlay').classList.add('open');
+    document.getElementById('node-panel').classList.add('open'); lucide.createIcons();
+}
+
 function populateDeviceDropdown(selectedVal) {
     var sel = document.getElementById('en-device');
     var iss = allIssues.find(function(i){return i.id==treeIssueId;});
@@ -1332,17 +1430,6 @@ function populateDeviceDropdown(selectedVal) {
         sel.appendChild(opt);
     });
     if (selectedVal === 'all' || !selectedVal) sel.value = 'all';
-}
-function buildQuestionDropdown(selectedId) {
-    var sel = document.getElementById('en-via');
-    sel.innerHTML = '<option value="">Always (no question filter)</option>';
-    treeQuestions.forEach(function(q) {
-        var opt = document.createElement('option');
-        opt.value = q.id;
-        opt.textContent = q.question;
-        if (selectedId && selectedId == q.id) opt.selected = true;
-        sel.appendChild(opt);
-    });
 }
 
 // ===== TOOLS MANAGEMENT =====
@@ -1394,6 +1481,7 @@ function updateGuideText(idx, val) {
 }
 function renderGuideGroups() {
     var el = document.getElementById('en-guides-list');
+    if (!el) return;
     if (!guideGroups.length) { el.innerHTML = '<div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px;">No guide steps yet. Click "Add Guide Step" to start.</div>'; return; }
     var html = '';
     guideGroups.forEach(function(g, i) {
@@ -1404,7 +1492,6 @@ function renderGuideGroups() {
         html += '<button class="tm-guide-remove" onclick="removeGuideGroup('+i+')" title="Remove step">&times;</button>';
         html += '</div>';
         html += '<textarea class="tm-ft" style="min-height:50px;font-size:13px;" placeholder="What to do in this step..." oninput="updateGuideText('+i+',this.value)">'+esc(g.text)+'</textarea>';
-        // Image preview + upload
         html += '<div class="tm-guide-img-preview">';
         if (g.image) {
             html += '<div class="tm-guide-img-thumb">';
@@ -1423,46 +1510,107 @@ function renderGuideGroups() {
     lucide.createIcons();
 }
 
-// ===== SAVE STEP/QUESTION =====
-async function saveStepFromPanel() {
-    var isQuestion = document.getElementById('node-panel-title').textContent.indexOf('Question') !== -1;
+// ===== SAVE =====
+async function saveFromPanel() {
+    var isQuestion = currentFormMode === 'question';
+    var isTerminal = currentFormMode === 'terminal';
     var data = {
         issue_id: treeIssueId,
         question: document.getElementById('en-question').value.trim(),
         description: document.getElementById('en-desc').value.trim(),
-        node_type: isQuestion ? 'question' : 'step',
+        node_type: isTerminal ? 'terminal' : (isQuestion ? 'question' : 'step'),
         risk: document.getElementById('en-risk').value,
         step_order: parseInt(document.getElementById('en-steporder').value) || 10,
-        is_terminal: 0,
+        is_terminal: isTerminal ? 1 : 0,
     };
     if (!data.question) { showToast('Title is required','error'); return; }
-    if (!isQuestion) {
-        // Build visual_guide as concatenated text from guide groups
+
+    if (isQuestion) {
+        data.why_answer = document.getElementById('en-whyanswer').value.trim() || null;
+        data.device_type = document.getElementById('en-device').value || 'all';
+    } else if (isTerminal) {
+        data.result_type = document.getElementById('en-result').value;
+        data.result_solution = document.getElementById('en-solution').value.trim() || null;
+        data.device_type = document.getElementById('en-device').value || 'all';
+    } else {
+        // Step
         var guideTexts = guideGroups.map(function(g) { return g.text; }).filter(Boolean);
         data.visual_guide = guideTexts.length ? guideTexts.join('\n---\n') : null;
         data.expected_result = document.getElementById('en-expected').value.trim() || null;
         data.tools_needed = currentTools.join(', ') || null;
         data.visual_guide_images = guideGroups.length ? JSON.stringify(guideGroups) : null;
-        data.visible_for_question_id = document.getElementById('en-via').value ? parseInt(document.getElementById('en-via').value) : null;
-        data.visibility_mode = document.getElementById('en-visibility').value || 'always';
+        data.device_type = document.getElementById('en-device').value || 'all';
     }
-    data.device_type = document.getElementById('en-device').value || 'all';
+
     try {
         var method = editingNodeId ? 'PUT' : 'POST';
         if (editingNodeId) data.id = editingNodeId;
         var res = await fetch(APP_BASE+'api/troubleshooting/nodes.php', {method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
         var result = await res.json();
         if (result.error) { showToast(result.error,'error'); return; }
+
+        var savedId = result.id || editingNodeId;
+
+        // If question was saved, update step visibility assignments
+        if (isQuestion && savedId) {
+            await updateStepVisibility(savedId);
+        }
+
         showToast(editingNodeId?'Updated!':'Created!','success');
         closeNodePanel();
         loadTreeForIssue(treeIssueId);
     } catch(e) { showToast('Failed: '+e.message,'error'); }
 }
+
+// Update step visibility based on checkboxes in the grid
+async function updateStepVisibility(questionId) {
+    var device = document.getElementById('en-device').value || 'all';
+    var stepsForDevice = treeSteps.filter(function(s) {
+        return s.node_type === 'step' && !s.is_terminal;
+    });
+
+    for (var i = 0; i < stepsForDevice.length; i++) {
+        var s = stepsForDevice[i];
+        var radios = document.querySelectorAll('input[name="sv_'+s.id+'"]');
+        var selectedValue = null;
+        radios.forEach(function(r) { if (r.checked) selectedValue = r.value; });
+
+        // Only update if this step was changed for this question
+        if (selectedValue && s.visible_for_question_id != questionId) {
+            try {
+                await fetch(APP_BASE+'api/troubleshooting/nodes.php', {
+                    method: 'PUT',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        id: s.id,
+                        visible_for_question_id: questionId,
+                        visibility_mode: selectedValue
+                    })
+                });
+            } catch(e) {}
+        } else if (!selectedValue && s.visible_for_question_id == questionId) {
+            // Unchecked — reset to always
+            try {
+                await fetch(APP_BASE+'api/troubleshooting/nodes.php', {
+                    method: 'PUT',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        id: s.id,
+                        visible_for_question_id: null,
+                        visibility_mode: 'always'
+                    })
+                });
+            } catch(e) {}
+        }
+    }
+}
+
 function closeNodePanel() {
     document.getElementById('node-overlay').classList.remove('open');
     document.getElementById('node-panel').classList.remove('open');
     editingNodeId = null;
 }
+
 async function deleteNode(nodeId) {
     if (!confirm('Delete this node?')) return;
     try {
@@ -1473,7 +1621,6 @@ async function deleteNode(nodeId) {
         loadTreeForIssue(treeIssueId);
     } catch(e) { showToast('Failed','error'); }
 }
-
 // ===== SUBMISSIONS =====
 async function loadSubmissions() {
     try {

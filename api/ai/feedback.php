@@ -7,7 +7,9 @@ if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(dirname(__DIR__))
 require_once APP_ROOT . '/config/app.php';
 require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
-if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Database.php'; }
+if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Database.php';
+require_once APP_ROOT . '/config/ai_db.php';
+require_once APP_ROOT . '/includes/AIDatabase.php'; }
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
 Auth::requireLogin();
@@ -31,7 +33,7 @@ if (defined('DEMO_MODE') && DEMO_MODE) {
 }
 
 if (class_exists('Database')) {
-    Database::insert('ai_feedback', [
+    AIDatabase::insert('ai_feedback', [
         'message_id' => $messageId,
         'user_id' => $userId,
         'rating' => $rating,
@@ -39,7 +41,7 @@ if (class_exists('Database')) {
         'created_at' => date('Y-m-d H:i:s'),
     ]);
 
-    Database::insert('audit_logs', [
+    AIDatabase::insert('audit_logs', [
         'user_id' => $userId,
         'action' => 'AI_FEEDBACK',
         'resource_type' => 'ai_message',

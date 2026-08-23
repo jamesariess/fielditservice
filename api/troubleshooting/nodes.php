@@ -85,6 +85,7 @@ if ($method === 'POST') {
         'no_next' => !empty($input['no_next']) ? (int)$input['no_next'] : null,
         'question' => $input['question'] ?? '',
         'description' => $input['description'] ?? '',
+        'why_answer' => $input['why_answer'] ?? null,
         'node_type' => $input['node_type'] ?? 'question',
         'risk' => $input['risk'] ?? 'safe',
         'step_order' => $input['step_order'] ?? 10,
@@ -121,6 +122,7 @@ if ($method === 'PUT') {
     $data = [];
     if (isset($input['question'])) $data['question'] = $input['question'];
     if (isset($input['description'])) $data['description'] = $input['description'];
+    if (array_key_exists('why_answer', $input)) $data['why_answer'] = $input['why_answer'];
     if (isset($input['node_type'])) $data['node_type'] = $input['node_type'];
     if (isset($input['risk'])) $data['risk'] = $input['risk'];
     if (isset($input['step_order'])) $data['step_order'] = (int)$input['step_order'];

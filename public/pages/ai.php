@@ -4,88 +4,270 @@ $active_menu = 'ai';
 require APP_ROOT . '/includes/layout_header.php';
 ?>
 
-<div style="max-width:800px;margin:0 auto;display:flex;flex-direction:column;height:calc(100vh - 8rem);">
-    <!-- Chat Container -->
-    <div class="card" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-        <!-- Chat Header -->
-        <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:12px;flex-shrink:0;">
-            <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(139,92,246,0.3);">
-                <i data-lucide="sparkles" style="width:20px;height:20px;color:#fff;"></i>
+<style>
+.chat-container { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; height: calc(100vh - 8rem); }
+.chat-card { flex: 1; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e5e7eb; border-radius: 14px; background: #fff; }
+.dark .chat-card { border-color: #334155; background: #1e293b; }
+.chat-header { padding: 14px 20px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.dark .chat-header { border-color: #334155; }
+.chat-header-avatar { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #8b5cf6, #6d28d9); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(139,92,246,0.3); flex-shrink: 0; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.chat-input-area { padding: 14px 20px; border-top: 1px solid #e5e7eb; flex-shrink: 0; }
+.dark .chat-input-area { border-color: #334155; }
+.chat-input-form { display: flex; gap: 10px; align-items: flex-end; }
+.chat-input { flex: 1; padding: 11px 16px; border: 1px solid #d1d5db; border-radius: 12px; font-size: 13px; resize: none; outline: none; transition: all 0.15s; font-family: inherit; line-height: 1.5; max-height: 120px; overflow-y: auto; background: #fff; color: #111827; }
+.dark .chat-input { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+.chat-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.chat-send-btn { width: 42px; height: 42px; border-radius: 12px; background: #2563eb; color: #fff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+.chat-send-btn:hover { background: #1d4ed8; }
+.bubble-ai { background: #f1f5f9; border-radius: 16px; padding: 14px 18px; max-width: 85%; line-height: 1.7; font-size: 13.5px; }
+.dark .bubble-ai { background: #0f172a; }
+.ai-content p, .ai-content > div { margin: 0; }
+.ai-content > div + div:not(:empty) { margin-top: 2px; }
+.bubble-user { background: #2563eb; color: #fff; border-radius: 16px; padding: 10px 16px; max-width: 70%; }
+.quick-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+.quick-btn:hover { transform: translateY(-1px); }
+.src-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 600; background: #f1f5f9; color: #64748b; }
+.dark .src-badge { background: #1e293b; }
+.conf-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.typing-dot { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; animation: typing 1.4s infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+.custom-scroll::-webkit-scrollbar { width: 5px; }
+.custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+</style>
+
+<div class="chat-container">
+    <div class="chat-card">
+        <!-- Header -->
+        <div class="chat-header">
+            <div class="chat-header-avatar">
+                <i data-lucide="bot" style="width:20px;height:20px;color:#fff;"></i>
             </div>
             <div style="flex:1;">
-                <h1 style="font-size:15px;font-weight:700;color:#111827;">IT Support AI</h1>
+                <h1 style="font-size:15px;font-weight:700;color:#111827;margin:0;">IT Bot</h1>
                 <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#16a34a;">
                     <span style="width:6px;height:6px;border-radius:50%;background:#16a34a;display:inline-block;"></span>
-                    Online — Built-in Assistant
+                    Online — AI-Powered Assistant
                 </div>
             </div>
-            <button class="btn btn-sm btn-secondary"><i data-lucide="settings" style="width:13px;height:13px;"></i> Settings</button>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <span id="training-badge" style="font-size:10px;color:#94a3b8;"></span>
+                <button onclick="clearChat()" style="padding:5px 10px;font-size:11px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;">New Chat</button>
+            </div>
         </div>
 
         <!-- Messages -->
-        <div id="chat-messages" style="flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px;" class="custom-scroll">
-            <!-- Welcome -->
-            <div style="display:flex;gap:12px;">
-                <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
-                    <i data-lucide="sparkles" style="width:14px;height:14px;color:#fff;"></i>
-                </div>
-                <div class="chat-bubble ai">
-                    <p style="margin-bottom:10px;">Hello! I'm your <strong>IT Support AI</strong> assistant. I specialize in troubleshooting hardware, software, network, printer, and CCTV issues.</p>
-                    <p style="margin-bottom:12px;font-size:12px;color:#64748b;">I can help with:</p>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12.5px;color:#475569;margin-bottom:14px;">
-                        <div style="display:flex;align-items:center;gap:6px;"><i data-lucide="monitor" style="width:12px;height:12px;color:#64748b;"></i> Hardware issues</div>
-                        <div style="display:flex;align-items:center;gap:6px;"><i data-lucide="wifi" style="width:12px;height:12px;color:#64748b;"></i> Network problems</div>
-                        <div style="display:flex;align-items:center;gap:6px;"><i data-lucide="printer" style="width:12px;height:12px;color:#64748b;"></i> Printer issues</div>
-                        <div style="display:flex;align-items:center;gap:6px;"><i data-lucide="camera" style="width:12px;height:12px;color:#64748b;"></i> CCTV problems</div>
-                        <div style="display:flex;align-items:center;gap:6px;"><i data-lucide="app-window" style="width:12px;height:12px;color:#64748b;"></i> Software errors</div>
-                        <div style="display:flex;align-items:center;gap:6px;"><i data-lucide="terminal" style="width:12px;height:12px;color:#64748b;"></i> Windows commands</div>
-                    </div>
-                    <p style="font-size:12px;color:#64748b;">Describe your issue and I'll guide you through it step by step.</p>
-                </div>
-            </div>
+        <div id="chat-messages" class="chat-messages custom-scroll"></div>
 
-            <!-- Quick Start Buttons -->
-            <div style="display:flex;gap:8px;flex-wrap:wrap;padding-left:44px;">
-                <button onclick="aiSendQuick('My computer has no display')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:#eff6ff;border:1px solid transparent;border-radius:20px;font-size:12px;font-weight:600;color:#2563eb;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-                    <i data-lucide="monitor" style="width:13px;height:13px;"></i> No Display
-                </button>
-                <button onclick="aiSendQuick('My computer won\'t turn on')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:#fef2f2;border:1px solid transparent;border-radius:20px;font-size:12px;font-weight:600;color:#dc2626;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-                    <i data-lucide="power" style="width:13px;height:13px;"></i> No Power
-                </button>
-                <button onclick="aiSendQuick('I can\'t connect to the network')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:#f0fdf4;border:1px solid transparent;border-radius:20px;font-size:12px;font-weight:600;color:#16a34a;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-                    <i data-lucide="wifi" style="width:13px;height:13px;"></i> Network Issue
-                </button>
-                <button onclick="aiSendQuick('My computer is running slow')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:#fffbeb;border:1px solid transparent;border-radius:20px;font-size:12px;font-weight:600;color:#d97706;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-                    <i data-lucide="gauge" style="width:13px;height:13px;"></i> Slow Computer
-                </button>
-                <button onclick="aiSendQuick('My printer is not printing')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:#fff7ed;border:1px solid transparent;border-radius:20px;font-size:12px;font-weight:600;color:#ea580c;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-                    <i data-lucide="printer" style="width:13px;height:13px;"></i> Printer
-                </button>
-            </div>
+        <!-- Quick Start -->
+        <div id="quick-start" style="padding:0 20px 12px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="quick-btn" style="background:#eff6ff;color:#2563eb;" onclick="aiSendQuick('No display on my monitor')">
+                <i data-lucide="monitor" style="width:12px;height:12px;"></i> No Display
+            </button>
+            <button class="quick-btn" style="background:#fef2f2;color:#dc2626;" onclick="aiSendQuick('Computer won\\'t turn on')">
+                <i data-lucide="power" style="width:12px;height:12px;"></i> No Power
+            </button>
+            <button class="quick-btn" style="background:#f0fdf4;color:#16a34a;" onclick="aiSendQuick('WiFi not connecting')">
+                <i data-lucide="wifi" style="width:12px;height:12px;"></i> Network
+            </button>
+            <button class="quick-btn" style="background:#fffbeb;color:#d97706;" onclick="aiSendQuick('Computer is running slow')">
+                <i data-lucide="gauge" style="width:12px;height:12px;"></i> Slow PC
+            </button>
+            <button class="quick-btn" style="background:#fff7ed;color:#ea580c;" onclick="aiSendQuick('Printer not printing')">
+                <i data-lucide="printer" style="width:12px;height:12px;"></i> Printer
+            </button>
+            <button class="quick-btn" style="background:#f5f3ff;color:#7c3aed;" onclick="aiSendQuick('Blue screen BSOD error')">
+                <i data-lucide="alert-triangle" style="width:12px;height:12px;"></i> BSOD
+            </button>
         </div>
 
         <!-- Input -->
-        <div style="padding:16px 20px;border-top:1px solid #e5e7eb;flex-shrink:0;">
-            <form id="chat-form" onsubmit="aiSendMessage(event)" style="display:flex;gap:10px;align-items:flex-end;">
-                <div style="flex:1;position:relative;">
-                    <textarea id="chat-input" rows="1" placeholder="Describe your IT problem..."
-                              style="width:100%;padding:11px 16px;border:1px solid #d1d5db;border-radius:12px;font-size:13px;resize:none;outline:none;transition:all 0.15s;font-family:inherit;line-height:1.5;max-height:120px;overflow-y:auto;"
-                              class="dark-input"
-                              onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'"
-                              onblur="this.style.borderColor='#d1d5db';this.style.boxShadow=''"
-                              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSendMessage(event);}"
-                              oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';"></textarea>
-                </div>
-                <button type="submit" id="send-btn" style="width:42px;height:42px;border-radius:12px;background:#2563eb;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;flex-shrink:0;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
+        <div class="chat-input-area">
+            <form id="chat-form" onsubmit="aiSendMessage(event)" class="chat-input-form">
+                <textarea id="chat-input" rows="1" class="chat-input" placeholder="Ask IT Bot anything about your technical issue..."
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSendMessage(event);}"
+                    oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';"></textarea>
+                <button type="submit" class="chat-send-btn" id="send-btn">
                     <i data-lucide="send" style="width:17px;height:17px;"></i>
                 </button>
             </form>
             <div style="display:flex;justify-content:space-between;margin-top:6px;">
-                <span style="font-size:10px;color:#94a3b8;">AI responses should be verified against approved procedures.</span>
+                <span style="font-size:10px;color:#94a3b8;">Powered by IT Bot — Responses should be verified against approved procedures.</span>
                 <span style="font-size:10px;color:#94a3b8;">Enter to send · Shift+Enter for new line</span>
             </div>
         </div>
     </div>
 </div>
 
+<script>
+var aiProcessing = false;
+var aiSessionId = 'session_' + Date.now();
+var aiHistory = [];
+var botName = 'IT Bot';
+
+// Load personality and history on init
+(function initChat() {
+    fetch(APP_BASE + 'api/ai/chat', { method: 'GET' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.personality) {
+                botName = data.personality.bot_name || 'IT Bot';
+                document.querySelector('.chat-header h1').textContent = botName;
+                addWelcomeMessage(data.personality.greeting);
+            }
+            if (data.training_count > 0) {
+                document.getElementById('training-badge').textContent = data.training_count + ' trained docs';
+            }
+            if (data.history && data.history.length > 0) {
+                data.history.forEach(function(msg) {
+                    addMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', false);
+                });
+            }
+        })
+        .catch(() => addWelcomeMessage("Hi! I'm **IT Bot**, your IT support assistant. How can I help you today?"));
+})();
+
+function addWelcomeMessage(text) {
+    addMessage(text, 'ai', false);
+    lucide.createIcons();
+}
+
+function aiSendQuick(msg) {
+    var inp = document.getElementById('chat-input');
+    if (inp) { inp.value = msg; aiSendMessage(); }
+    document.getElementById('quick-start').style.display = 'none';
+}
+
+function aiSendMessage(e) {
+    if (e) e.preventDefault();
+    var input = document.getElementById('chat-input');
+    if (!input) return;
+    var msg = input.value.trim();
+    if (!msg || aiProcessing) return;
+    aiProcessing = true;
+    input.value = '';
+    input.style.height = 'auto';
+    document.getElementById('quick-start').style.display = 'none';
+    addMessage(msg, 'user');
+    var tid = addTyping();
+    
+    fetch(APP_BASE + 'api/ai/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message: msg, session_id: aiSessionId, history: aiHistory.slice(-6) })
+    })
+    .then(r => r.json())
+    .then(data => {
+        removeTyping(tid);
+        addMessage(data.response, 'ai', true, data.sources, data.confidence);
+        aiHistory.push({ role: 'user', content: msg });
+        aiHistory.push({ role: 'assistant', content: data.response });
+        aiProcessing = false;
+    })
+    .catch(() => {
+        removeTyping(tid);
+        addMessage("Sorry, I encountered an error. Please try again or describe your issue differently.", 'ai');
+        aiProcessing = false;
+    });
+}
+
+function addMessage(text, type, showFeedback, sources, confidence) {
+    var c = document.getElementById('chat-messages');
+    if (!c) return;
+    var isUser = type === 'user';
+    var html = '<div style="display:flex;gap:10px;' + (isUser ? 'flex-direction:row-reverse;' : '') + 'padding-left:' + (isUser ? '60px' : '0') + ';padding-right:' + (!isUser ? '60px' : '0') + ';">';
+    
+    if (!isUser) {
+        html += '<div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">';
+        html += '<i data-lucide="bot" style="width:14px;height:14px;color:#fff;"></i></div>';
+    }
+    
+    if (isUser) {
+        html += '<div class="bubble-user">' + escHtml(text) + '</div>';
+    } else {
+        html += '<div class="bubble-ai"><div class="ai-content">' + formatMarkdown(text) + '</div>';
+        
+        if (showFeedback) {
+            html += '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;gap:6px;align-items:center;">';
+            html += '<button onclick="aiRate(this,\'yes\')" style="padding:3px 10px;font-size:11px;font-weight:600;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:16px;cursor:pointer;">✓ Helpful</button>';
+            html += '<button onclick="aiRate(this,\'no\')" style="padding:3px 10px;font-size:11px;font-weight:600;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:16px;cursor:pointer;">✗ Not helpful</button>';
+            if (confidence) {
+                var cc = confidence === 'high' ? '#16a34a' : confidence === 'medium' ? '#d97706' : '#dc2626';
+                html += '<span class="conf-badge" style="background:' + cc + '15;color:' + cc + ';">' + confidence.toUpperCase() + '</span>';
+            }
+            html += '</div>';
+        }
+        if (sources && sources.length) {
+            html += '<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">';
+            sources.forEach(function(s) { html += '<span class="src-badge">' + s + '</span>'; });
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+    html += '</div>';
+    c.insertAdjacentHTML('beforeend', html);
+    c.scrollTop = c.scrollHeight;
+    try { lucide.createIcons(); } catch(e) {}
+}
+
+function formatMarkdown(text) {
+    if (!text) return '';
+    var html = text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`(.*?)`/g, '<code style="padding:2px 6px;background:#e2e8f0;border-radius:4px;font-size:12px;font-family:monospace;">$1</code>')
+        .replace(/### (.*?)(\n|$)/g, '<h4 style="font-weight:700;font-size:14px;margin:16px 0 8px;color:#0f172a;">$1</h4>')
+        .replace(/## (.*?)(\n|$)/g, '<h3 style="font-weight:700;font-size:15px;margin:18px 0 10px;color:#0f172a;">$1</h3>')
+        .replace(/_(.*?)_/g, '<em style="color:#64748b;">$1</em>')
+        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color:#2563eb;text-decoration:underline;">$1</a>');
+    // Handle lists and paragraphs
+    var lines = html.split('\n');
+    var result = '';
+    var inCode = false;
+    var lastWasEmpty = false;
+    lines.forEach(function(line) {
+        if (line.trim().startsWith('```')) { inCode = !inCode; lastWasEmpty = false; return; }
+        if (inCode) { result += '<div style="padding:4px 10px;font-size:12px;font-family:monospace;background:#1e293b;color:#e2e8f0;border-radius:4px;margin:2px 0;">' + line + '</div>'; lastWasEmpty = false; return; }
+        if (line.trim() === '') {
+            if (!lastWasEmpty) result += '<div style="height:10px;"></div>';
+            lastWasEmpty = true;
+            return;
+        }
+        lastWasEmpty = false;
+        if (line.trim().startsWith('- ')) {
+            result += '<div style="padding:3px 0 3px 18px;position:relative;line-height:1.5;"><span style="position:absolute;left:2px;color:#2563eb;">•</span>' + line.substring(2) + '</div>';
+        } else if (/^\d+\.\s/.test(line.trim())) {
+            var m = line.trim().match(/^(\d+)\.\s(.*)$/);
+            if (m) result += '<div style="padding:3px 0 3px 22px;position:relative;line-height:1.5;"><span style="position:absolute;left:0;font-weight:700;color:#2563eb;font-size:12px;">' + m[1] + '.</span>' + m[2] + '</div>';
+        } else if (line.trim().startsWith('→') || line.trim().startsWith('►')) {
+            result += '<div style="padding:3px 0 3px 18px;position:relative;line-height:1.5;color:#475569;"><span style="position:absolute;left:0;color:#8b5cf6;">→</span>' + line.trim().substring(1) + '</div>';
+        } else {
+            result += '<div style="line-height:1.6;">' + line + '</div>';
+        }
+    });
+    return result;
+}
+
+function addTyping() {
+    var c = document.getElementById('chat-messages');
+    var id = 't-' + Date.now();
+    c.insertAdjacentHTML('beforeend', '<div id="' + id + '" style="display:flex;gap:10px;"><div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i data-lucide="bot" style="width:14px;height:14px;color:#fff;"></i></div><div style="padding:12px 16px;background:#f1f5f9;border-radius:16px;display:flex;gap:5px;"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div></div>');
+    c.scrollTop = c.scrollHeight;
+    try { lucide.createIcons(); } catch(e) {}
+    return id;
+}
+function removeTyping(id) { var el = document.getElementById(id); if (el) el.remove(); }
+function aiRate(btn, r) { btn.parentElement.innerHTML = '<span style="font-size:11px;color:#64748b;">Thanks for your feedback! 👍</span>'; }
+function clearChat() {
+    aiHistory = [];
+    aiSessionId = 'session_' + Date.now();
+    document.getElementById('chat-messages').innerHTML = '';
+    document.getElementById('quick-start').style.display = 'flex';
+    addWelcomeMessage("Hi! I'm **" + botName + "**, your IT support assistant. How can I help you today?");
+}
+function escHtml(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+
+lucide.createIcons();
+</script>
 <?php require APP_ROOT . '/includes/layout_footer.php'; ?>

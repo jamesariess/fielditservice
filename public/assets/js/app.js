@@ -210,9 +210,11 @@ function aiSendMessage(e) {
     input.style.height = 'auto';
     aiAddMessage(msg, 'user');
     var tid = aiAddTyping();
-    api('/api/ai/chat', { method: 'POST', body: { message: msg } }).then(function(data) {
+    api('/api/ai/chat', { method: 'POST', body: { message: msg, history: aiHistory.slice(-6) } }).then(function(data) {
         aiRemoveTyping(tid);
-        aiAddMessage(data.response, 'ai', data.source);
+        aiAddMessage(data.response, 'ai', data.sources, data.confidence);
+        aiHistory.push({ role: 'user', content: msg });
+        aiHistory.push({ role: 'assistant', content: data.response });
         aiProcessing = false;
     }).catch(function() {
         aiRemoveTyping(tid);
@@ -220,22 +222,31 @@ function aiSendMessage(e) {
         aiProcessing = false;
     });
 }
-function aiAddMessage(text, type, source) {
+var aiHistory = [];
+function aiAddMessage(text, type, sources, confidence) {
     var c = document.getElementById('chat-messages');
     if (!c) return;
     var isUser = type === 'user';
+    var confBadge = '';
+    if (!isUser && confidence) {
+        var confColor = confidence === 'high' ? '#16a34a' : confidence === 'medium' ? '#d97706' : '#dc2626';
+        confBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:' + confColor + '15;color:' + confColor + ';margin-left:6px;">' + confidence.toUpperCase() + '</span>';
+    }
     var html = '<div style="display:flex;gap:12px;' + (isUser ? 'flex-direction:row-reverse;' : '') + 'padding-left:' + (isUser ? '44px' : '0') + ';padding-right:' + (!isUser ? '44px' : '0') + ';">' +
         '<div style="width:32px;height:32px;border-radius:10px;background:' + (isUser ? '#dbeafe' : 'linear-gradient(135deg,#8b5cf6,#6d28d9)') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">' +
         '<i data-lucide="' + (isUser ? 'user' : 'sparkles') + '" style="width:14px;height:14px;color:' + (isUser ? '#1d4ed8' : '#fff') + ';"></i></div>' +
         '<div class="chat-bubble ' + type + '">' +
-        '<div style="white-space:pre-wrap;line-height:1.7;">' + aiFormatText(text) + '</div>';
+        '<div style="white-space:pre-wrap;line-height:1.7;" class="ai-response-content">' + aiFormatText(text) + '</div>';
     if (!isUser) {
-        html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb;display:flex;gap:6px;">' +
+        html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb;display:flex;gap:6px;align-items:center;">' +
         '<button onclick="aiRate(this,\'yes\')" style="padding:4px 12px;font-size:11px;font-weight:600;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:16px;cursor:pointer;">&#10003; Helpful</button>' +
         '<button onclick="aiRate(this,\'no\')" style="padding:4px 12px;font-size:11px;font-weight:600;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:16px;cursor:pointer;">&#10007; Not helpful</button>' +
+        confBadge +
         '</div>';
     }
-    if (source) html += '<div style="margin-top:8px;font-size:10px;color:#94a3b8;font-style:italic;">Source: ' + source + '</div>';
+    if (sources && sources.length) {
+        html += '<div style="margin-top:8px;font-size:10px;color:#94a3b8;">Sources: ' + sources.join(', ') + '</div>';
+    }
     html += '</div></div>';
     c.insertAdjacentHTML('beforeend', html);
     c.scrollTop = c.scrollHeight;
@@ -243,10 +254,33 @@ function aiAddMessage(text, type, source) {
 }
 function aiFormatText(text) {
     if (!text) return '';
+    // Process line by line for lists
+    var lines = text.split('\n');
+    var html = '';
+    var inCodeBlock = false;
+    lines.forEach(function(line) {
+        if (line.trim().startsWith('```')) { inCodeBlock = !inCodeBlock; html += '<pre style="padding:10px;background:#1e293b;color:#e2e8f0;border-radius:8px;font-size:12px;overflow-x:auto;margin:8px 0;"><code>' + line.replace('```', '') + '</code></pre>'; return; }
+        if (inCodeBlock) { html += '<div style="padding:2px 0;font-size:12px;font-family:monospace;color:#e2e8f0;">' + line + '</div>'; return; }
+        // Bullet points
+        if (line.trim().startsWith('- ')) {
+            html += '<div style="padding:3px 0 3px 16px;position:relative;"><span style="position:absolute;left:0;color:#2563eb;">&#8226;</span>' + aiInlineFormat(line.trim().substring(2)) + '</div>';
+        } else if (/^\d+\.\s/.test(line.trim())) {
+            // Numbered list
+            var match = line.trim().match(/^(\d+)\.\s(.*)$/);
+            if (match) html += '<div style="padding:3px 0 3px 20px;position:relative;"><span style="position:absolute;left:0;font-weight:700;color:#2563eb;font-size:12px;">' + match[1] + '.</span>' + aiInlineFormat(match[2]) + '</div>';
+        } else {
+            html += aiInlineFormat(line) + '\n';
+        }
+    });
+    return html;
+}
+function aiInlineFormat(text) {
     return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/`(.*?)`/g, '<code style="padding:2px 6px;background:#f1f5f9;border-radius:4px;font-size:12px;font-family:monospace;">$1</code>')
         .replace(/### (.*?)(\n|$)/g, '<h4 style="font-weight:700;font-size:14px;margin:12px 0 6px;">$1</h4>')
-        .replace(/## (.*?)(\n|$)/g, '<h3 style="font-weight:700;font-size:15px;margin:14px 0 6px;">$1</h3>');
+        .replace(/## (.*?)(\n|$)/g, '<h3 style="font-weight:700;font-size:15px;margin:14px 0 6px;">$1</h3>')
+        .replace(/_(.*?)_/g, '<em style="color:#64748b;">$1</em>')
+        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color:#2563eb;text-decoration:underline;">$1</a>');
 }
 function aiAddTyping() {
     var c = document.getElementById('chat-messages');
