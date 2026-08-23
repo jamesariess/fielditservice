@@ -367,3 +367,48 @@ Stack trace:
 #2 {main}
   thrown in C:\xampp\htdocs\fielditservice\includes\Database.php on line 53
 [Sat Aug 22 21:24:19 2026] 127.0.0.1:62010 Closing
+[Sat Aug 22 21:25:50 2026] 127.0.0.1:50804 Accepted
+[Sat Aug 22 21:25:51 2026] 127.0.0.1:50804 Closing
+[Sat Aug 22 21:26:16 2026] 127.0.0.1:50846 Accepted
+[Sat Aug 22 21:26:16 2026] 127.0.0.1:50846 Closing
+[Sat Aug 22 21:26:29 2026] 127.0.0.1:53623 Accepted
+[Sat Aug 22 21:26:29 2026] 127.0.0.1:53623 Closing
+[Sat Aug 22 21:26:29 2026] 127.0.0.1:53626 Accepted
+[Sat Aug 22 21:26:29 2026] 127.0.0.1:53626 Closing
+[Sat Aug 22 21:26:29 2026] 127.0.0.1:53627 Accepted
+[Sat Aug 22 21:26:29 2026] 127.0.0.1:53627 Closing
+[Sat Aug 22 21:26:29 2026] 127.0.0.1:53628 Accepted
+[Sat Aug 22 21:26:30 2026] 127.0.0.1:53628 Closing
+[Sat Aug 22 21:26:30 2026] 127.0.0.1:53633 Accepted
+[Sat Aug 22 21:26:30 2026] 127.0.0.1:53633 Closing
+[Sat Aug 22 21:26:30 2026] 127.0.0.1:53635 Accepted
+[Sat Aug 22 21:26:32 2026] 127.0.0.1:53635 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 21:26:32 2026] 127.0.0.1:53635 Closing
+[Sat Aug 22 21:45:37 2026] 127.0.0.1:63130 Accepted
+[Sat Aug 22 21:45:37 2026] 127.0.0.1:63130 Closing
+[Sat Aug 22 21:45:38 2026] 127.0.0.1:63134 Accepted
+[Sat Aug 22 21:45:38 2026] 127.0.0.1:63134 Closing
+[Sat Aug 22 21:45:38 2026] 127.0.0.1:63135 Accepted
+[Sat Aug 22 21:45:38 2026] 127.0.0.1:63136 Accepted
+[Sat Aug 22 21:45:38 2026] 127.0.0.1:63135 Closing
+[Sat Aug 22 21:45:38 2026] 127.0.0.1:63136 Closing
+[Sat Aug 22 21:46:13 2026] 127.0.0.1:49874 Accepted
+[Sat Aug 22 21:46:14 2026] 127.0.0.1:49874 Closing
+[Sat Aug 22 21:46:14 2026] 127.0.0.1:49876 Accepted
+[Sat Aug 22 21:46:32 2026] 127.0.0.1:49876 Closing
+[Sat Aug 22 21:46:32 2026] 127.0.0.1:49902 Accepted
+[Sat Aug 22 21:46:32 2026] 127.0.0.1:49903 Accepted
+[Sat Aug 22 21:46:32 2026] 127.0.0.1:49902 Closing
+[Sat Aug 22 21:46:32 2026] 127.0.0.1:49903 Closing
+[Sat Aug 22 21:46:32 2026] 127.0.0.1:49904 Accepted
+[Sat Aug 22 21:46:32 2026] 127.0.0.1:49904 Closing
+[Sat Aug 22 21:46:33 2026] 127.0.0.1:49908 Accepted
+[Sat Aug 22 21:46:33 2026] 127.0.0.1:49908 Closing
+[Sat Aug 22 21:46:33 2026] 127.0.0.1:49910 Accepted
+[Sat Aug 22 21:46:33 2026] 127.0.0.1:49910 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 21:46:34 2026] 127.0.0.1:49910 Closing
+[Sat Aug 22 21:46:58 2026] 127.0.0.1:51720 Accepted
+[Sat Aug 22 21:46:58 2026] 127.0.0.1:51720 Closing
+[Sat Aug 22 21:46:58 2026] 127.0.0.1:51722 Accepted
+[Sat Aug 22 21:47:09 2026] 127.0.0.1:51722 Closed without sending a request; it was probably just an unused speculative preconnection
+[Sat Aug 22 21:47:09 2026] 127.0.0.1:51722 Closing
