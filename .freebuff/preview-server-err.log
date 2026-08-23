@@ -1,0 +1,330 @@
+[Sun Aug 23 16:17:43 2026] PHP 8.2.12 Development Server (http://localhost:8080) started
+[Sun Aug 23 16:31:03 2026] [::1]:59358 Accepted
+[Sun Aug 23 16:31:03 2026] [::1]:59358 Closing
+[Sun Aug 23 16:31:04 2026] [::1]:59362 Accepted
+[Sun Aug 23 16:31:04 2026] [::1]:59362 Closing
+[Sun Aug 23 16:31:09 2026] [::1]:59381 Accepted
+[Sun Aug 23 16:31:09 2026] [::1]:59381 Closing
+[Sun Aug 23 16:31:39 2026] [::1]:59412 Accepted
+[Sun Aug 23 16:31:39 2026] [::1]:59412 Closing
+[Sun Aug 23 16:31:39 2026] [::1]:59413 Accepted
+[Sun Aug 23 16:31:39 2026] [::1]:59414 Accepted
+[Sun Aug 23 16:31:39 2026] [::1]:59413 Closing
+[Sun Aug 23 16:31:39 2026] [::1]:59414 Closing
+[Sun Aug 23 16:31:39 2026] [::1]:59415 Accepted
+[Sun Aug 23 16:31:39 2026] [::1]:59415 Closing
+[Sun Aug 23 16:31:39 2026] [::1]:59417 Accepted
+[Sun Aug 23 16:31:39 2026] [::1]:59417 Closing
+[Sun Aug 23 16:37:59 2026] [::1]:60343 Accepted
+[Sun Aug 23 16:38:00 2026] [::1]:60343 Closing
+[Sun Aug 23 16:38:00 2026] [::1]:60344 Accepted
+[Sun Aug 23 16:38:00 2026] [::1]:60345 Accepted
+[Sun Aug 23 16:38:00 2026] [::1]:60344 Closing
+[Sun Aug 23 16:38:00 2026] [::1]:60345 Closing
+[Sun Aug 23 16:38:00 2026] [::1]:60346 Accepted
+[Sun Aug 23 16:38:00 2026] [::1]:60346 Closing
+[Sun Aug 23 16:38:11 2026] [::1]:60358 Accepted
+[Sun Aug 23 16:38:11 2026] AI Search Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'rating' in 'order clause'
+[Sun Aug 23 16:38:11 2026] [::1]:60358 Closing
+[Sun Aug 23 16:39:39 2026] [::1]:61974 Accepted
+[Sun Aug 23 16:39:39 2026] AI Search Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'rating' in 'order clause'
+[Sun Aug 23 16:39:39 2026] [::1]:61974 Closing
+[Sun Aug 23 16:40:20 2026] [::1]:62014 Accepted
+[Sun Aug 23 16:40:20 2026] [::1]:62014 Closing
+[Sun Aug 23 16:40:27 2026] [::1]:62028 Accepted
+[Sun Aug 23 16:40:27 2026] AI Search Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'rating' in 'order clause'
+[Sun Aug 23 16:40:27 2026] [::1]:62028 Closing
+[Sun Aug 23 16:40:46 2026] [::1]:62052 Accepted
+[Sun Aug 23 16:40:46 2026] AI Search Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'rating' in 'order clause'
+[Sun Aug 23 16:40:46 2026] [::1]:62052 Closing
+[Sun Aug 23 16:44:09 2026] [::1]:50965 Accepted
+[Sun Aug 23 16:44:09 2026] AI Chat Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 16:44:09 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 287
+[Sun Aug 23 16:44:09 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 287
+[Sun Aug 23 16:44:09 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 288
+[Sun Aug 23 16:44:09 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 292
+[Sun Aug 23 16:44:09 2026] [::1]:50965 Closing
+[Sun Aug 23 16:48:51 2026] [::1]:65417 Accepted
+[Sun Aug 23 16:48:51 2026] AI Chat Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 16:48:51 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 287
+[Sun Aug 23 16:48:51 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 287
+[Sun Aug 23 16:48:51 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 288
+[Sun Aug 23 16:48:51 2026] [::1]:65417 Closing
+[Sun Aug 23 16:49:50 2026] [::1]:65476 Accepted
+[Sun Aug 23 16:49:50 2026] AI Chat Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 16:49:50 2026] [::1]:65476 Closing
+[Sun Aug 23 16:50:33 2026] [::1]:51343 Accepted
+[Sun Aug 23 16:50:33 2026] AI Chat Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 16:50:33 2026] [::1]:51343 Closing
+[Sun Aug 23 16:51:21 2026] [::1]:51384 Accepted
+[Sun Aug 23 16:51:21 2026] AI Chat Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 16:51:21 2026] [::1]:51384 Closing
+[Sun Aug 23 17:18:45 2026] [::1]:52181 Accepted
+[Sun Aug 23 17:18:45 2026] [::1]:52181 Closing
+[Sun Aug 23 17:18:45 2026] [::1]:52182 Accepted
+[Sun Aug 23 17:18:45 2026] [::1]:52182 Closing
+[Sun Aug 23 17:18:58 2026] [::1]:58844 Accepted
+[Sun Aug 23 17:18:58 2026] [::1]:58844 Closing
+[Sun Aug 23 17:19:19 2026] [::1]:58863 Accepted
+[Sun Aug 23 17:19:19 2026] [::1]:58863 Closing
+[Sun Aug 23 17:19:19 2026] [::1]:58864 Accepted
+[Sun Aug 23 17:19:19 2026] [::1]:58864 Closing
+[Sun Aug 23 17:20:28 2026] [::1]:58935 Accepted
+[Sun Aug 23 17:20:28 2026] [::1]:58935 Closing
+[Sun Aug 23 17:20:28 2026] [::1]:58936 Accepted
+[Sun Aug 23 17:20:28 2026] [::1]:58936 Closing
+[Sun Aug 23 17:21:15 2026] [::1]:58979 Accepted
+[Sun Aug 23 17:21:15 2026] PHP Warning:  Undefined array key "role" in C:\xampp\htdocs\fielditservice\api\auth\login.php on line 50
+[Sun Aug 23 17:21:15 2026] [::1]:58979 Closing
+[Sun Aug 23 17:21:15 2026] [::1]:58981 Accepted
+[Sun Aug 23 17:21:15 2026] PHP Fatal error:  Uncaught ValueError: max(): Argument #1 ($value) must contain at least one element in C:\xampp\htdocs\fielditservice\public\pages\dashboard.php:570
+Stack trace:
+#0 C:\xampp\htdocs\fielditservice\public\pages\dashboard.php(570): max(Array)
+#1 C:\xampp\htdocs\fielditservice\public\index.php(129): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\fielditservice\public\pages\dashboard.php on line 570
+[Sun Aug 23 17:21:15 2026] [::1]:58981 Closing
+[Sun Aug 23 17:21:15 2026] [::1]:58983 Accepted
+[Sun Aug 23 17:21:15 2026] [::1]:58984 Accepted
+[Sun Aug 23 17:21:15 2026] [::1]:58983 Closing
+[Sun Aug 23 17:21:15 2026] [::1]:58984 Closing
+[Sun Aug 23 17:21:15 2026] [::1]:58985 Accepted
+[Sun Aug 23 17:21:15 2026] [::1]:58985 Closing
+[Sun Aug 23 17:21:39 2026] [::1]:59009 Accepted
+[Sun Aug 23 17:21:39 2026] [::1]:59009 Closing
+[Sun Aug 23 17:21:39 2026] [::1]:59010 Accepted
+[Sun Aug 23 17:21:39 2026] [::1]:59011 Accepted
+[Sun Aug 23 17:21:39 2026] [::1]:59010 Closing
+[Sun Aug 23 17:21:39 2026] [::1]:59011 Closing
+[Sun Aug 23 17:21:39 2026] [::1]:59013 Accepted
+[Sun Aug 23 17:21:39 2026] [::1]:59013 Closing
+[Sun Aug 23 17:21:39 2026] [::1]:59015 Accepted
+[Sun Aug 23 17:21:40 2026] [::1]:59015 Closing
+[Sun Aug 23 17:22:18 2026] [::1]:59055 Accepted
+[Sun Aug 23 17:22:18 2026] AI Chat Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:22:18 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 360
+[Sun Aug 23 17:22:18 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 360
+[Sun Aug 23 17:22:18 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 362
+[Sun Aug 23 17:22:18 2026] [::1]:59055 Closing
+[Sun Aug 23 17:26:47 2026] [::1]:64375 Accepted
+[Sun Aug 23 17:26:47 2026] [::1]:64375 Closing
+[Sun Aug 23 17:26:47 2026] [::1]:64376 Accepted
+[Sun Aug 23 17:26:47 2026] [::1]:64377 Accepted
+[Sun Aug 23 17:26:47 2026] [::1]:64376 Closing
+[Sun Aug 23 17:26:47 2026] [::1]:64377 Closing
+[Sun Aug 23 17:26:47 2026] [::1]:64378 Accepted
+[Sun Aug 23 17:26:47 2026] [::1]:64378 Closing
+[Sun Aug 23 17:26:48 2026] [::1]:64380 Accepted
+[Sun Aug 23 17:26:48 2026] [::1]:64380 Closing
+[Sun Aug 23 17:27:55 2026] [::1]:51426 Accepted
+[Sun Aug 23 17:27:55 2026] [::1]:51426 Closing
+[Sun Aug 23 17:33:54 2026] [::1]:54130 Accepted
+[Sun Aug 23 17:33:54 2026] [::1]:54130 Closing
+[Sun Aug 23 17:33:54 2026] [::1]:54131 Accepted
+[Sun Aug 23 17:33:54 2026] [::1]:54132 Accepted
+[Sun Aug 23 17:33:54 2026] [::1]:54131 Closing
+[Sun Aug 23 17:33:54 2026] [::1]:54132 Closing
+[Sun Aug 23 17:33:54 2026] [::1]:54133 Accepted
+[Sun Aug 23 17:33:54 2026] [::1]:54133 Closing
+[Sun Aug 23 17:33:54 2026] [::1]:54135 Accepted
+[Sun Aug 23 17:33:54 2026] [::1]:54135 Closing
+[Sun Aug 23 17:34:34 2026] [::1]:54187 Accepted
+[Sun Aug 23 17:34:34 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:34:34 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 17:34:34 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 362
+[Sun Aug 23 17:34:34 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 362
+[Sun Aug 23 17:34:34 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 364
+[Sun Aug 23 17:34:34 2026] [::1]:54187 Closing
+[Sun Aug 23 17:35:08 2026] [::1]:54220 Accepted
+[Sun Aug 23 17:35:08 2026] [::1]:54220 Closing
+[Sun Aug 23 17:35:08 2026] [::1]:54221 Accepted
+[Sun Aug 23 17:35:08 2026] [::1]:54222 Accepted
+[Sun Aug 23 17:35:08 2026] [::1]:54221 Closing
+[Sun Aug 23 17:35:08 2026] [::1]:54222 Closing
+[Sun Aug 23 17:35:08 2026] [::1]:54223 Accepted
+[Sun Aug 23 17:35:08 2026] AI DB Query Error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'fieldit_ai.users' doesn't exist
+[Sun Aug 23 17:35:08 2026] AI DB Query Error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'fieldit_ai.roles' doesn't exist
+[Sun Aug 23 17:35:08 2026] [::1]:54223 Closing
+[Sun Aug 23 17:35:08 2026] [::1]:54225 Accepted
+[Sun Aug 23 17:35:08 2026] [::1]:54225 Closing
+[Sun Aug 23 17:39:57 2026] [::1]:56661 Accepted
+[Sun Aug 23 17:39:57 2026] [::1]:56661 Closing
+[Sun Aug 23 17:39:57 2026] [::1]:56662 Accepted
+[Sun Aug 23 17:39:57 2026] [::1]:56662 Closing
+[Sun Aug 23 17:39:57 2026] [::1]:56663 Accepted
+[Sun Aug 23 17:39:57 2026] [::1]:56663 Closing
+[Sun Aug 23 17:39:57 2026] [::1]:56664 Accepted
+[Sun Aug 23 17:39:57 2026] [::1]:56664 Closing
+[Sun Aug 23 17:39:57 2026] [::1]:56666 Accepted
+[Sun Aug 23 17:39:57 2026] [::1]:56666 Closing
+[Sun Aug 23 17:40:08 2026] [::1]:56678 Accepted
+[Sun Aug 23 17:40:08 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:40:08 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 17:40:08 2026] [::1]:56678 Closing
+[Sun Aug 23 17:48:07 2026] [::1]:62467 Accepted
+[Sun Aug 23 17:48:07 2026] [::1]:62467 Closing
+[Sun Aug 23 17:48:07 2026] [::1]:62468 Accepted
+[Sun Aug 23 17:48:07 2026] [::1]:62469 Accepted
+[Sun Aug 23 17:48:07 2026] [::1]:62468 Closing
+[Sun Aug 23 17:48:07 2026] [::1]:62469 Closing
+[Sun Aug 23 17:48:08 2026] [::1]:62470 Accepted
+[Sun Aug 23 17:48:08 2026] [::1]:62470 Closing
+[Sun Aug 23 17:48:08 2026] [::1]:62472 Accepted
+[Sun Aug 23 17:48:08 2026] [::1]:62472 Closing
+[Sun Aug 23 17:48:21 2026] [::1]:62481 Accepted
+[Sun Aug 23 17:48:21 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:48:21 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 17:48:21 2026] [::1]:62481 Closing
+[Sun Aug 23 17:52:35 2026] [::1]:61921 Accepted
+[Sun Aug 23 17:52:35 2026] [::1]:61921 Closing
+[Sun Aug 23 17:52:35 2026] [::1]:61922 Accepted
+[Sun Aug 23 17:52:35 2026] [::1]:61923 Accepted
+[Sun Aug 23 17:52:35 2026] [::1]:61922 Closing
+[Sun Aug 23 17:52:35 2026] [::1]:61923 Closing
+[Sun Aug 23 17:52:35 2026] [::1]:61925 Accepted
+[Sun Aug 23 17:52:35 2026] [::1]:61925 Closing
+[Sun Aug 23 17:52:35 2026] [::1]:61927 Accepted
+[Sun Aug 23 17:52:35 2026] [::1]:61927 Closing
+[Sun Aug 23 17:53:38 2026] [::1]:61946 Accepted
+[Sun Aug 23 17:53:38 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:53:38 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 17:53:38 2026] [::1]:61946 Closing
+[Sun Aug 23 17:56:39 2026] [::1]:49962 Accepted
+[Sun Aug 23 17:56:39 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:56:39 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 17:56:39 2026] [::1]:49962 Closing
+[Sun Aug 23 17:56:48 2026] [::1]:49965 Accepted
+[Sun Aug 23 17:56:48 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:56:48 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 17:56:48 2026] [::1]:49965 Closing
+[Sun Aug 23 17:57:54 2026] [::1]:49986 Accepted
+[Sun Aug 23 17:57:54 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:57:54 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 17:57:54 2026] [::1]:49986 Closing
+[Sun Aug 23 17:58:39 2026] [::1]:50069 Accepted
+[Sun Aug 23 17:58:39 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 17:58:39 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 17:58:39 2026] [::1]:50069 Closing
+[Sun Aug 23 18:00:29 2026] [::1]:59987 Accepted
+[Sun Aug 23 18:00:29 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:00:29 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:00:29 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 214
+[Sun Aug 23 18:00:29 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 214
+[Sun Aug 23 18:00:29 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 216
+[Sun Aug 23 18:00:29 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 216
+[Sun Aug 23 18:00:29 2026] [::1]:59987 Closing
+[Sun Aug 23 18:01:18 2026] [::1]:61632 Accepted
+[Sun Aug 23 18:01:18 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:01:18 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:01:18 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 208
+[Sun Aug 23 18:01:18 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 208
+[Sun Aug 23 18:01:18 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 208
+[Sun Aug 23 18:01:18 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 208
+[Sun Aug 23 18:01:18 2026] [::1]:61632 Closing
+[Sun Aug 23 18:03:33 2026] [::1]:50572 Accepted
+[Sun Aug 23 18:03:33 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:03:33 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:03:33 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 208
+[Sun Aug 23 18:03:33 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 208
+[Sun Aug 23 18:03:33 2026] [::1]:50572 Closing
+[Sun Aug 23 18:03:45 2026] [::1]:50575 Accepted
+[Sun Aug 23 18:03:45 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:03:45 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:03:45 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 214
+[Sun Aug 23 18:03:45 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 214
+[Sun Aug 23 18:03:45 2026] [::1]:50575 Closing
+[Sun Aug 23 18:03:51 2026] [::1]:50581 Accepted
+[Sun Aug 23 18:03:51 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:03:51 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:03:51 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 214
+[Sun Aug 23 18:03:51 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 214
+[Sun Aug 23 18:03:51 2026] [::1]:50581 Closing
+[Sun Aug 23 18:07:14 2026] [::1]:59254 Accepted
+[Sun Aug 23 18:07:14 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:07:14 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:07:14 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 214
+[Sun Aug 23 18:07:14 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 214
+[Sun Aug 23 18:07:14 2026] [::1]:59254 Closing
+[Sun Aug 23 18:13:22 2026] [::1]:51336 Accepted
+[Sun Aug 23 18:13:22 2026] [::1]:51337 Accepted
+[Sun Aug 23 18:13:22 2026] [::1]:51338 Accepted
+[Sun Aug 23 18:13:22 2026] [::1]:51339 Accepted
+[Sun Aug 23 18:13:22 2026] [::1]:51340 Accepted
+[Sun Aug 23 18:13:22 2026] [::1]:51336 Closing
+[Sun Aug 23 18:13:22 2026] [::1]:51337 Closing
+[Sun Aug 23 18:13:22 2026] [::1]:51338 Closing
+[Sun Aug 23 18:13:22 2026] [::1]:51339 Closing
+[Sun Aug 23 18:13:22 2026] [::1]:51340 Closing
+[Sun Aug 23 18:13:34 2026] [::1]:51343 Accepted
+[Sun Aug 23 18:13:34 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:13:34 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:13:34 2026] [::1]:51343 Closing
+[Sun Aug 23 18:13:34 2026] [::1]:51344 Accepted
+[Sun Aug 23 18:13:34 2026] [::1]:51345 Accepted
+[Sun Aug 23 18:13:34 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:13:34 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:13:34 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 212
+[Sun Aug 23 18:13:34 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 212
+[Sun Aug 23 18:13:34 2026] [::1]:51344 Closing
+[Sun Aug 23 18:13:34 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:13:34 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:13:34 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 236
+[Sun Aug 23 18:13:34 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 236
+[Sun Aug 23 18:13:34 2026] [::1]:51345 Closing
+[Sun Aug 23 18:13:42 2026] [::1]:51351 Accepted
+[Sun Aug 23 18:13:42 2026] [::1]:51351 Closing
+[Sun Aug 23 18:14:01 2026] [::1]:58078 Accepted
+[Sun Aug 23 18:14:01 2026] [::1]:58078 Closing
+[Sun Aug 23 18:14:01 2026] [::1]:58079 Accepted
+[Sun Aug 23 18:14:01 2026] [::1]:58080 Accepted
+[Sun Aug 23 18:14:01 2026] [::1]:58079 Closing
+[Sun Aug 23 18:14:01 2026] [::1]:58080 Closing
+[Sun Aug 23 18:14:01 2026] [::1]:58081 Accepted
+[Sun Aug 23 18:14:01 2026] [::1]:58081 Closing
+[Sun Aug 23 18:14:01 2026] [::1]:58083 Accepted
+[Sun Aug 23 18:14:01 2026] [::1]:58083 Closing
+[Sun Aug 23 18:14:05 2026] [::1]:58113 Accepted
+[Sun Aug 23 18:14:05 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:14:05 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:14:05 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 242
+[Sun Aug 23 18:14:05 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 242
+[Sun Aug 23 18:14:05 2026] [::1]:58113 Closing
+[Sun Aug 23 18:14:12 2026] [::1]:58124 Accepted
+[Sun Aug 23 18:14:12 2026] [::1]:58124 Closing
+[Sun Aug 23 18:14:36 2026] [::1]:62647 Accepted
+[Sun Aug 23 18:14:36 2026] [::1]:62647 Closing
+[Sun Aug 23 18:14:43 2026] [::1]:62649 Accepted
+[Sun Aug 23 18:14:43 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:14:43 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:14:43 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 242
+[Sun Aug 23 18:14:43 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 242
+[Sun Aug 23 18:14:43 2026] PHP Warning:  Undefined array key 0 in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 258
+[Sun Aug 23 18:14:43 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 258
+[Sun Aug 23 18:14:43 2026] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\fielditservice\api\ai\chat.php on line 260
+[Sun Aug 23 18:14:43 2026] [::1]:62649 Closing
+[Sun Aug 23 18:16:12 2026] [::1]:60607 Accepted
+[Sun Aug 23 18:16:12 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:16:12 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:16:12 2026] [::1]:60607 Closing
+[Sun Aug 23 18:16:25 2026] [::1]:60618 Accepted
+[Sun Aug 23 18:16:26 2026] [::1]:60618 Closing
+[Sun Aug 23 18:16:26 2026] [::1]:60619 Accepted
+[Sun Aug 23 18:16:26 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:16:26 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:16:26 2026] [::1]:60619 Closing
+[Sun Aug 23 18:16:26 2026] [::1]:60621 Accepted
+[Sun Aug 23 18:16:26 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:16:26 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:16:26 2026] [::1]:60621 Closing
+[Sun Aug 23 18:16:26 2026] [::1]:60623 Accepted
+[Sun Aug 23 18:16:26 2026] [::1]:60623 Closing
+[Sun Aug 23 18:18:26 2026] [::1]:57352 Accepted
+[Sun Aug 23 18:18:26 2026] [::1]:57352 Closing
+[Sun Aug 23 18:18:26 2026] [::1]:57353 Accepted
+[Sun Aug 23 18:18:26 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'where clause'
+[Sun Aug 23 18:18:26 2026] AI DB Query Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'description' in 'where clause'
+[Sun Aug 23 18:18:26 2026] [::1]:57353 Closing
+[Sun Aug 23 18:18:26 2026] [::1]:57355 Accepted
+[Sun Aug 23 18:18:26 2026] [::1]:57355 Closing
+[Sun Aug 23 18:18:26 2026] [::1]:57356 Accepted
+[Sun Aug 23 18:18:26 2026] [::1]:57356 Closing

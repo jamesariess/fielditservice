@@ -127,22 +127,23 @@ $uniqueResults = [];
 foreach ($results as $r) { $key = $r['type'] . '_' . ($r['data']['id'] ?? md5($r['data']['title'] ?? $r['data']['code'] ?? '')); if (!isset($seen[$key])) { $seen[$key] = true; $uniqueResults[] = $r; } }
 $topResults = array_slice($uniqueResults, 0, 6);
 
-// Build context from conversation history
-$contextStr = '';
-if (!empty($conversationHistory)) {
-    $recent = array_slice($conversationHistory, -4);
-    foreach ($recent as $msg) { $role = $msg['role'] === 'user' ? 'User' : 'Bot'; $contextStr .= "$role: " . substr($msg['content'], 0, 200) . "\n"; }
+// Load conversation history from DB if frontend didn't send enough
+if (empty($conversationHistory) && !(defined('DEMO_MODE') && DEMO_MODE)) {
+    try { $conversationHistory = AIDatabase::fetchAll("SELECT role, content, created_at FROM ai_conversation_logs WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC LIMIT 10", [$sessionId, $userId]); } catch (Exception $e) {}
 }
+
+// Build rich conversation context
+$chatCtx = buildConversationContext($conversationHistory);
 
 // ===== BUILD RESPONSE =====
 if (!empty($topResults) && $topResults[0]['score'] > 2) {
-    $response = buildSmartResponse($message, $topResults, $botName, $contextStr);
+    $response = buildSmartResponse($message, $topResults, $botName, $chatCtx);
     $confidence = $topResults[0]['score'] > 10 ? 'high' : ($topResults[0]['score'] > 5 ? 'medium' : 'low');
     $sources = [];
     foreach ($topResults as $r) { switch($r['type']) { case 'training': $sources[] = 'Training Data'; break; case 'error_code': $sources[] = 'Error Codes'; break; case 'knowledge': $sources[] = 'Knowledge Base'; break; case 'issue': $sources[] = 'Troubleshooting'; break; case 'step': $sources[] = 'Steps'; break; case 'command': $sources[] = 'Commands'; break; case 'tool': $sources[] = 'Tools'; break; } }
     $sources = array_values(array_unique($sources));
 } else {
-    $response = buildConversationalResponse($message, $category, $botName, $contextStr, $conversationHistory);
+    $response = buildConversationalResponse($message, $category, $botName, $chatCtx, $conversationHistory);
     $confidence = 'medium';
     $sources = ['General IT Knowledge'];
 }
