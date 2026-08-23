@@ -114,19 +114,48 @@ if ($method === 'POST') {
             if ($sub['nodes_data']) {
                 $nodes = json_decode($sub['nodes_data'], true);
                 if (is_array($nodes)) {
+                    // First pass: insert all nodes, mapping temporary IDs to real DB IDs
+                    $tempToReal = [];
+                    $pendingVis = [];
+                    
                     foreach ($nodes as $node) {
-                        Database::insert('decision_nodes', [
+                        $tempId = $node['_temp_id'] ?? null;
+                        
+                        $dbId = Database::insert('decision_nodes', [
                             'issue_id' => $issueId,
-                            'parent_id' => $node['parent_id'] ?? null,
-                            'yes_next' => $node['yes_next'] ?? null,
-                            'no_next' => $node['no_next'] ?? null,
                             'question' => $node['question'] ?? '',
                             'description' => $node['description'] ?? '',
+                            'node_type' => $node['node_type'] ?? 'question',
                             'risk' => $node['risk'] ?? 'safe',
+                            'step_order' => $node['step_order'] ?? 10,
                             'is_terminal' => $node['is_terminal'] ?? 0,
+                            'visual_guide' => $node['visual_guide'] ?? null,
+                            'expected_result' => $node['expected_result'] ?? null,
+                            'tools_needed' => $node['tools_needed'] ?? null,
                             'result_type' => $node['result_type'] ?? null,
                             'result_solution' => $node['result_solution'] ?? null,
+                            'visibility_mode' => $node['visibility_mode'] ?? 'always',
                         ]);
+                        
+                        if ($tempId) $tempToReal[$tempId] = $dbId;
+                        
+                        // Queue visibility update
+                        if (($node['node_type'] ?? '') === 'step' && !empty($node['visible_for_question_id'])) {
+                            $pendingVis[] = [
+                                'step_id' => $dbId,
+                                'vis_q_temp' => $node['visible_for_question_id'],
+                            ];
+                        }
+                    }
+                    
+                    // Second pass: resolve temp question IDs to real DB IDs
+                    foreach ($pendingVis as $pv) {
+                        $realQId = $tempToReal[$pv['vis_q_temp']] ?? null;
+                        if ($realQId) {
+                            Database::update('decision_nodes', [
+                                'visible_for_question_id' => $realQId,
+                            ], 'id = ?', [$pv['step_id']]);
+                        }
                     }
                 }
             }
@@ -139,6 +168,10 @@ if ($method === 'POST') {
                 $nodes = json_decode($sub['nodes_data'], true);
                 if (is_array($nodes)) {
                     foreach ($nodes as $node) {
+                        $visQId2 = null;
+                        if (!empty($node['visible_for_question_id']) && is_numeric($node['visible_for_question_id'])) {
+                            $visQId2 = (int)$node['visible_for_question_id'];
+                        }
                         Database::insert('decision_nodes', [
                             'issue_id' => $sub['issue_id'],
                             'parent_id' => $node['parent_id'] ?? null,
@@ -146,10 +179,17 @@ if ($method === 'POST') {
                             'no_next' => $node['no_next'] ?? null,
                             'question' => $node['question'] ?? '',
                             'description' => $node['description'] ?? '',
+                            'node_type' => $node['node_type'] ?? 'question',
                             'risk' => $node['risk'] ?? 'safe',
+                            'step_order' => $node['step_order'] ?? 10,
                             'is_terminal' => $node['is_terminal'] ?? 0,
+                            'visual_guide' => $node['visual_guide'] ?? null,
+                            'expected_result' => $node['expected_result'] ?? null,
+                            'tools_needed' => $node['tools_needed'] ?? null,
                             'result_type' => $node['result_type'] ?? null,
                             'result_solution' => $node['result_solution'] ?? null,
+                            'visible_for_question_id' => $visQId2,
+                            'visibility_mode' => $node['visibility_mode'] ?? 'always',
                         ]);
                     }
                 }
