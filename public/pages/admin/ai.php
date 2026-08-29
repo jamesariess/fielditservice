@@ -308,16 +308,17 @@ function handleFileUpload(event) {
 }
 
 async function deleteTrainingFile(id) {
-    if (!confirm('Delete this training file?')) return;
-    try {
-        var res = await fetch(APP_BASE + 'api/ai/training.php', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ action: 'delete_file', id: id })
-        });
-        var result = await res.json();
-        showToast(result.message || result.error, result.error ? 'error' : 'success');
-        loadTrainingFiles();
-    } catch(e) { showToast('Failed to delete', 'error'); }
+    swalConfirm('Delete Training File?', 'This training data will be permanently removed.', async function() {
+        try {
+            var res = await fetch(APP_BASE + 'api/ai/training.php', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'delete_file', id: id })
+            });
+            var result = await res.json();
+            if (result.error) { swalError('Error', result.error); } else { swalSuccess('Deleted!', result.message || 'Training file removed.'); }
+            loadTrainingFiles();
+        } catch(e) { swalError('Failed', 'Could not delete training file.'); }
+    });
 }
 
 // === CONVERSATIONS ===

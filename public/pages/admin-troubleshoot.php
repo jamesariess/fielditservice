@@ -936,8 +936,9 @@ async function editError(id) {
     try { var res = await fetch(APP_BASE+'api/troubleshooting/errors.php?id='+id); var ec = await res.json(); openPanel('edit',ec); } catch(e) { showToast('Failed','error'); }
 }
 async function deleteError(id) {
-    if (!confirm('Delete this error code?')) return;
-    try { await fetch(APP_BASE+'api/troubleshooting/errors.php?id='+id,{method:'DELETE'}); showToast('Deleted','success'); loadErrorCodes(); } catch(e) { showToast('Failed','error'); }
+    swalConfirm('Delete Error Code?', 'This action cannot be undone.', async function() {
+        try { await fetch(APP_BASE+'api/troubleshooting/errors.php?id='+id,{method:'DELETE'}); swalSuccess('Deleted!', 'Error code has been removed.'); loadErrorCodes(); } catch(e) { swalError('Failed', 'Could not delete error code.'); }
+    });
 }
 
 // ===== TREE EDITOR (SIMPLIFIED) =====
@@ -1612,14 +1613,15 @@ function closeNodePanel() {
 }
 
 async function deleteNode(nodeId) {
-    if (!confirm('Delete this node?')) return;
-    try {
-        var res = await fetch(APP_BASE+'api/troubleshooting/nodes.php?id='+nodeId,{method:'DELETE'});
-        var data = await res.json();
-        if (data.error) { showToast(data.error,'error'); return; }
-        showToast('Deleted','success');
-        loadTreeForIssue(treeIssueId);
-    } catch(e) { showToast('Failed','error'); }
+    swalConfirm('Delete this node?', 'This action cannot be undone.', async function() {
+        try {
+            var res = await fetch(APP_BASE+'api/troubleshooting/nodes.php?id='+nodeId,{method:'DELETE'});
+            var data = await res.json();
+            if (data.error) { swalError('Error', data.error); return; }
+            swalSuccess('Deleted!', 'Node has been removed.');
+            loadTreeForIssue(treeIssueId);
+        } catch(e) { swalError('Failed', 'Could not delete node.'); }
+    });
 }
 // ===== SUBMISSIONS =====
 async function loadSubmissions() {

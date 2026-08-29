@@ -31,7 +31,7 @@ if ($method === 'GET') {
     }
     $history = [];
     if ($sessionId && !(defined('DEMO_MODE') && DEMO_MODE)) {
-        try { $history = AIDatabase::fetchAll("SELECT role, content, created_at FROM ai_conversation_logs WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC LIMIT 50", [$sessionId, $userId]); } catch (Exception $e) {}
+        try { $rawLogs = AIDatabase::fetchAll("SELECT message, response FROM ai_conversation_logs WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC LIMIT 50", [$sessionId, $userId]); $history = []; foreach ($rawLogs as $log) { if (!empty($log['message'])) $history[] = ['role' => 'user', 'content' => $log['message']]; if (!empty($log['response'])) $history[] = ['role' => 'assistant', 'content' => $log['response']]; } } catch (Exception $e) {}
     }
     $trainingCount = 0;
     if (!(defined('DEMO_MODE') && DEMO_MODE)) {
@@ -64,8 +64,21 @@ $lowerMsg = strtolower($message);
 $blocked = ['ignore previous', 'system prompt', 'reveal', 'api key', 'password', 'ignore all', 'you are now'];
 foreach ($blocked as $p) { if (stripos($lowerMsg, $p) !== false) { json_response(['response' => "I can only assist with IT troubleshooting. What's going on with your device?", 'confidence' => 'low', 'session_id' => $sessionId]); exit; } }
 
+// Always load conversation history from DB for context
+$conversationHistory = [];
+if (!(defined('DEMO_MODE') && DEMO_MODE)) {
+    try {
+        $dbLogs = AIDatabase::fetchAll("SELECT message, response FROM ai_conversation_logs WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC LIMIT 10", [$sessionId, $userId]);
+        foreach ($dbLogs as $log) {
+            if (!empty($log['message'])) $conversationHistory[] = ['role' => 'user', 'content' => $log['message']];
+            if (!empty($log['response'])) $conversationHistory[] = ['role' => 'assistant', 'content' => $log['response']];
+        }
+    } catch (Exception $e) {}
+}
+$preCtx = buildConversationContext($conversationHistory);
+
 // ===== CHECK CONVERSATIONAL PATTERNS FIRST (before database search) =====
-$conversationalReply = checkConversationalPatterns($lowerMsg, $message);
+$conversationalReply = checkConversationalPatterns($lowerMsg, $message, $preCtx);
 if ($conversationalReply !== null) {
     json_response(['response' => $conversationalReply, 'confidence' => 'high', 'sources' => ['IT Bot'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot']);
     exit;
@@ -115,7 +128,7 @@ if (!(defined('DEMO_MODE') && DEMO_MODE)) {
         foreach ($cmdResults as $cmd) { $score = scoreItem($lowerMsg, $keywords, ($cmd['name'] ?? '') . ' ' . ($cmd['description'] ?? ''), 'command'); $results[] = ['type' => 'command', 'data' => $cmd, 'score' => $score]; }
 
         // 7. Tools
-        $toolResults = AIDatabase::fetchAll("SELECT * FROM tools WHERE name LIKE ? OR description LIKE ? OR purpose LIKE ? LIMIT 3", ["%$message%", "%$message%", "%$message%"]);
+        $toolResults = AIDatabase::fetchAll("SELECT * FROM tools WHERE name LIKE ? OR purpose LIKE ? OR how_to_use LIKE ? LIMIT 3", ["%$message%", "%$message%", "%$message%"]);
         foreach ($toolResults as $tool) { $score = scoreItem($lowerMsg, $keywords, ($tool['name'] ?? '') . ' ' . ($tool['description'] ?? ''), 'tool'); $results[] = ['type' => 'tool', 'data' => $tool, 'score' => $score]; }
     } catch (Exception $e) { error_log("AI Chat Error: " . $e->getMessage()); }
 }
@@ -129,7 +142,7 @@ $topResults = array_slice($uniqueResults, 0, 6);
 
 // Load conversation history from DB if frontend didn't send enough
 if (empty($conversationHistory) && !(defined('DEMO_MODE') && DEMO_MODE)) {
-    try { $conversationHistory = AIDatabase::fetchAll("SELECT role, content, created_at FROM ai_conversation_logs WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC LIMIT 10", [$sessionId, $userId]); } catch (Exception $e) {}
+    try { $rawLogs = AIDatabase::fetchAll("SELECT message, response FROM ai_conversation_logs WHERE session_id = ? AND user_id = ? ORDER BY created_at ASC LIMIT 10", [$sessionId, $userId]); $conversationHistory = []; foreach ($rawLogs as $log) { if (!empty($log['message'])) $conversationHistory[] = ['role' => 'user', 'content' => $log['message']]; if (!empty($log['response'])) $conversationHistory[] = ['role' => 'assistant', 'content' => $log['response']]; } } catch (Exception $e) {}
 }
 
 // Build rich conversation context
@@ -208,34 +221,37 @@ function buildSmartResponse($query, $results, $botName, $context) {
 
     $response = '';
 
-    // Training data — use as context to build natural response, NOT dump raw
+    // Training data — build natural conversational response
     if (!empty($training)) {
         $tf = $training[0]['data'];
-        $tfTitle = $tf['title'] ?? '';
-        $tfContent = $tf['content'] ?? '';
-        // Extract key lines from training content (not the whole block)
-        $tfLines = array_filter(array_map('trim', explode("\n", $tfContent)));
-        $keyLines = array_slice($tfLines, 0, 5);
-        $response .= pickRandom(["I found something in our docs that might help!", "Oh yeah, we have info on that!", "Let me check what we have... Found it!"]);
-        $response .= "\n\n";
-        // Build natural response from training data
-        if (!empty($keyLines)) {
-            foreach ($keyLines as $line) {
-                if (empty($line)) continue;
-                // If it looks like a step or tip, format it nicely
-                if (preg_match('/^(\d+\.\s|step\s*\d|\-\s|►|→)/i', $line)) {
-                    $response .= "→ " . trim(preg_replace('/^(\d+\.\s|step\s*\d|\-\s|►|→\s*)/i', '', $line)) . "\n";
-                } elseif (preg_match('/^(CRITICAL|WARNING|NOTE|TIP|IMPORTANT)/i', $line)) {
-                    $response .= "**{$line}**\n";
-                } else {
-                    $response .= "{$line}\n";
-                }
+        if (!empty($tf)) {
+            $tfTitle = $tf['title'] ?? '';
+            $tfContent = $tf['content'] ?? '';
+            $response .= pickRandom(["I found something in our docs that might help!", "Oh yeah, we have info on that!", "Let me check what we have... Found it!"]);
+            $response .= "\n\n";
+            // Extract actionable lines — skip metadata headers
+            $tfLines = explode("\n", $tfContent);
+            $actionLines = [];
+            foreach ($tfLines as $line) {
+                $line = trim($line);
+                if (empty($line) || strlen($line) < 4) continue;
+                $ll = strtolower($line);
+                if (strpos($ll, 'field it') === 0) continue;
+                if (strpos($ll, 'troubleshooting') === 0) continue;
+                if (strpos($ll, 'category:') === 0) continue;
+                if (strpos($ll, 'severity:') === 0) continue;
+                if (strpos($ll, 'estimated time:') === 0) continue;
+                if (strpos($ll, 'issue:') === 0) continue;
+                if (strpos($ll, 'title:') === 0) continue;
+                $actionLines[] = $line;
+                if (count($actionLines) >= 10) break;
             }
+            if (!empty($actionLines)) {
+                $response .= implode("\n\n", $actionLines) . "\n\n";
+            }
+            if (!empty($errorCodes)) { $ec = $errorCodes[0]['data'] ?? []; $ecCode = $ec['code'] ?? ''; if (!empty($ecCode)) { $response .= "Related error: `{$ecCode}`" . (!empty($ec['title']) ? " — {$ec['title']}" : '') . "\n"; } }
+            return $response;
         }
-        $response .= "\n";
-        // Add related error codes if any
-        if (!empty($errorCodes)) { $ec = $errorCodes[0]['data']; $ecCode = $ec['code'] ?? ''; if (!empty($ecCode)) { $response .= "I also found this related error: `{$ecCode}`" . (!empty($ec['title']) ? " — {$ec['title']}" : '') . "\n"; if (!empty($ec['fix_steps'])) $response .= "\nQuick fix: {$ec['fix_steps']}\n"; } }
-        return $response;
     }
 
     // Error codes
@@ -630,7 +646,7 @@ function checkConversationalPatterns($lowerMsg, $originalMsg, $ctx = null) {
             if ($ctx && !empty($ctx['last_step'])) {
                 return pickRandom([
                     "Okay, **{$ctx['last_step']}** didn't do it. Let's try the next approach. Can you tell me what happened when you tried it?",
-                    "Alright, that didn't work. Let me think of another way to fix {$ctx['topic'] ?? 'this'}. What exactly are you seeing now?",
+                    "Alright, that didn't work. Let me think of another way to fix this. What exactly are you seeing now?",
                     "Hmm, that step didn't help. Let's try something different — tell me what's happening.",
                 ]);
             }
@@ -640,6 +656,25 @@ function checkConversationalPatterns($lowerMsg, $originalMsg, $ctx = null) {
                 "Hmm, okay. Let me think of another approach. Can you describe what happens?",
                 "Got it, that didn't work. Let's try the next thing — tell me what you're seeing.",
             ]);
+        }
+    }
+
+    // Follow-up questions — only fire when there IS context
+    $followUpPatterns = ['how to fix', 'how do i fix', 'what should i do', 'what do i do', 'tell me the steps', 'show me', 'next step', 'now what', 'and then', 'what else', 'how can i fix', 'solution', 'give me the solution'];
+    $hasContext = !empty($ctx) && !empty($ctx['topic']);
+    foreach ($followUpPatterns as $fup) {
+        if ($hasContext && strpos($lowerMsg, $fup) !== false) {
+            $topic = $ctx['topic'] ?? '';
+            $device = $ctx['device'] ?? '';
+            $turn = $ctx['turn_count'] ?? 0;
+            $fixResponses = [
+                'power' => "Let's go step by step for the power issue:\n\n**Step 1:** Check the outlet — plug a phone charger into the same outlet. Does it charge?\n\n**Step 2:** Check the PSU switch on the back — make sure it's in the **I** (on) position.\n\n**Step 3:** Unplug the power cable, hold the power button for 30 seconds, then plug back in and try.\n\n**Step 4:** Open the case and check that the 24-pin motherboard and 8-pin CPU power connectors are seated firmly.\n\n**Step 5:** If you have a spare PSU or multimeter, test the PSU output.\n\nWhich step should we start with?",
+                'display' => "Here's how to fix the display issue:\n\n**Step 1:** Check monitor power light — if off, the monitor isn't getting power.\n\n**Step 2:** Replug the video cable on both ends.\n\n**Step 3:** Try a different cable or different port (HDMI, DP, VGA).\n\n**Step 4:** Reseat RAM — power off, remove RAM, reinsert firmly.\n\n**Step 5:** Reseat GPU — remove and reinsert the graphics card.\n\nWhich can you try right now?",
+                'network' => "Here's how to fix network issues:\n\n**Quick Fix:**\nOpen CMD as admin and run:\n```\nipconfig /release\nipconfig /renew\nipconfig /flushdns\n```\n\n**If that doesn't work:**\n→ Ping 8.8.8.8 — if it works, it's DNS. If not, it's your connection.\n→ For WiFi: forget the network and reconnect\n→ For Ethernet: check cable at both ends\n→ Try netsh winsock reset in CMD, then restart\n\nWhich one should we try?",
+                'printer' => "Let's fix the printer:\n\n**Step 1:** Restart Print Spooler — CMD admin: `net stop spooler` then `net start spooler`\n\n**Step 2:** Settings > Devices > Printers — right-click printer, make sure Use Printer Offline is NOT checked.\n\n**Step 3:** For paper jam — open printer panels and gently remove stuck paper.\n\n**Step 4:** Reinstall printer driver if still not working.\n\nWhich applies to your situation?",
+            ];
+            if (isset($fixResponses[$topic])) return $fixResponses[$topic];
+            return "Let me walk you through the fix for your {$topic} issue. Can you describe the specific symptoms you're seeing?";
         }
     }
 
@@ -665,4 +700,66 @@ function checkConversationalPatterns($lowerMsg, $originalMsg, $ctx = null) {
 
     // No response — let the database search handle it
     return null;
+}
+
+// ===== BUILD CONVERSATION CONTEXT =====
+function buildConversationContext($history) {
+    $ctx = [
+        'topic' => '',
+        'device' => '',
+        'last_step' => '',
+        'last_question' => '',
+        'last_user_answer' => '',
+        'turn_count' => 0,
+        'resolved' => false,
+        'escalated' => false,
+        'mentioned_codes' => [],
+        'steps_tried' => [],
+    ];
+    if (empty($history)) return $ctx;
+    $recent = array_slice($history, -8);
+    $ctx['turn_count'] = count($recent);
+    $allUserText = '';
+    $allBotText = '';
+    foreach ($recent as $msg) {
+        $role = strtolower($msg['role'] ?? 'user');
+        $text = $msg['content'] ?? '';
+        $textLower = strtolower($text);
+        if ($role === 'user') {
+            $allUserText .= ' ' . $textLower;
+            $ctx['last_user_answer'] = $text;
+        } else {
+            $allBotText .= ' ' . $textLower;
+            $steps = [];
+            if (preg_match_all('/(?:try|check|run|open|type|restart|click|unplug|reseat|test|swap|plug)\s+(.{10,80})/i', $text, $m)) {
+                $steps = $m[0];
+            }
+            if (!empty($steps)) $ctx['last_step'] = end($steps);
+            $lines = explode("\n", $text);
+            foreach (array_reverse($lines) as $line) {
+                $line = trim($line);
+                if (!empty($line) && strpos($line, '?') !== false) {
+                    $ctx['last_question'] = $line;
+                    break;
+                }
+            }
+        }
+    }
+    $combined = $allUserText . ' ' . $allBotText;
+    $topicMap = ['display' => ['display', 'monitor', 'screen', 'black screen', 'no image', 'flicker', 'flickering', 'resolution', 'vga', 'hdmi'], 'power' => ['power', 'turn on', 'wont turn', 'startup', 'boot', 'psu', 'battery', 'charging', 'dead', 'not turning'], 'sound' => ['sound', 'audio', 'speaker', 'headphone', 'noise', 'clicking', 'buzzing', 'no sound', 'microphone'], 'network' => ['network', 'internet', 'wifi', 'ethernet', 'dns', 'connection', 'lan', 'ping'], 'printer' => ['printer', 'print', 'paper jam', 'ink', 'toner', 'cartridge', 'offline'], 'software' => ['windows', 'application', 'crash', 'freeze', 'slow', 'error', 'bsod', 'blue screen', 'driver', 'update'], 'cctv' => ['camera', 'cctv', 'nvr', 'dvr', 'recording', 'surveillance']];
+    foreach ($topicMap as $topic => $terms) {
+        foreach ($terms as $term) {
+            if (strpos($combined, $term) !== false) { $ctx['topic'] = $topic; break 2; }
+        }
+    }
+    $deviceMap = ['desktop' => ['desktop', 'pc', 'tower', 'workstation'], 'laptop' => ['laptop', 'notebook'], 'server' => ['server'], 'printer' => ['printer'], 'camera' => ['camera', 'cctv']];
+    foreach ($deviceMap as $device => $terms) {
+        foreach ($terms as $term) {
+            if (strpos($combined, $term) !== false) { $ctx['device'] = $device; break 2; }
+        }
+    }
+    if (preg_match('/(fixed|solved|working|resolved|done|works now)/i', $allUserText)) $ctx['resolved'] = true;
+    if (preg_match('/(escalat|supervisor|manager|cant fix|give up|not working at all)/i', $allUserText)) $ctx['escalated'] = true;
+    if (preg_match_all('/[A-Z][A-Z_]{5,}/', strtoupper($allUserText . ' ' . $allBotText), $m)) $ctx['mentioned_codes'] = array_unique($m[0]);
+    return $ctx;
 }

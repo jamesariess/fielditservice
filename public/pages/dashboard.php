@@ -567,7 +567,7 @@ $notifCount = count($notifications);
             </div>
             <div style="padding:16px 24px 20px;">
                 <?php
-                $maxCnt = max(array_column($topIssues, 'cnt'));
+                $maxCnt = !empty($topIssues) ? max(array_column($topIssues, 'cnt')) : 1;
                 $barColors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444'];
                 foreach ($topIssues as $i => $iss):
                     $pct = $maxCnt > 0 ? ($iss['cnt'] / $maxCnt) * 100 : 0;

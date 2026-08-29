@@ -97,8 +97,9 @@ foreach ($sidebarItems as $item) {
         }
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="<?= $urlBase ?>assets/css/app.css">
-    <script src="<?= $urlBase ?>assets/js/app.js"></script>
+    <script src="<?= $urlBase ?>assets/js/app.js?v=<?= filemtime(APP_ROOT . '/public/assets/js/app.js') ?>"></script>
     <style>
         .bottom-nav { display:none; position:fixed; bottom:0; left:0; right:0; z-index:60; background:rgba(255,255,255,0.95); backdrop-filter:blur(12px); border-top:1px solid #e5e7eb; padding:6px 0 env(safe-area-inset-bottom,6px); }
         .bottom-nav a { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 4px; font-size:10px; font-weight:600; color:#94a3b8; text-decoration:none; transition:color 0.15s; }

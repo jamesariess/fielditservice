@@ -85,7 +85,7 @@ class Auth {
 
     public static function logout(): void {
         session_destroy();
-        header('Location: /login');
+        header('Location: /fielditservice/public/login');
         exit;
     }
 
@@ -101,7 +101,7 @@ class Auth {
                 echo json_encode(['error' => 'Authentication required']);
                 exit;
             }
-            header('Location: /login');
+            header('Location: /fielditservice/public/login');
             exit;
         }
         if (time() - ($_SESSION['login_time'] ?? 0) > SESSION_LIFETIME) {

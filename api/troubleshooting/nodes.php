@@ -27,7 +27,7 @@ if (!$isAdmin) {
 if ($method === 'GET') {
     // All issues list
     if (isset($_GET['all_issues'])) {
-        $issues = Database::fetchAll("SELECT id, title, slug, category, severity, device_types FROM troubleshooting_issues ORDER BY id ASC");
+        $issues = Database::fetchAll("SELECT id, title, slug, category_id, severity, device_types FROM troubleshooting_issues ORDER BY id ASC");
         json_response($issues); exit;
     }
     

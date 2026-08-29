@@ -9,6 +9,52 @@ var APP_BASE = (function() {
     return m ? m[1] + '/' : '/';
 })();
 
+// ==================== SweetAlert2 Helpers ====================
+function swalConfirm(title, text, onConfirm) {
+    Swal.fire({
+        title: title,
+        text: text,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true
+    }).then(function(result) {
+        if (result.isConfirmed) onConfirm();
+    });
+}
+
+function swalSuccess(title, text) {
+    Swal.fire({
+        title: title || 'Success!',
+        text: text || '',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false,
+        timerProgressBar: true
+    });
+}
+
+function swalError(title, text) {
+    Swal.fire({
+        title: title || 'Error',
+        text: text || '',
+        icon: 'error',
+        confirmButtonColor: '#ef4444'
+    });
+}
+
+function swalInfo(title, text) {
+    Swal.fire({
+        title: title,
+        text: text,
+        icon: 'info',
+        confirmButtonColor: '#3b82f6'
+    });
+}
+
 // ==================== Dark Mode ====================
 function initDarkMode() {
     const mode = localStorage.getItem('theme');
@@ -608,14 +654,14 @@ function editUser(userId) {
     openModal('edit-user-modal');
 }
 function deleteUser(userId) {
-    if (confirm('Are you sure you want to remove this user?')) {
+    swalConfirm('Remove User?', 'This will permanently remove this user from the system.', function() {
         api('/api/users/delete?id=' + userId, { method: 'DELETE' }).then(function() {
-            showToast('User removed', 'success');
-            setTimeout(function() { window.location.reload(); }, 1000);
+            swalSuccess('User Removed', 'The user has been removed.');
+            setTimeout(function() { window.location.reload(); }, 1500);
         }).catch(function(err) {
-            showToast('Error: ' + err.message, 'error');
+            swalError('Error', err.message);
         });
-    }
+    });
 }
 
 // ==================== Admin: KB Approve/Reject ====================
