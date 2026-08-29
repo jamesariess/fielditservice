@@ -564,7 +564,7 @@ function buildConversationalResponse($query, $category, $botName, $context, $his
 function pickRandom($arr) { return $arr[array_rand($arr)]; }
 
 // ===== CONVERSATIONAL PATTERNS (checked FIRST before any database search) =====
-function checkConversationalPatterns($lowerMsg, $originalMsg) {
+function checkConversationalPatterns($lowerMsg, $originalMsg, $ctx = null) {
     // Greetings
     $greetings = ['^hi$', '^hey$', '^hello$', '^hi there$', '^hey there$', '^hello there$', '^yo$', '^sup$', '^good morning$', '^good afternoon$', '^good evening$', '^hola$', '^hi!', '^hey!', '^hello!', '^hi bot', '^hey bot', '^hello bot'];
     foreach ($greetings as $g) {
@@ -605,6 +605,16 @@ function checkConversationalPatterns($lowerMsg, $originalMsg) {
     $yesPatterns = ['yes', 'yep', 'yeah', '^y$', 'it worked', 'its working', 'it works', 'fixed', 'solved', 'done', 'got it', 'works now', 'working now', 'problem solved'];
     foreach ($yesPatterns as $yp) {
         if (preg_match('/' . $yp . '/i', trim($lowerMsg))) {
+            if ($ctx && !empty($ctx['last_step'])) {
+                return pickRandom([
+                    "Glad **{$ctx['last_step']}** worked! 🎉 Anything else you need help with?",
+                    "Nice! **{$ctx['last_step']}** did the trick. Need help with anything else?",
+                    "Awesome, that's sorted then! 👍 What else can I help with?",
+                ]);
+            }
+            if ($ctx && !empty($ctx['topic'])) {
+                return "Great! Glad the {$ctx['topic']} issue is sorted. Anything else?";
+            }
             return pickRandom([
                 "Awesome, glad it's sorted! 🎉 Let me know if anything else comes up.",
                 "Great! Problem solved. Anything else you need help with?",
@@ -617,6 +627,13 @@ function checkConversationalPatterns($lowerMsg, $originalMsg) {
     $noPatterns = ['^no$', '^nope', '^n$', 'didnt work', 'did not work', 'still broken', 'still not working', 'same issue', 'no change', 'did not fix', 'didnt fix'];
     foreach ($noPatterns as $np) {
         if (preg_match('/' . $np . '/i', trim($lowerMsg))) {
+            if ($ctx && !empty($ctx['last_step'])) {
+                return pickRandom([
+                    "Okay, **{$ctx['last_step']}** didn't do it. Let's try the next approach. Can you tell me what happened when you tried it?",
+                    "Alright, that didn't work. Let me think of another way to fix {$ctx['topic'] ?? 'this'}. What exactly are you seeing now?",
+                    "Hmm, that step didn't help. Let's try something different — tell me what's happening.",
+                ]);
+            }
             return pickRandom([
                 "Okay, no worries. Let's try something else. Can you tell me what exactly happens when you try?",
                 "Alright, that didn't do it. Let's dig deeper — what are you seeing now?",
