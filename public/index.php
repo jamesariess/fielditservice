@@ -1,6 +1,15 @@
 <?php
 /**
  * Field IT Support Hub - Main Router
+ *
+ * Route map:
+ *   /                 → dashboard          (auth required)
+ *   /login            → auth/login         (guest only)
+ *   /logout           → logout
+ *   /troubleshoot     → troubleshoot
+ *   ...               → app pages          (auth required)
+ *   /admin/*          → admin pages        (auth + permission required, enforced centrally)
+ *   /api/*            → api endpoints      (auth required per-endpoint)
  */
 
 define('APP_ROOT', dirname(__DIR__));
@@ -55,13 +64,36 @@ if ($publicPos !== false) {
 $uri = preg_replace('/\.php$/', '', $uri);
 $uri = rtrim($uri, '/') ?: '/';
 
-// Route map
+/**
+ * ------------------------------------------------------------------
+ * ADMIN ROUTES — every entry is centrally secured by permission key.
+ * Pages live in public/pages/admin/ and ALSO re-check via
+ * includes/admin_guard.php (defense in depth).
+ * ------------------------------------------------------------------
+ */
+$adminRoutes = [
+    '/admin/users'          => ['file' => APP_ROOT . '/public/pages/admin/users.php',          'perm' => 'users.manage'],
+    '/admin/roles'          => ['file' => APP_ROOT . '/public/pages/admin/roles.php',          'perm' => 'roles.manage'],
+    '/admin/departments'    => ['file' => APP_ROOT . '/public/pages/admin/departments.php',    'perm' => 'departments.manage'],
+    '/admin/knowledge'      => ['file' => APP_ROOT . '/public/pages/admin/knowledge.php',      'perm' => 'knowledge.manage'],
+    '/admin/equipment'      => ['file' => APP_ROOT . '/public/pages/admin/equipment.php',      'perm' => 'equipment.manage'],
+    '/admin/ai'             => ['file' => APP_ROOT . '/public/pages/admin/ai.php',             'perm' => 'ai.manage'],
+    '/admin/audit'          => ['file' => APP_ROOT . '/public/pages/admin/audit.php',          'perm' => 'audit.view'],
+    '/admin/statistics'     => ['file' => APP_ROOT . '/public/pages/admin/statistics.php',     'perm' => 'audit.view'],
+    '/admin/settings'       => ['file' => APP_ROOT . '/public/pages/admin/settings.php',       'perm' => 'system.settings'],
+    '/admin/troubleshoot'   => ['file' => APP_ROOT . '/public/pages/admin/troubleshoot.php',   'perm' => 'system.settings'],
+];
+
+/**
+ * ------------------------------------------------------------------
+ * APP ROUTES (authenticated area)
+ * ------------------------------------------------------------------
+ */
 $routes = [
     '/' => APP_ROOT . '/public/pages/dashboard.php',
-    '/login' => APP_ROOT . '/public/pages/login.php',
-    '/logout' => 'logout',
     '/troubleshoot' => APP_ROOT . '/public/pages/troubleshoot.php',
     '/troubleshoot/wizard' => APP_ROOT . '/public/pages/troubleshoot-wizard.php',
+    '/troubleshoot/submit' => APP_ROOT . '/public/pages/troubleshoot-submit.php',
     '/knowledge' => APP_ROOT . '/public/pages/knowledge.php',
     '/knowledge/view' => APP_ROOT . '/public/pages/knowledge-view.php',
     '/equipment' => APP_ROOT . '/public/pages/equipment.php',
@@ -74,21 +106,6 @@ $routes = [
     '/documentation' => APP_ROOT . '/public/pages/documentation.php',
     '/chat' => APP_ROOT . '/public/pages/chat.php',
     '/profile' => APP_ROOT . '/public/pages/profile.php',
-];
-
-// Admin routes
-$adminRoutes = [
-    '/admin/users' => APP_ROOT . '/public/pages/admin/users.php',
-    '/admin/roles' => APP_ROOT . '/public/pages/admin/roles.php',
-    '/admin/departments' => APP_ROOT . '/public/pages/admin/departments.php',
-    '/admin/knowledge' => APP_ROOT . '/public/pages/admin/knowledge.php',
-    '/admin/equipment' => APP_ROOT . '/public/pages/admin/equipment.php',
-    '/admin/ai' => APP_ROOT . '/public/pages/admin/ai.php',
-    '/admin/audit' => APP_ROOT . '/public/pages/admin/audit.php',
-    '/admin/statistics' => APP_ROOT . '/public/pages/admin/statistics.php',
-    '/admin/settings' => APP_ROOT . '/public/pages/admin/settings.php',
-    '/admin/troubleshoot' => APP_ROOT . '/public/pages/admin-troubleshoot.php',
-    '/troubleshoot/submit' => APP_ROOT . '/public/pages/troubleshoot-submit.php',
     '/api/troubleshooting/submissions' => APP_ROOT . '/api/troubleshooting/submissions.php',
     '/api/troubleshooting/errors' => APP_ROOT . '/api/troubleshooting/errors.php',
     '/api/troubleshooting/nodes' => APP_ROOT . '/api/troubleshooting/nodes.php',
@@ -99,30 +116,34 @@ if ($uri === '/logout') {
     Auth::logout();
 }
 
-// Check admin routes first
-if (isset($adminRoutes[$uri])) {
-    Auth::requireLogin();
-    // Permission will be checked in the page file
-    $file = $adminRoutes[$uri];
-    if (file_exists($file)) {
-        require $file;
-    } else {
-        http_response_code(404);
-        include APP_ROOT . '/public/pages/404.php';
-    }
-    exit;
-}
-
-// Handle public routes (login)
+// Handle login (guest route)
 if ($uri === '/login') {
     if (Auth::isLoggedIn()) {
         redirect('/');
     }
-    require APP_ROOT . '/public/pages/login.php';
+    require APP_ROOT . '/public/pages/auth/login.php';
     exit;
 }
 
-// Handle regular routes
+// ADMIN: enforce permission at the router level (before any admin markup renders)
+if (isset($adminRoutes[$uri])) {
+    Auth::requireLogin();
+    if (!Auth::hasPermission($adminRoutes[$uri]['perm'])) {
+        http_response_code(403);
+        include APP_ROOT . '/public/pages/errors/403.php';
+        exit;
+    }
+    $adminFile = $adminRoutes[$uri]['file'];
+    if (file_exists($adminFile)) {
+        require $adminFile;
+    } else {
+        http_response_code(404);
+        include APP_ROOT . '/public/pages/errors/404.php';
+    }
+    exit;
+}
+
+// Handle regular app routes
 if (isset($routes[$uri])) {
     $file = $routes[$uri];
     if (file_exists($file)) {
@@ -130,7 +151,7 @@ if (isset($routes[$uri])) {
         require $file;
     } else {
         http_response_code(404);
-        include APP_ROOT . '/public/pages/404.php';
+        include APP_ROOT . '/public/pages/errors/404.php';
     }
     exit;
 }
@@ -154,8 +175,4 @@ if (str_starts_with($uri, '/api/')) {
 
 // 404 - Not found
 http_response_code(404);
-if (file_exists(APP_ROOT . '/public/pages/404.php')) {
-    include APP_ROOT . '/public/pages/404.php';
-} else {
-    echo '<h1>404 - Page Not Found</h1>';
-}
+include APP_ROOT . '/public/pages/errors/404.php';

@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Brand';
 $active_menu = 'equipment';
 require APP_ROOT . '/includes/layout_header.php';
@@ -19,16 +21,21 @@ $equipment = Database::fetchAll(
 $page_title = $brand . ' Equipment';
 ?>
 <div>
-    <div style="margin-bottom:20px;">
+    <div style="margin-bottom:20px;" class="fx-reveal">
         <a href="<?= $urlBase ?>equipment" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#64748b;text-decoration:none;margin-bottom:12px;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#64748b'">
             <i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Back to Equipment
         </a>
-        <h1 style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;"><?= e(ucfirst($brand)) ?></h1>
-        <p style="font-size:13px;color:#64748b;margin-top:2px;"><?= count($equipment) ?> device models in this brand</p>
+        <div style="display:flex;align-items:center;gap:14px;">
+            <div class="page-hero-ico green"><i data-lucide="badge-check"></i></div>
+            <div>
+                <h1 style="font-size:24px;font-weight:800;color:#111827;letter-spacing:-0.03em;" class="dark:text-gray-100"><?= e(ucfirst($brand)) ?></h1>
+                <p style="font-size:13px;color:#64748b;margin-top:2px;"><?= count($equipment) ?> device models in this brand</p>
+            </div>
+        </div>
     </div>
 
     <!-- Search -->
-    <div style="margin-bottom:20px;position:relative;">
+    <div style="margin-bottom:20px;position:relative;--fx-delay:50ms;" class="fx-reveal">
         <i data-lucide="search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:#94a3b8;"></i>
         <input type="text" id="brand-search" placeholder="Search models..." class="form-input" style="padding-left:36px;" oninput="filterBrand()">
     </div>

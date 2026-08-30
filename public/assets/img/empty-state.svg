@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" role="img" aria-label="Empty state illustration">
+  <defs>
+    <linearGradient id="es-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eff6ff"/>
+      <stop offset="1" stop-color="#f5f3ff"/>
+    </linearGradient>
+    <linearGradient id="es-cpu" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="160" rx="24" fill="url(#es-bg)"/>
+  <circle cx="205" cy="28" r="46" fill="#dbeafe" opacity=".6"/>
+  <circle cx="34" cy="140" r="52" fill="#ede9fe" opacity=".6"/>
+  <g>
+    <rect x="58" y="52" width="124" height="76" rx="10" fill="#fff" stroke="#c7d2fe" stroke-width="2.5"/>
+    <rect x="66" y="60" width="108" height="60" rx="6" fill="#0f172a"/>
+    <rect x="96" y="128" width="48" height="10" rx="5" fill="#c7d2fe"/>
+    <rect x="84" y="138" width="72" height="9" rx="4.5" fill="#dbeafe" opacity=".7"/>
+    <circle cx="186" cy="58" r="7" fill="#a855f7" opacity=".85"/>
+    <rect x="43" y="88" width="30" height="30" rx="8" fill="url(#es-cpu)"/>
+    <path d="M58 88v-8M58 118v8M43 103h-8M73 103h8" stroke="#7c3aed" stroke-width="2.4" stroke-linecap="round"/>
+  </g>
+  <path d="M158 108c-8-6-18-4-22 3" stroke="#3b82f6" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

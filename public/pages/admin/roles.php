@@ -1,15 +1,25 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Roles & Permissions';
 $active_menu = 'admin-roles';
+$required_permission = 'roles.manage';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
-Auth::requirePermission('roles.manage');
 
 ?>
 
 <div class="max-w-6xl mx-auto">
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Roles & Permissions</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure role-based access control</p>
+    <div class="page-hero fx-reveal">
+        <div>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico violet"><i data-lucide="shield"></i></div>
+                <div>
+                    <h1 class="page-hero-title">Roles &amp; Permissions</h1>
+                    <p class="page-hero-sub">Configure role-based access control</p>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Roles List -->

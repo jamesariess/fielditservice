@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Knowledge Article';
 $active_menu = 'knowledge';
 require APP_ROOT . '/includes/layout_header.php';
@@ -231,7 +233,7 @@ if ($article['id'] > 0 && !$demo) {
             </div>
             <div id="rating-feedback" style="display:none;margin-top:12px;">
                 <textarea id="rating-comment" placeholder="Optional: tell us why..." class="form-input" rows="2" style="resize:none;"></textarea>
-                <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="submitFeedback()">Submit Feedback</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:8px;" id="fb-submit-btn" onclick="submitFeedback()">Submit Feedback</button>
             </div>
         </div>
     </div>
@@ -241,22 +243,27 @@ if ($article['id'] > 0 && !$demo) {
 var articleId = <?= intval($article['id']) ?>;
 
 function kbRateArticle(rating) {
+    var btnMap = { solved: 'rate-yes', partial: 'rate-partial', no: 'rate-no', helpful: 'rate-helpful', not_helpful: 'rate-not' };
+    var btn = document.getElementById(btnMap[rating]);
+    if (typeof setButtonLoading === 'function') setButtonLoading(btn, true, 'Saving…');
     fetch('<?= $urlBase ?>api/knowledge/rate.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ article_id: articleId, rating: rating })
     }).then(function(r) { return r.json(); }).then(function(d) {
+        if (typeof setButtonLoading === 'function') setButtonLoading(btn, false);
         if (d.success) {
             showToast('Thanks for your feedback!', 'success');
             // Highlight the button pressed
             document.querySelectorAll('#rate-yes,#rate-partial,#rate-no,#rate-helpful,#rate-not').forEach(function(b) {
                 b.style.opacity = '0.5';
             });
-            var btnMap = { solved: 'rate-yes', partial: 'rate-partial', no: 'rate-no', helpful: 'rate-helpful', not_helpful: 'rate-not' };
-            var btn = document.getElementById(btnMap[rating]);
             if (btn) { btn.style.opacity = '1'; btn.style.transform = 'scale(1.05)'; }
         }
-    }).catch(function() { showToast('Error submitting rating', 'error'); });
+    }).catch(function() {
+        if (typeof setButtonLoading === 'function') setButtonLoading(btn, false);
+        showToast('Error submitting rating', 'error');
+    });
 }
 
 function copySolution() {
@@ -269,11 +276,19 @@ function copySolution() {
 
 function submitFeedback() {
     var comment = document.getElementById('rating-comment').value;
+    var btn = document.getElementById('fb-submit-btn');
+    if (typeof setButtonLoading === 'function') setButtonLoading(btn, true, 'Sending…');
     fetch('<?= $urlBase ?>api/knowledge/rate.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ article_id: articleId, rating: 'helpful', feedback: comment })
-    }).then(function() { showToast('Feedback submitted!', 'success'); });
+    }).then(function() {
+        if (typeof setButtonLoading === 'function') setButtonLoading(btn, false);
+        showToast('Feedback submitted!', 'success');
+    }).catch(function() {
+        if (typeof setButtonLoading === 'function') setButtonLoading(btn, false);
+        showToast('Failed to send feedback', 'error');
+    });
 }
 </script>
 <?php require APP_ROOT . '/includes/layout_footer.php'; ?>

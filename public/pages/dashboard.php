@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Dashboard';
 $active_menu = 'dashboard';
 require APP_ROOT . '/includes/layout_header.php';
@@ -283,41 +285,6 @@ $notifCount = count($notifications);
 .ticket-row:hover { background: #f8fafc; border-radius: 10px; margin: 0 -8px; padding: 14px 8px; }
 .dark .ticket-row { border-bottom-color: #1e293b; }
 .dark .ticket-row:hover { background: rgba(30,41,59,0.5); }
-
-/* Notification Dropdown */
-.notif-dropdown {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    width: 360px;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15);
-    z-index: 50;
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-8px);
-    transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
-}
-.notif-dropdown.open {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0);
-}
-.dark .notif-dropdown { background: #1e293b; border-color: #334155; }
-.notif-item {
-    display: flex;
-    gap: 12px;
-    padding: 14px 16px;
-    border-bottom: 1px solid #f1f5f9;
-    transition: background 0.15s;
-    cursor: pointer;
-}
-.notif-item:last-child { border-bottom: none; }
-.notif-item:hover { background: #f8fafc; }
-.dark .notif-item { border-bottom-color: #1e293b; }
-.dark .notif-item:hover { background: rgba(30,41,59,0.5); }
 .notif-dot-unread {
     width: 8px; height: 8px;
     background: #2563eb;
@@ -377,10 +344,10 @@ $notifCount = count($notifications);
 
 <!-- Hero Section -->
 <div class="dash-hero">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;" class="fx-reveal">
         <div>
             <h1 style="font-size:26px;font-weight:800;color:#111827;letter-spacing:-0.03em;line-height:1.2;" class="dash-text">
-                Welcome back, <?= e(Auth::userName()) ?> 👋
+                Welcome back, <?= e(Auth::userName()) ?> <span style="display:inline-block;animation:wave 2.2s ease-in-out infinite;transform-origin:70% 70%;">👋</span>
             </h1>
             <p style="font-size:14px;color:#64748b;margin-top:4px;" class="dash-text-muted">Here's what's happening with your IT operations today.</p>
         </div>
@@ -395,7 +362,7 @@ $notifCount = count($notifications);
     </div>
 
     <!-- Hero Search -->
-    <div class="hero-search-wrap">
+    <div class="hero-search-wrap fx-reveal" style="--fx-delay:140ms;">
         <i data-lucide="search" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:#94a3b8;pointer-events:none;"></i>
         <input type="text" id="hero-search" class="dark-input"
                placeholder="Search devices, tickets, or commands..."
@@ -420,7 +387,9 @@ $notifCount = count($notifications);
         ['icon' => 'clock-3', 'label' => 'Pending Tickets', 'value' => $pendingTickets, 'change' => '-2', 'up' => false, 'color' => '#d97706', 'glow' => 'rgba(217,119,6,0.15)', 'spark' => [8,9,7,8,6,7,5,6,5,4,5,4,6,5,4,5,4,3,4,3]],
         ['icon' => 'book-open', 'label' => 'KB Articles', 'value' => $kbArticles, 'change' => '+5', 'up' => true, 'color' => '#9333ea', 'glow' => 'rgba(147,51,234,0.15)', 'spark' => [5,6,7,6,8,9,8,10,11,10,12,13,12,14,13,15,14,16,15,17]],
     ];
+    $si = 0;
     foreach ($statCards as $s):
+        $fxDelay = $si * 90; $si++;
         // Generate SVG sparkline
         $pts = $s['spark'];
         $max = max($pts); $min = min($pts);
@@ -435,7 +404,7 @@ $notifCount = count($notifications);
         $pathD = 'M' . implode(' L', $coords);
         $areaD = $pathD . " L{$w},{$h} L0,{$h} Z";
     ?>
-        <div class="stat-card-premium">
+        <div class="stat-card-premium fx-reveal" style="--fx-delay:<?= $fxDelay ?>ms;">
             <div class="stat-glow" style="background:<?= $s['color'] ?>;"></div>
             <svg class="stat-sparkline" viewBox="0 0 <?= $w ?> <?= $h ?>" preserveAspectRatio="none">
                 <path d="<?= $areaD ?>" fill="<?= $s['color'] ?>" />
@@ -447,7 +416,7 @@ $notifCount = count($notifications);
                 </div>
                 <div style="flex:1;min-width:0;">
                     <div style="display:flex;align-items:baseline;gap:8px;">
-                        <span style="font-size:28px;font-weight:800;color:#111827;letter-spacing:-0.03em;line-height:1;" class="dash-text"><?= $s['value'] ?></span>
+                        <span data-count="<?= (int)$s['value'] ?>" style="font-size:28px;font-weight:800;color:#111827;letter-spacing:-0.03em;line-height:1;" class="dash-text"><?= $s['value'] ?></span>
                         <span class="trend-badge <?= $s['up'] ? 'up' : 'down' ?>">
                             <i data-lucide="<?= $s['up'] ? 'trending-up' : 'trending-down' ?>" style="width:10px;height:10px;"></i>
                             <?= $s['change'] ?>
@@ -482,8 +451,11 @@ $notifCount = count($notifications);
             ['icon'=>'monitor-speaker','label'=>'Monitor','q'=>'monitor','bg'=>'#f5f3ff','fg'=>'#7c3aed'],
             ['icon'=>'smartphone','label'=>'Other','q'=>'other device','bg'=>'#f1f5f9','fg'=>'#64748b'],
         ];
-        foreach ($cats as $c): ?>
-            <a href="<?= $urlBase ?>troubleshoot?q=<?= urlencode($c['q']) ?>" class="tc-card">
+        $ci = 0;
+        foreach ($cats as $c):
+            $cd = ($ci % 6) * 60; $ci++;
+        ?>
+            <a href="<?= $urlBase ?>troubleshoot?q=<?= urlencode($c['q']) ?>" class="tc-card fx-reveal" style="--fx-delay:<?= $cd ?>ms;">
                 <div class="tc-icon" style="background:<?= $c['bg'] ?>;color:<?= $c['fg'] ?>;">
                     <i data-lucide="<?= $c['icon'] ?>"></i>
                 </div>
@@ -500,7 +472,7 @@ $notifCount = count($notifications);
     <div style="display:flex;flex-direction:column;gap:20px;">
 
         <!-- Active Work / Recent Tickets -->
-        <div class="glass-card">
+        <div class="glass-card fx-reveal">
             <div style="padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;" class="dark:border-gray-700/50">
                 <div style="display:flex;align-items:center;gap:10px;">
                     <div style="width:32px;height:32px;border-radius:8px;background:#eff6ff;display:flex;align-items:center;justify-content:center;">
@@ -555,7 +527,7 @@ $notifCount = count($notifications);
         </div>
 
         <!-- Most Common Issues Bar Chart -->
-        <div class="glass-card">
+        <div class="glass-card fx-reveal" style="--fx-delay:90ms;">
             <div style="padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;" class="dark:border-gray-700/50">
                 <div style="width:32px;height:32px;border-radius:8px;background:#fef2f2;display:flex;align-items:center;justify-content:center;">
                     <i data-lucide="bar-chart-3" style="width:16px;height:16px;color:#dc2626;"></i>
@@ -591,7 +563,7 @@ $notifCount = count($notifications);
     <div style="display:flex;flex-direction:column;gap:20px;">
 
         <!-- Quick Actions -->
-        <div class="glass-card">
+        <div class="glass-card fx-reveal" style="--fx-delay:60ms;">
             <div style="padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;" class="dark:border-gray-700/50">
                 <div style="width:32px;height:32px;border-radius:8px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;">
                     <i data-lucide="zap" style="width:16px;height:16px;color:#16a34a;"></i>
@@ -620,7 +592,7 @@ $notifCount = count($notifications);
         </div>
 
         <!-- Field Checklist -->
-        <div class="glass-card">
+        <div class="glass-card fx-reveal" style="--fx-delay:120ms;">
             <div style="padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;" class="dark:border-gray-700/50">
                 <div style="width:32px;height:32px;border-radius:8px;background:#faf5ff;display:flex;align-items:center;justify-content:center;">
                     <i data-lucide="clipboard-check" style="width:16px;height:16px;color:#9333ea;"></i>
@@ -658,7 +630,7 @@ $notifCount = count($notifications);
         </div>
 
         <!-- Tip of the Day -->
-        <div style="background:linear-gradient(135deg,#eff6ff 0%,#faf5ff 50%,#f0fdf4 100%);border:1px solid #bfdbfe;border-radius:16px;padding:20px 24px;position:relative;overflow:hidden;" class="dark:bg-opacity-30 dark:border-blue-900/30">
+        <div style="background:linear-gradient(135deg,#eff6ff 0%,#faf5ff 50%,#f0fdf4 100%);border:1px solid #bfdbfe;border-radius:16px;padding:20px 24px;position:relative;overflow:hidden;--fx-delay:180ms;" class="dark:bg-opacity-30 dark:border-blue-900/30 fx-reveal">
             <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;background:rgba(37,99,235,0.06);border-radius:50%;"></div>
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
                 <div style="width:30px;height:30px;border-radius:8px;background:rgba(37,99,235,0.1);display:flex;align-items:center;justify-content:center;">
@@ -689,6 +661,13 @@ $notifCount = count($notifications);
     .stats-grid { grid-template-columns: 1fr !important; }
     .tc-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
+@keyframes wave {
+    0%, 60%, 100% { transform: rotate(0deg); }
+    10%, 30% { transform: rotate(14deg); }
+    20% { transform: rotate(-8deg); }
+    40% { transform: rotate(8deg); }
+    50% { transform: rotate(-4deg); }
+}
 </style>
 
 <script>
@@ -710,19 +689,8 @@ function toggleChecklist(cb) {
     document.getElementById('checklist-bar').style.width = (checked / total * 100) + '%';
 }
 
-// Notification dropdown
-function toggleNotifications() {
-    var dd = document.getElementById('notif-dropdown');
-    dd.classList.toggle('open');
-}
-// Close on outside click
-document.addEventListener('click', function(e) {
-    var dd = document.getElementById('notif-dropdown');
-    var btn = document.getElementById('notif-btn');
-    if (dd && !dd.contains(e.target) && !btn.contains(e.target)) {
-        dd.classList.remove('open');
-    }
-});
+// Close on outside click — handled globally in app.js (toggleNotifications/closeNotifications)
+
 </script>
 
 <?php require APP_ROOT . '/includes/layout_footer.php'; ?>

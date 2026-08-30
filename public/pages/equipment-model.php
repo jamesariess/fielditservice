@@ -1,13 +1,17 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'ThinkPad T14 Gen 3';
 $active_menu = 'equipment';
 require APP_ROOT . '/includes/layout_header.php';
 ?>
 <div class="max-w-5xl mx-auto">
-    <a href="/equipment.php" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 mb-6 transition"><i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Equipment</a>
+    <div class="fx-reveal">
+        <a href="<?= $urlBase ?>equipment" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 mb-6 transition"><i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Equipment</a>
+    </div>
     
     <!-- Model Header -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6 fx-reveal" style="--fx-delay:50ms;">
         <div class="flex items-start gap-6">
             <div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center shrink-0">
                 <i data-lucide="laptop" class="w-12 h-12 text-gray-400"></i>

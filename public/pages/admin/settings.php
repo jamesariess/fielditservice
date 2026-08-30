@@ -1,14 +1,24 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'System Settings';
 $active_menu = 'admin-settings';
+$required_permission = 'system.settings';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
-Auth::requirePermission('system.settings');
 ?>
 
 <div style="max-width:800px;">
-    <div style="margin-bottom:24px;">
-        <h1 style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;">System Settings</h1>
-        <p style="font-size:13px;color:#64748b;margin-top:2px;">Configure application settings and preferences</p>
+    <div class="page-hero fx-reveal">
+        <div>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico slate"><i data-lucide="settings"></i></div>
+                <div>
+                    <h1 class="page-hero-title">System Settings</h1>
+                    <p class="page-hero-sub">Configure application settings and preferences</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- General -->

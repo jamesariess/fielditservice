@@ -1,8 +1,11 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Equipment Management';
 $active_menu = 'admin-equipment';
+$required_permission = 'equipment.manage';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
-Auth::requirePermission('equipment.manage');
 
 $equipment = Database::fetchAll(
     "SELECT e.*, u.full_name as author_name
@@ -20,14 +23,19 @@ foreach ($equipment as $e) {
 }
 ?>
 <div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+    <div class="page-hero fx-reveal">
         <div>
-            <h1 style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;">Equipment Management</h1>
-            <p style="font-size:13px;color:#64748b;margin-top:2px;">Manage device types, manufacturers, models, and repair guides</p>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico green"><i data-lucide="package"></i></div>
+                <div>
+                    <h1 class="page-hero-title">Equipment Management</h1>
+                    <p class="page-hero-sub">Manage device types, manufacturers, models, and repair guides</p>
+                </div>
+            </div>
         </div>
-        <button onclick="openEqEditor(null)" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
-            <i data-lucide="plus" style="width:15px;height:15px;"></i> Add Equipment
-        </button>
+        <div class="page-hero-actions">
+            <button onclick="openEqEditor(null)" class="btn btn-primary"><i data-lucide="plus" style="width:15px;height:15px;"></i> Add Equipment</button>
+        </div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:24px;">
@@ -227,7 +235,7 @@ foreach ($equipment as $e) {
 
         <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:16px;border-top:1px solid #f1f5f9;">
             <button type="button" onclick="closeEqEditor()" style="padding:8px 16px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
-            <button type="submit" style="padding:8px 20px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">Save Equipment</button>
+            <button type="submit" id="eq-editor-save-btn" style="padding:8px 20px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">Save Equipment</button>
         </div>
     </form>
 </div>
@@ -545,10 +553,13 @@ function saveEq(e) {
     };
     if(!data.manufacturer||!data.model_name){Swal.fire('Required','Manufacturer and Model are required.','warning');return false;}
     if(id)data.id=parseInt(id);
+    var saveBtn=document.getElementById('eq-editor-save-btn');
+    if(typeof setButtonLoading==='function') setButtonLoading(saveBtn,true,'Saving…');
     fetch('<?= $urlBase ?>api/equipment/save.php',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){return r.json();}).then(function(d){
+        if(typeof setButtonLoading==='function') setButtonLoading(saveBtn,false);
         if(d.success){Swal.fire({title:id?'Updated!':'Added!',text:'Equipment has been '+(id?'updated':'added')+'.',icon:'success',timer:1500,showConfirmButton:false});closeEqEditor();setTimeout(function(){location.reload();},1200);}
         else Swal.fire('Error',d.error||'Failed','error');
-    }).catch(function(){Swal.fire('Error','Network error','error');});
+    }).catch(function(){if(typeof setButtonLoading==='function') setButtonLoading(saveBtn,false);Swal.fire('Error','Network error','error');});
     return false;
 }
 function eqDelete(id){

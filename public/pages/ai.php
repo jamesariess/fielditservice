@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'IT Support AI';
 $active_menu = 'ai';
 require APP_ROOT . '/includes/layout_header.php';
@@ -123,7 +125,9 @@ var botName = 'IT Bot';
             if (data.history && data.history.length > 0) {
                 data.history.forEach(function(msg) {
                     addMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', false);
+                    aiHistory.push({ role: msg.role === 'user' ? 'user' : 'assistant', content: msg.content });
                 });
+                scheduleRatingPrompt();
             }
         })
         .catch(() => addWelcomeMessage("Hi! I'm **IT Bot**, your IT support assistant. How can I help you today?"));
@@ -147,6 +151,8 @@ function aiSendMessage(e) {
     var msg = input.value.trim();
     if (!msg || aiProcessing) return;
     aiProcessing = true;
+    clearRatingPrompt();
+    if (sessionEnded) startNewConversation();
     input.value = '';
     input.style.height = 'auto';
     document.getElementById('quick-start').style.display = 'none';
@@ -165,12 +171,128 @@ function aiSendMessage(e) {
         aiHistory.push({ role: 'user', content: msg });
         aiHistory.push({ role: 'assistant', content: data.response });
         aiProcessing = false;
+        scheduleRatingPrompt();
     })
     .catch(() => {
         removeTyping(tid);
         addMessage("Sorry, I encountered an error. Please try again or describe your issue differently.", 'ai');
         aiProcessing = false;
     });
+}
+
+// ==================== Conversation rating (after 10 min inactivity) ====================
+var RATING_DELAY_MS = 10 * 60 * 1000; // 10 minutes
+var ratingTimer = null;
+var chatRated = false;
+var sessionEnded = false;
+
+function scheduleRatingPrompt() {
+    clearTimeout(ratingTimer);
+    if (chatRated) return;
+    ratingTimer = setTimeout(showRatingCard, RATING_DELAY_MS);
+}
+
+function clearRatingPrompt() {
+    clearTimeout(ratingTimer);
+    var card = document.getElementById('conv-rating-card');
+    if (card) card.remove();
+}
+
+function showRatingCard() {
+    if (chatRated || aiProcessing || aiHistory.length === 0) return;
+    var c = document.getElementById('chat-messages');
+    if (!c || document.getElementById('conv-rating-card')) return;
+    var stars = '';
+    for (var i = 1; i <= 5; i++) {
+        stars += '<span class="rate-star" data-v="' + i + '" onmouseover="hoverStars(' + i + ')" onmouseout="resetStars()" onclick="pickStar(' + i + ')" style="font-size:26px;cursor:pointer;color:#cbd5e1;transition:color .15s,transform .15s;display:inline-block;">★</span>';
+    }
+    var html = '<div id="conv-rating-card" style="display:flex;flex-direction:column;align-items:center;margin:18px auto;max-width:420px;" class="anim-scale">';
+    html += '<div style="display:flex;gap:10px;align-items:flex-start;width:100%;">';
+    html += '<div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i data-lucide="star" style="width:14px;height:14px;color:#fff;"></i></div>';
+    html += '<div class="bubble-ai" style="max-width:100%;width:100%;">';
+    html += '<div style="font-size:14px;font-weight:700;margin-bottom:2px;">How was this conversation?</div>';
+    html += '<div style="font-size:12px;color:#64748b;margin-bottom:10px;">Your rating helps us improve ' + escHtml(botName) + '.</div>';
+    html += '<div id="rate-stars" style="text-align:center;margin-bottom:10px;">' + stars + '</div>';
+    html += '<textarea id="rate-comment" placeholder="Anything we could do better? (optional)" rows="2" style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:12.5px;font-family:inherit;resize:vertical;" onfocus="this.style.borderColor=\'#8b5cf6\'" onblur="this.style.borderColor=\'#e2e8f0\'"></textarea>';
+    html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">';
+    html += '<button onclick="dismissRatingCard(this)" style="padding:7px 14px;font-size:12px;font-weight:600;background:#f1f5f9;color:#475569;border:none;border-radius:8px;cursor:pointer;">Later</button>';
+    html += '<button id="rate-submit" onclick="submitConvRating(this)" disabled style="padding:7px 14px;font-size:12px;font-weight:600;background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;border:none;border-radius:8px;cursor:pointer;opacity:.5;transition:opacity .2s;">Submit</button>';
+    html += '</div></div></div></div>';
+    c.insertAdjacentHTML('beforeend', html);
+    c.scrollTop = c.scrollHeight;
+    try { lucide.createIcons(); } catch(e) {}
+}
+
+var _starVal = 0;
+function pickStar(v) {
+    _starVal = v;
+    paintStars(v);
+    var b = document.getElementById('rate-submit');
+    if (b) { b.disabled = false; b.style.opacity = '1'; }
+}
+function hoverStars(v) { paintStars(v); }
+function resetStars() { paintStars(_starVal); }
+function paintStars(active) {
+    document.querySelectorAll('#rate-stars .rate-star').forEach(function(s) {
+        var on = parseInt(s.dataset.v) <= active;
+        s.style.color = on ? '#f59e0b' : '#cbd5e1';
+        s.style.transform = on ? 'scale(1.12)' : 'scale(1)';
+    });
+}
+
+function submitConvRating(btn) {
+    if (_starVal < 1) return;
+    var comment = (document.getElementById('rate-comment') || {}).value || '';
+    btn.disabled = true; btn.textContent = 'Sending…'; btn.style.opacity = '.6';
+    fetch(APP_BASE + 'api/ai/rate-conversation.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ session_id: aiSessionId, rating: _starVal, comment: comment })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+        chatRated = true;
+        sessionEnded = true;
+        clearTimeout(ratingTimer);
+        appendConvDivider('Conversation ended');
+        var card = document.getElementById('conv-rating-card');
+        if (card) {
+            card.innerHTML = '<div class="bubble-ai" style="display:flex;align-items:center;gap:8px;"><i data-lucide="party-popper" style="width:16px;height:16px;color:#16a34a;"></i><span style="font-size:13px;font-weight:600;">Thanks for your feedback!</span></div>';
+            try { lucide.createIcons(); } catch(e) {}
+            setTimeout(function() { card.style.transition = 'opacity .6s'; card.style.opacity = '0'; setTimeout(function() { if (card) card.remove(); }, 650); }, 3500);
+        }
+    })
+    .catch(function() {
+        btn.disabled = false; btn.textContent = 'Submit'; btn.style.opacity = '1';
+        if (typeof showToast === 'function') showToast('Could not send rating. Try again.', 'error');
+    });
+}
+
+function dismissRatingCard() {
+    var card = document.getElementById('conv-rating-card');
+    if (card) card.remove();
+    scheduleRatingPrompt(); // offer again after another 10 quiet minutes
+}
+
+function appendConvDivider(text) {
+    var c = document.getElementById('chat-messages');
+    if (!c) return;
+    var html = '<div style="display:flex;align-items:center;gap:12px;margin:18px 0;" class="fade-in">'
+             + '<div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,#e2e8f0,transparent);"></div>'
+             + '<span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;">' + escHtml(text) + '</span>'
+             + '<div style="flex:1;height:1px;background:linear-gradient(90deg,#e2e8f0,transparent);"></div>'
+             + '</div>';
+    c.insertAdjacentHTML('beforeend', html);
+    c.scrollTop = c.scrollHeight;
+}
+
+function startNewConversation() {
+    aiSessionId = 'session_' + Date.now(); // fresh thread on the server too
+    aiHistory = [];
+    chatRated = false;
+    sessionEnded = false;
+    appendConvDivider('New conversation');
+    scheduleRatingPrompt(); // timer runs again for the new conversation
 }
 
 function addMessage(text, type, showFeedback, sources, confidence) {

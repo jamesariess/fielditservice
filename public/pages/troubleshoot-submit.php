@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Submit Troubleshooting';
 $active_menu = 'troubleshoot';
 require APP_ROOT . '/includes/layout_header.php';
@@ -248,7 +250,7 @@ require APP_ROOT . '/includes/layout_header.php';
     <!-- Actions -->
     <div class="ts-actions">
         <button class="ts-btn ts-btn-secondary" onclick="clearForm()">Clear</button>
-        <button class="ts-btn ts-btn-primary" onclick="submitForApproval()">
+        <button class="ts-btn ts-btn-primary" onclick="submitForApproval()" id="sub-submit-btn">
             <i data-lucide="send" style="width:14px;height:14px;"></i> Submit for Approval
         </button>
     </div>
@@ -683,6 +685,9 @@ async function submitForApproval() {
     if (questions.length === 0) { showToast('Add at least one question', 'error'); return; }
     if (steps.length === 0 && terminals.length === 0) { showToast('Add at least one step or result', 'error'); return; }
 
+    var submitBtn = document.getElementById('sub-submit-btn');
+    if (typeof setButtonLoading === 'function') setButtonLoading(submitBtn, true, 'Submitting…');
+
     var nodes = [];
     // Questions
     questions.forEach(function(q, i) {
@@ -755,6 +760,7 @@ async function submitForApproval() {
         clearForm();
         loadMySubmissions();
     } catch(e) { showToast('Failed: ' + e.message, 'error'); }
+    finally { if (typeof setButtonLoading === 'function') setButtonLoading(submitBtn, false); }
 }
 
 function clearForm() {
@@ -766,6 +772,8 @@ function clearForm() {
 }
 
 async function loadMySubmissions() {
+    var listEl = document.getElementById('my-submissions');
+    if (listEl && typeof skeletonFill === 'function') skeletonFill(listEl, 3, 2);
     try {
         var res = await fetch(APP_BASE + 'api/troubleshooting/submissions.php?mine=1');
         var data = await res.json();

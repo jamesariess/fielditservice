@@ -12,6 +12,7 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Da
 require_once APP_ROOT . '/config/ai_db.php';
 require_once APP_ROOT . '/includes/AIDatabase.php';
 require_once APP_ROOT . '/includes/Auth.php';
+require_once APP_ROOT . '/includes/AIService.php';
 Auth::start();
 
 if (!Auth::isLoggedIn()) { json_response(['error' => 'Unauthorized'], 401); exit; }
@@ -80,6 +81,12 @@ $preCtx = buildConversationContext($conversationHistory);
 // ===== CHECK CONVERSATIONAL PATTERNS FIRST (before database search) =====
 $conversationalReply = checkConversationalPatterns($lowerMsg, $message, $preCtx);
 if ($conversationalReply !== null) {
+    // Try Groq first so small-talk gets natural, smart replies; template is only a fallback
+    $groqReply = tryGroqChat($message, $conversationHistory);
+    if ($groqReply !== false) {
+        json_response(['response' => $groqReply, 'confidence' => 'high', 'sources' => ['AI Assistant'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot']);
+        exit;
+    }
     json_response(['response' => $conversationalReply, 'confidence' => 'high', 'sources' => ['IT Bot'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot']);
     exit;
 }
@@ -164,6 +171,41 @@ if (!empty($topResults) && $topResults[0]['score'] > 2) {
 // Save conversation
 if (!(defined('DEMO_MODE') && DEMO_MODE)) {
     try { AIDatabase::insert('ai_conversation_logs', ['session_id' => $sessionId, 'user_id' => $userId, 'message' => $message, 'response' => $response, 'sources_used' => implode(',', $sources), 'confidence' => $confidence]); } catch (Exception $e) {}
+}
+
+// Enhance response with OpenAI (if configured) — uses DB results as grounding context
+if (defined('AI_PROVIDER') && AI_PROVIDER === 'openai') {
+    $ai = new AIService();
+    if ($ai->isAvailable()) {
+        $grounding = '';
+        foreach ($topResults as $r) {
+            $d = $r['data'];
+            switch ($r['type']) {
+                case 'training':   $grounding .= "\n\n[Training]: " . ($d['title'] ?? '') . "\n" . ($d['content'] ?? ''); break;
+                case 'error_code': $grounding .= "\n\n[Error]: " . ($d['code'] ?? '') . " — " . ($d['title'] ?? '') . "\n" . ($d['description'] ?? ''); break;
+                case 'knowledge':  $grounding .= "\n\n[Knowledge]: " . ($d['title'] ?? '') . "\n" . ($d['content'] ?? ''); break;
+                case 'issue':      $grounding .= "\n\n[Issue]: " . ($d['title'] ?? '') . "\n" . ($d['description'] ?? ''); break;
+                case 'step':       $grounding .= "\n\n[Step]: " . ($d['question'] ?? ''); break;
+                case 'command':    $grounding .= "\n\n[Command]: " . ($d['name'] ?? '') . " — " . ($d['syntax'] ?? ''); break;
+                case 'tool':       $grounding .= "\n\n[Tool]: " . ($d['name'] ?? '') . " — " . ($d['how_to_use'] ?? ''); break;
+            }
+        }
+        $messages = [['role' => 'system', 'content' => $ai->getSystemPrompt($botName)]];
+        foreach (array_slice($conversationHistory, -6) as $msg) {
+            $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+        }
+        $userMsg = $message;
+        if ($grounding) {
+            $userMsg .= "\n\nReference context from our knowledge base:\n" . substr($grounding, 0, 4000);
+        }
+        $messages[] = ['role' => 'user', 'content' => $userMsg];
+        $aiResponse = $ai->chat($messages, 0.7, 1024);
+        if ($aiResponse !== false) {
+            $response = trim($aiResponse);
+            if (empty($sources)) { $sources = ['AI Assistant']; }
+            $confidence = 'high';
+        }
+    }
 }
 
 json_response(['response' => $response, 'confidence' => $confidence, 'sources' => $sources, 'session_id' => $sessionId, 'bot_name' => $botName]);
@@ -762,4 +804,22 @@ function buildConversationContext($history) {
     if (preg_match('/(escalat|supervisor|manager|cant fix|give up|not working at all)/i', $allUserText)) $ctx['escalated'] = true;
     if (preg_match_all('/[A-Z][A-Z_]{5,}/', strtoupper($allUserText . ' ' . $allBotText), $m)) $ctx['mentioned_codes'] = array_unique($m[0]);
     return $ctx;
+}
+
+/**
+ * Send a message to Groq (OpenAI-compatible) and return the reply, or false on any failure.
+ * Used for conversational/small-talk messages that skip the knowledge-base search.
+ */
+function tryGroqChat($message, $conversationHistory) {
+    if (!defined('AI_PROVIDER') || AI_PROVIDER !== 'openai') return false;
+    if (!class_exists('AIService')) return false;
+    try { $ai = new AIService(); } catch (Exception $e) { return false; }
+    if (!$ai->isAvailable()) return false;
+    $messages = [['role' => 'system', 'content' => $ai->getSystemPrompt('IT Bot')]];
+    foreach (array_slice($conversationHistory, -6) as $m) {
+        $messages[] = ['role' => $m['role'], 'content' => $m['content']];
+    }
+    $messages[] = ['role' => 'user', 'content' => $message];
+    $reply = $ai->chat($messages, 0.7, 400);
+    return ($reply !== false && trim($reply) !== '') ? trim($reply) : false;
 }

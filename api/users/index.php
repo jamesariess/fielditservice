@@ -36,6 +36,29 @@ if ($method === 'POST' && $action === 'invite') {
     } else {
         json_response(['success' => true, 'message' => 'Invitation sent to ' . $email, 'demo' => true]);
     }
+} elseif ($method === 'POST' && $action === 'save') {
+    $userId = intval($input['id'] ?? 0);
+    $name = trim($input['full_name'] ?? '');
+    $email = trim($input['email'] ?? '');
+    $roleId = intval($input['role_id'] ?? 0);
+    $deptId = intval($input['department_id'] ?? 0);
+    if (!$userId) { json_response(['error' => 'Invalid user ID'], 400); }
+    $demo = !defined('DEMO_MODE') || DEMO_MODE;
+    if (!$demo) {
+        try {
+            $db = Database::getInstance();
+            $set = ['full_name = ?'];
+            $params = [$name];
+            if ($email) { $set[] = 'email = ?'; $params[] = $email; }
+            if ($roleId) { $set[] = 'role_id = ?'; $params[] = $roleId; }
+            if ($deptId) { $set[] = 'department_id = ?'; $params[] = $deptId; }
+            $params[] = $userId;
+            $db->execute('UPDATE users SET ' . implode(', ', $set) . ' WHERE id = ?', $params);
+            json_response(['success' => true, 'message' => 'User updated']);
+        } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
+    } else {
+        json_response(['success' => true, 'message' => 'User updated', 'demo' => true]);
+    }
 } elseif ($method === 'DELETE') {
     $userId = intval($_GET['id'] ?? $action);
     if (!$userId) { json_response(['error' => 'Invalid user ID'], 400); }

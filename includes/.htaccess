@@ -1,0 +1,4 @@
+# Block web access to application internals.
+# This project is served from htdocs, so without this file these
+# directories would be reachable at /fielditservice/<dir>/.
+Require all denied

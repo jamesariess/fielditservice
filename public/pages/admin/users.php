@@ -1,11 +1,15 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'User Management';
 $active_menu = 'admin-users';
+$required_permission = 'users.manage';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
-Auth::requirePermission('users.manage');
 
 $users = Database::fetchAll(
     "SELECT u.id, u.full_name, u.email, u.status, u.last_login, u.created_at,
+            u.role_id, u.department_id,
             r.name as role_name, d.name as department_name
      FROM users u
      LEFT JOIN roles r ON u.role_id = r.id
@@ -63,15 +67,64 @@ $countRoles = count($roles);
     </div>
 </div>
 
-<div class="max-w-6xl mx-auto">
-    <div class="flex items-center justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">User Management</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage users, roles, and permissions</p>
+<!-- Edit User Modal -->
+<div id="edit-user-modal" class="modal-overlay" style="display:none;">
+    <div class="backdrop" onclick="closeModal('edit-user-modal')"></div>
+    <div class="modal-panel" style="max-width:480px;margin-top:8vh;">
+        <div style="padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+            <h2 style="font-size:18px;font-weight:700;color:#111827;">Edit User</h2>
+            <button onclick="closeModal('edit-user-modal')" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&#10005;</button>
         </div>
-        <button onclick="openInviteUserModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2">
-            <i data-lucide="user-plus" class="w-4 h-4"></i> Invite User
-        </button>
+        <form id="edit-user-form" onsubmit="return false;" style="padding:20px 24px;">
+            <input type="hidden" id="edit-user-id">
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Full Name</label>
+                <input id="edit-user-name" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+            </div>
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Email</label>
+                <input id="edit-user-email" type="email" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Role</label>
+                    <select id="edit-user-role" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+                        <?php foreach ($roles as $r): ?>
+                            <option value="<?= $r['id'] ?>"><?= e($r['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Department</label>
+                    <select id="edit-user-dept" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+                        <?php foreach ($departments as $d): ?>
+                            <option value="<?= $d['id'] ?>"><?= e($d['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" onclick="closeModal('edit-user-modal')" class="btn btn-secondary">Cancel</button>
+                <button type="button" onclick="saveEditUser()" class="btn btn-primary"><i data-lucide="save" style="width:14px;height:14px;"></i> Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="max-w-6xl mx-auto">
+    <div class="page-hero fx-reveal">
+        <div>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico violet"><i data-lucide="users"></i></div>
+                <div>
+                    <h1 class="page-hero-title">User Management</h1>
+                    <p class="page-hero-sub">Manage users, roles, and permissions</p>
+                </div>
+            </div>
+        </div>
+        <div class="page-hero-actions">
+            <button onclick="openInviteUserModal()" class="btn btn-primary"><i data-lucide="user-plus" style="width:15px;height:15px;"></i> Invite User</button>
+        </div>
     </div>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
@@ -129,7 +182,7 @@ $countRoles = count($roles);
                         <td class="px-5 py-3 hide-mobile"><span class="text-xs text-gray-400"><?= $lastLogin ?></span></td>
                         <td class="px-5 py-3 text-right">
                             <div class="flex items-center justify-end gap-1">
-                                <button onclick="showToast('Edit user: <?= e($u['full_name']) ?>', 'info')" class="p-1.5 text-gray-400 hover:text-brand-600 rounded hover:bg-brand-50"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                                <button onclick="editUser(<?= $u['id'] ?>)" class="p-1.5 text-gray-400 hover:text-brand-600 rounded hover:bg-brand-50"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                                 <button onclick="deleteUser(<?= $u['id'] ?>)" class="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                             </div>
                         </td>
@@ -140,3 +193,12 @@ $countRoles = count($roles);
     </div>
 </div>
 <?php require APP_ROOT . '/includes/layout_footer.php'; ?>
+<script>
+    window.editUserCache = <?php
+        $cache = [];
+        foreach ($users as $u) {
+            $cache[$u['id']] = ['id'=>$u['id'],'full_name'=>$u['full_name'],'email'=>$u['email'],'role_id'=>$u['role_id'],'department_id'=>$u['department_id']];
+        }
+        echo json_encode($cache);
+    ?>;
+</script>

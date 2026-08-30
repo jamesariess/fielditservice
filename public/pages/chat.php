@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Team Chat';
 $active_menu = 'chat';
 require APP_ROOT . '/includes/layout_header.php';

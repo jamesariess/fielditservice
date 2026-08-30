@@ -1,0 +1,5 @@
+# Block direct HTTP access to page files.
+# Pages are loaded through the router (public/index.php) via the filesystem,
+# which enforces authentication, permissions, and the app bootstrap.
+# Direct browser access would bypass all of that.
+Require all denied

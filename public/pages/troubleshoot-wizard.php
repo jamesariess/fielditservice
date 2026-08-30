@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Troubleshooting Wizard';
 $active_menu = 'troubleshoot';
 require APP_ROOT . '/includes/layout_header.php';

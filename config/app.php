@@ -32,10 +32,13 @@ define('ALLOWED_IMAGE_TYPES', ['image/jpeg', 'image/png', 'image/gif', 'image/we
 define('ALLOWED_VIDEO_TYPES', ['video/mp4', 'video/webm']);
 define('ALLOWED_DOC_TYPES', ['application/pdf', 'text/plain']);
 
-// AI Configuration
-define('AI_PROVIDER', 'ollama'); // ollama, openai, none
-define('OLLAMA_URL', 'http://localhost:11434');
-define('OLLAMA_MODEL', 'llama3.2');
+// AI Configuration — the API key lives in config/secrets.php (gitignored).
+// Copy config/secrets.example.php to config/secrets.php and add your real key there.
+if (is_file(__DIR__ . '/secrets.php')) { require_once __DIR__ . '/secrets.php'; }
+if (!defined('OPENAI_API_KEY')) { define('OPENAI_API_KEY', ''); } // empty = AI falls back to DB answers
+define('AI_PROVIDER', 'openai'); // ollama, openai, none
+define('OPENAI_BASE_URL', 'https://api.groq.com/openai/v1'); // Groq OpenAI-compatible endpoint
+define('OPENAI_MODEL', 'openai/gpt-oss-120b');
 define('AI_RATE_LIMIT', 30); // requests per minute per user
 
 // Timezone

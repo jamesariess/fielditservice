@@ -1,0 +1,2 @@
+# Block web access to maintenance/setup scripts.
+Require all denied

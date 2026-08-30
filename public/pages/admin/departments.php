@@ -1,14 +1,51 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Departments';
 $active_menu = 'admin-departments';
+$required_permission = 'departments.manage';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
-Auth::requirePermission('departments.manage');
 ?>
 <div class="max-w-6xl mx-auto">
-    <div class="flex items-center justify-between mb-6">
-        <div><h1 class="text-2xl font-bold text-gray-900 dark:text-white">Departments</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage organizational departments and teams</p></div>
-        <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2"><i data-lucide="plus" class="w-4 h-4"></i> Add Department</button>
+    <!-- Add Department Modal -->
+    <div id="add-dept-modal" class="modal-overlay" style="display:none;">
+        <div class="backdrop" onclick="closeModal('add-dept-modal')"></div>
+        <div class="modal-panel" style="max-width:460px;">
+            <div style="padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+                <h2 style="font-size:18px;font-weight:700;color:#111827;">Add Department</h2>
+                <button onclick="closeModal('add-dept-modal')" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&#10005;</button>
+            </div>
+            <form onsubmit="addDepartment(event)" style="padding:20px 24px;">
+                <div style="margin-bottom:14px;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Department Name *</label>
+                    <input name="name" required placeholder="e.g., Finance" class="form-input dark-input" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Description</label>
+                    <textarea name="description" rows="2" placeholder="Brief description" class="form-input dark-input" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical;"></textarea>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button type="button" onclick="closeModal('add-dept-modal')" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i data-lucide="plus" style="width:15px;height:15px;"></i> Add Department</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="page-hero fx-reveal">
+        <div>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico green"><i data-lucide="building-2"></i></div>
+                <div>
+                    <h1 class="page-hero-title">Departments</h1>
+                    <p class="page-hero-sub">Manage organizational departments and teams</p>
+                </div>
+            </div>
+        </div>
+        <div class="page-hero-actions">
+            <button onclick="openAddDeptModal()" class="btn btn-primary"><i data-lucide="plus" style="width:15px;height:15px;"></i> Add Department</button>
+        </div>
     </div>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <?php

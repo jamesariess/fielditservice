@@ -1,17 +1,27 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Command Reference';
 $active_menu = 'commands';
 require APP_ROOT . '/includes/layout_header.php';
 ?>
 
 <div>
-    <div style="margin-bottom:24px;">
-        <h1 style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;">CMD & PowerShell Reference</h1>
-        <p style="font-size:13px;color:#64748b;margin-top:2px;">Essential commands for field IT troubleshooting</p>
+    <!-- Page Hero -->
+    <div class="page-hero fx-reveal">
+        <div>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico slate"><i data-lucide="terminal"></i></div>
+                <div>
+                    <h1 class="page-hero-title">CMD &amp; PowerShell Reference</h1>
+                    <p class="page-hero-sub">Essential commands for field IT troubleshooting</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Search & Tabs -->
-    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;--fx-delay:50ms;" class="fx-reveal">
         <div style="flex:1;min-width:240px;position:relative;">
             <i data-lucide="terminal" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:#94a3b8;"></i>
             <input type="text" id="cmd-search" placeholder="Search commands..." class="form-input" style="padding-left:36px;" oninput="filterCmds(this.value)">
@@ -50,10 +60,12 @@ require APP_ROOT . '/includes/layout_header.php';
             'caution' => ['color'=>'#d97706','bg'=>'#fffbeb','label'=>'Caution'],
         ];
 
+        $ci2 = 0;
         foreach ($cmds as $c):
             $r = $riskMap[$c['risk']];
+            $cdx = ($ci2 % 4) * 60; $ci2++;
         ?>
-            <div class="card" data-cmd="<?= e(strtolower($c['cmd'])) ?>" data-cat="<?= $c['cat'] ?>">
+            <div class="card fx-reveal" style="--fx-delay:<?= $cdx ?>ms;" data-cmd="<?= e(strtolower($c['cmd'])) ?>" data-cat="<?= $c['cat'] ?>">
                 <div class="card-body" style="display:flex;gap:16px;align-items:flex-start;">
                     <div style="flex:1;min-width:0;">
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
@@ -87,7 +99,7 @@ require APP_ROOT . '/includes/layout_header.php';
                             </div>
                         <?php endif; ?>
                     </div>
-                    <button onclick="copyCmd('<?= e($c['cmd']) ?>')" style="width:32px;height:32px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;color:#94a3b8;" onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb'" onmouseout="this.style.borderColor='#e5e7eb';this.style.color='#94a3b8'">
+                    <button onclick="copyCmd('<?= e($c['cmd']) ?>')" class="header-btn" data-tooltip="Copy command" style="width:34px;height:34px;border:1px solid #e5e7eb;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;color:#94a3b8;" onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb'" onmouseout="this.style.borderColor='#e5e7eb';this.style.color='#94a3b8'">
                         <i data-lucide="copy" style="width:14px;height:14px;"></i>
                     </button>
                 </div>

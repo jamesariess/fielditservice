@@ -1,0 +1,2 @@
+# Block web access to domain code — loaded via the filesystem only.
+Require all denied

@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'My Tickets';
 $active_menu = 'tickets';
 require APP_ROOT . '/includes/layout_header.php';
@@ -102,12 +104,19 @@ $departments = ['IT','Finance','HR','Operations','Sales','Reception','Marketing'
 </div>
 
 <div style="max-width:1000px;margin:0 auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <div class="page-hero fx-reveal">
         <div>
-            <h1 style="font-size:24px;font-weight:800;color:#111827;">My Tickets</h1>
-            <p style="font-size:13px;color:#64748b;">Manage your troubleshooting sessions and view ticket history</p>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico blue"><i data-lucide="ticket"></i></div>
+                <div>
+                    <h1 class="page-hero-title">My Tickets</h1>
+                    <p class="page-hero-sub">Manage your troubleshooting sessions and view ticket history</p>
+                </div>
+            </div>
         </div>
-        <button onclick="openNewTicketModal()" class="btn btn-primary"><i data-lucide="plus" style="width:16px;height:16px;"></i> New Ticket</button>
+        <div class="page-hero-actions">
+            <button onclick="openNewTicketModal()" class="btn btn-primary"><i data-lucide="plus" style="width:16px;height:16px;"></i> New Ticket</button>
+        </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
         <div class="card"><div class="card-body" style="text-align:center;"><div style="font-size:28px;font-weight:800;color:#2563eb;"><?= $total ?></div><div style="font-size:12px;color:#64748b;">Total Tickets</div></div></div>

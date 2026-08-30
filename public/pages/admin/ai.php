@@ -1,6 +1,10 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'AI Training Center';
 $active_menu = 'admin-ai';
+$required_permission = 'ai.manage';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
 ?>
 
@@ -101,24 +105,31 @@ require APP_ROOT . '/includes/layout_header.php';
 </style>
 
 <div class="ai-wrap">
-    <div class="ai-header">
-        <h1><i data-lucide="brain" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;color:#8b5cf6;"></i>AI Training Center</h1>
-        <p>Train IT Bot with your organization's knowledge. The more you add, the smarter it gets.</p>
+    <div class="page-hero fx-reveal">
+        <div>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico violet"><i data-lucide="brain"></i></div>
+                <div>
+                    <h1 class="page-hero-title">AI Training Center</h1>
+                    <p class="page-hero-sub">Train IT Bot with your organization's knowledge. The more you add, the smarter it gets.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Stats -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;" id="stats-grid">
-        <div class="stat-card"><div class="stat-num" id="stat-files">0</div><div class="stat-label">Training Files</div></div>
-        <div class="stat-card"><div class="stat-num" id="stat-conversations">0</div><div class="stat-label">Conversations</div></div>
-        <div class="stat-card"><div class="stat-num" id="stat-messages">0</div><div class="stat-label">Messages</div></div>
-        <div class="stat-card"><div class="stat-num" id="stat-sources">6</div><div class="stat-label">Data Sources</div></div>
+        <div class="stat-card-premium fx-reveal" style="--fx-delay:0ms;--stat-color:#2563eb;--stat-bg:#eff6ff;--stat-bg2:#dbeafe;"><div class="stat-num" id="stat-files">0</div><div class="stat-label">Training Files</div></div>
+        <div class="stat-card-premium fx-reveal" style="--fx-delay:60ms;--stat-color:#7c3aed;--stat-bg:#f5f3ff;--stat-bg2:#ede9fe;"><div class="stat-num" id="stat-conversations">0</div><div class="stat-label">Conversations</div></div>
+        <div class="stat-card-premium fx-reveal" style="--fx-delay:120ms;--stat-color:#059669;--stat-bg:#ecfdf5;--stat-bg2:#d1fae5;"><div class="stat-num" id="stat-messages">0</div><div class="stat-label">Messages</div></div>
+        <div class="stat-card-premium fx-reveal" style="--fx-delay:180ms;--stat-color:#d97706;--stat-bg:#fffbeb;--stat-bg2:#fef3c7;"><div class="stat-num" id="stat-sources">6</div><div class="stat-label">Data Sources</div></div>
     </div>
 
     <!-- Tabs -->
     <div class="ai-tabs">
         <button class="ai-tab active" onclick="switchAiTab('personality')">🤖 Bot Personality</button>
         <button class="ai-tab" onclick="switchAiTab('training')">📚 Training Data</button>
-        <button class="button class=\"ai-tab\" onclick="switchAiTab('conversations')">💬 Conversations</button>
+        <button class="ai-tab" onclick="switchAiTab('conversations')">💬 Conversations</button>
     </div>
 
     <!-- Tab: Personality -->
@@ -150,7 +161,7 @@ What can I help you with today?</textarea>
                 <textarea class="ai-ft" id="p-system" style="min-height:80px;">You are IT Bot, a friendly and professional IT support assistant. You help field technicians and users troubleshoot technical issues. You are knowledgeable about hardware, software, networking, printers, CCTV, and Windows systems. You always provide step-by-step guidance and explain things clearly.</textarea>
             </div>
             <div style="display:flex;gap:8px;">
-                <button class="ai-btn ai-btn-primary" onclick="savePersonality()"><i data-lucide="save" style="width:14px;height:14px;"></i> Save Personality</button>
+                <button class="ai-btn ai-btn-primary" id="ai-personality-save-btn" onclick="savePersonality()"><i data-lucide="save" style="width:14px;height:14px;"></i> Save Personality</button>
             </div>
         </div>
     </div>
@@ -186,7 +197,7 @@ What can I help you with today?</textarea>
                 <div style="font-size:11px;color:#94a3b8;margin-top:4px;">💡 Paste content from PDFs, manuals, procedures, or type your own knowledge. The more detailed, the better the AI can help.</div>
             </div>
             <div style="display:flex;gap:8px;">
-                <button class="ai-btn ai-btn-primary" onclick="saveTrainingFile()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add Training Content</button>
+                <button class="ai-btn ai-btn-primary" id="ai-tf-save-btn" onclick="saveTrainingFile()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add Training Content</button>
                 <label class="ai-btn ai-btn-secondary" style="cursor:pointer;">
                     <i data-lucide="upload" style="width:14px;height:14px;"></i> Upload Text File
                     <input type="file" accept=".txt,.md,.csv" style="display:none;" onchange="handleFileUpload(event)">
@@ -224,6 +235,8 @@ function switchAiTab(tab) {
 
 // === PERSONALITY ===
 async function savePersonality() {
+    var saveBtn = document.getElementById('ai-personality-save-btn');
+    if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, true, 'Saving…');
     var data = {
         bot_name: document.getElementById('p-name').value.trim(),
         greeting: document.getElementById('p-greeting').value.trim(),
@@ -238,10 +251,13 @@ async function savePersonality() {
         var result = await res.json();
         showToast(result.message || result.error, result.error ? 'error' : 'success');
     } catch(e) { showToast('Failed to save', 'error'); }
+    finally { if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, false); }
 }
 
 // === TRAINING FILES ===
 async function loadTrainingFiles() {
+    var listEl = document.getElementById('training-list');
+    if (listEl && typeof skeletonFill === 'function') skeletonFill(listEl, 4, 2);
     try {
         var res = await fetch(APP_BASE + 'api/ai/training.php?action=list');
         var data = await res.json();
@@ -273,6 +289,8 @@ async function saveTrainingFile() {
     var title = document.getElementById('tf-title').value.trim();
     var content = document.getElementById('tf-content').value.trim();
     if (!title || !content) { showToast('Title and content are required', 'error'); return; }
+    var saveBtn = document.getElementById('ai-tf-save-btn');
+    if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, true, 'Adding…');
     try {
         var res = await fetch(APP_BASE + 'api/ai/training.php', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -292,6 +310,7 @@ async function saveTrainingFile() {
         document.getElementById('tf-tags').value = '';
         loadTrainingFiles();
     } catch(e) { showToast('Failed to save', 'error'); }
+    finally { if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, false); }
 }
 
 function handleFileUpload(event) {
@@ -323,6 +342,8 @@ async function deleteTrainingFile(id) {
 
 // === CONVERSATIONS ===
 async function loadConversations() {
+    var listEl = document.getElementById('conversations-list');
+    if (listEl && typeof skeletonFill === 'function') skeletonFill(listEl, 4, 3);
     try {
         var res = await fetch(APP_BASE + 'api/ai/training.php?action=conversations');
         var data = await res.json();

@@ -9,6 +9,31 @@ var APP_BASE = (function() {
     return m ? m[1] + '/' : '/';
 })();
 
+// ==================== Page Load Progress Bar ====================
+// Slim gradient bar at the very top of every page: animates while loading,
+// completes and fades out when the page is ready.
+(function() {
+    if (document.getElementById('page-progress')) return;
+    var bar = document.createElement('div');
+    bar.id = 'page-progress';
+    bar.style.width = '12%';
+    document.documentElement.appendChild(bar);
+    requestAnimationFrame(function() { bar.style.width = '62%'; });
+    var t1 = setTimeout(function() { bar.style.width = '85%'; }, 350);
+    function finish() {
+        clearTimeout(t1);
+        bar.style.width = '100%';
+        setTimeout(function() {
+            bar.classList.add('done');
+            setTimeout(function() { if (bar.parentElement) bar.remove(); }, 450);
+        }, 180);
+    }
+    if (document.readyState === 'complete') finish();
+    else window.addEventListener('load', finish);
+    // Safety: never leave the bar stuck
+    setTimeout(finish, 6000);
+})();
+
 // ==================== SweetAlert2 Helpers ====================
 function swalConfirm(title, text, onConfirm) {
     Swal.fire({
@@ -87,9 +112,29 @@ function closeSidebar() {
 }
 
 // ==================== Notifications ====================
-function toggleNotifications() {
+function toggleNotifications(e) {
+    if (e) e.stopPropagation(); // never let this click reach the outside-click closer
     var dd = document.getElementById('notif-dropdown');
-    if (dd) dd.classList.toggle('open');
+    if (!dd) return;
+    dd.classList.toggle('open');
+}
+function closeNotifications() {
+    var dd = document.getElementById('notif-dropdown');
+    if (dd) dd.classList.remove('open');
+}
+function markAllNotificationsRead(e) {
+    if (e) e.stopPropagation();
+    // Visually mark every item as read + hide the bell dot immediately
+    document.querySelectorAll('#notif-list .notif-dot-unread').forEach(function(d) {
+        d.classList.remove('notif-dot-unread');
+        d.classList.add('notif-dot-read');
+    });
+    var dot = document.getElementById('notif-dot');
+    if (dot) dot.style.display = 'none';
+    // Persist to the server (best effort, never blocks the UI)
+    try {
+        api('/api/notifications', { method: 'PUT', body: { all: true } }).catch(function() {});
+    } catch (err) {}
 }
 function loadNotifications() {
     var list = document.getElementById('notif-list');
@@ -130,12 +175,18 @@ function loadNotifications() {
         list.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">No notifications</div>';
     });
 }
+// Close the dropdown when clicking anywhere outside it (or the bell button)
 document.addEventListener('click', function(e) {
     var dd = document.getElementById('notif-dropdown');
+    if (!dd || !dd.classList.contains('open')) return;
+    if (dd.contains(e.target)) return;
     var btn = document.getElementById('notif-btn');
-    if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
-        dd.classList.remove('open');
-    }
+    if (btn && btn.contains(e.target)) return;
+    dd.classList.remove('open');
+});
+// Close with the Escape key too
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeNotifications();
 });
 
 // ==================== Toasts ====================
@@ -190,7 +241,8 @@ function openSearchModal(query) {
     query = query || '';
     var m = document.getElementById('search-modal');
     if (!m) return;
-    m.style.display = '';
+    m.classList.add('open');
+    m.style.display = 'flex';
     var inp = document.getElementById('modal-search-input');
     inp.value = query;
     inp.focus();
@@ -198,9 +250,17 @@ function openSearchModal(query) {
 }
 function closeSearchModal() {
     var m = document.getElementById('search-modal');
-    if (m) m.style.display = 'none';
-    var r = document.getElementById('search-results');
-    if (r) r.innerHTML = '';
+    if (m) {
+        m.classList.remove('open');
+        setTimeout(function() {
+            if (m && !m.classList.contains('open')) {
+                m.style.display = 'none';
+            }
+        }, 200);
+        var r = document.getElementById('search-results');
+        if (r) r.innerHTML = '';
+        document.body.style.overflow = '';
+    }
 }
 function performSearch(query) {
     var r = document.getElementById('search-results');
@@ -228,14 +288,33 @@ function performSearch(query) {
 // ==================== Modal System ====================
 function openModal(id) {
     var m = document.getElementById(id);
-    if (m) { m.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+    if (m) {
+        m.classList.add('open');
+        m.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
 }
 function closeModal(id) {
     var m = document.getElementById(id);
-    if (m) { m.style.display = 'none'; document.body.style.overflow = ''; }
+    if (m) {
+        m.classList.remove('open');
+        setTimeout(function() {
+            if (m && !m.classList.contains('open')) {
+                m.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        }, 200);
+    }
 }
 function closeAllModals() {
-    document.querySelectorAll('.modal-overlay').forEach(function(m) { m.style.display = 'none'; });
+    document.querySelectorAll('.modal-overlay').forEach(function(m) {
+        m.classList.remove('open');
+        setTimeout(function() {
+            if (m && !m.classList.contains('open')) {
+                m.style.display = 'none';
+            }
+        }, 200);
+    });
     document.body.style.overflow = '';
 }
 
@@ -613,16 +692,20 @@ function chatAddMsgToUI(text, direction) {
 function docSubmit(e) {
     e.preventDefault();
     var form = e.target;
+    var submitBtn = form.querySelector('button[type="submit"]');
     var data = {
         title: form.querySelector('[name="title"]').value,
         content: form.querySelector('[name="content"]').value,
         category: form.querySelector('[name="category"]').value,
         tags: form.querySelector('[name="tags"]').value
     };
+    if (typeof setButtonLoading === 'function') setButtonLoading(submitBtn, true, 'Submitting…');
     api('/api/documentation', { method: 'POST', body: data }).then(function() {
+        if (typeof setButtonLoading === 'function') setButtonLoading(submitBtn, false);
         showToast('Documentation submitted for review!', 'success');
         form.reset();
     }).catch(function(err) {
+        if (typeof setButtonLoading === 'function') setButtonLoading(submitBtn, false);
         showToast('Error: ' + err.message, 'error');
     });
 }
@@ -650,8 +733,47 @@ function inviteUser(e) {
 
 // ==================== Admin: Edit User ====================
 function editUser(userId) {
-    showToast('Edit user: ' + userId, 'info');
+    var m = document.getElementById('edit-user-modal');
+    if (!m) { showToast('Edit user: ' + userId, 'info'); return; }
+    // Try to fetch current user data
+    if (window.editUserCache && editUserCache[userId]) {
+        fillEditUserForm(editUserCache[userId]);
+    }
     openModal('edit-user-modal');
+}
+function fillEditUserForm(u) {
+    var f = document.getElementById('edit-user-id');
+    if (f) f.value = u.id;
+    var n = document.getElementById('edit-user-name');
+    if (n) n.value = u.full_name || u.name || '';
+    var e = document.getElementById('edit-user-email');
+    if (e) e.value = u.email || '';
+    var r = document.getElementById('edit-user-role');
+    if (r && u.role_id) r.value = u.role_id;
+    var d = document.getElementById('edit-user-dept');
+    if (d && u.department_id) d.value = u.department_id;
+}
+function saveEditUser() {
+    var btn = document.querySelector('#edit-user-modal .btn-primary');
+    if (typeof setButtonLoading === 'function') setButtonLoading(btn, true, 'Saving…');
+    api('/api/users/save', {
+        method: 'POST',
+        body: {
+            id: document.getElementById('edit-user-id').value,
+            full_name: document.getElementById('edit-user-name').value,
+            email: document.getElementById('edit-user-email').value,
+            role_id: document.getElementById('edit-user-role').value,
+            department_id: document.getElementById('edit-user-dept').value
+        }
+    }).then(function(data) {
+        if (typeof setButtonLoading === 'function') setButtonLoading(btn, false);
+        showToast(data.success ? 'User updated!' : (data.error || 'User updated!'), data.success ? 'success' : 'error');
+        closeModal('edit-user-modal');
+        if (data.success) setTimeout(function() { window.location.reload(); }, 1000);
+    }).catch(function(err) {
+        if (typeof setButtonLoading === 'function') setButtonLoading(btn, false);
+        showToast('Error: ' + err.message, 'error');
+    });
 }
 function deleteUser(userId) {
     swalConfirm('Remove User?', 'This will permanently remove this user from the system.', function() {
@@ -848,3 +970,124 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load notifications if dropdown exists
     if (document.getElementById('notif-list')) loadNotifications();
 });
+
+// ==================== Reveal on Scroll + Count-up FX ====================
+document.documentElement.classList.add('js');
+
+(function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        var els = document.querySelectorAll('.fx-reveal');
+        if (!('IntersectionObserver' in window)) {
+            els.forEach(function(el) { el.classList.add('fx-in'); animateFx(el); });
+            return;
+        }
+        var io = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (!entry.isIntersecting) return;
+                var el = entry.target;
+                el.classList.add('fx-in');
+                animateFx(el);
+                io.unobserve(el);
+            });
+        }, { threshold: 0.12, rootMargin: '0px 0px -24px 0px' });
+        els.forEach(function(el) { io.observe(el); });
+    });
+})();
+
+function animateFx(scope) {
+    if (!scope || scope.nodeType !== 1) return;
+
+    // Gentle count-up for [data-count] numbers
+    var counters = scope.hasAttribute('data-count') ? [scope] : (scope.querySelectorAll ? scope.querySelectorAll('[data-count]') : []);
+    Array.prototype.forEach.call(counters, function(el, i) {
+        var target = parseFloat(el.getAttribute('data-count')) || 0;
+        var decimals = parseInt(el.getAttribute('data-decimals') || '0', 10);
+        var duration = 1100;
+        var start = null;
+        function tick(ts) {
+            if (!start) start = ts;
+            var p = Math.min((ts - start) / duration, 1);
+            var eased = 1 - Math.pow(1 - p, 3);
+            var val = target * eased;
+            el.textContent = decimals > 0 ? val.toFixed(decimals) : Math.round(val).toLocaleString();
+            if (p < 1) requestAnimationFrame(tick);
+        }
+        setTimeout(function() { requestAnimationFrame(tick); }, i * 130);
+    });
+
+    // Grow .bar-chart-fill bars from 0 to their inline width
+    var bars = scope.querySelectorAll ? scope.querySelectorAll('.bar-chart-fill') : [];
+    Array.prototype.forEach.call(bars, function(bar) {
+        var target = bar.style.width;
+        bar.style.transition = 'none';
+        bar.style.width = '0%';
+        void bar.offsetWidth;
+        bar.style.transition = '';
+        bar.style.width = target;
+    });
+}
+
+// ==================== Loading Buttons + Skeleton Helpers ====================
+// Show a spinner + label on a button while async work runs.
+function setButtonLoading(btn, loading, loadingLabel) {
+    if (!btn || !btn.style) return;
+    if (loading) {
+        if (!btn.dataset.origHtml) btn.dataset.origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.classList.add('btn-loading');
+        btn.innerHTML = '<span class="btn-spinner"></span>' + (loadingLabel || 'Processing…');
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+        if (btn.dataset.origHtml) { btn.innerHTML = btn.dataset.origHtml; delete btn.dataset.origHtml; }
+    }
+}
+
+// Build a reusable skeleton card (for JS-loaded lists / panels).
+function skeletonCard(lines) {
+    var s = '<div class="skeleton-card" style="margin-bottom:12px;">';
+    s += '<div style="display:flex;gap:12px;align-items:flex-start;">';
+    s += '<div class="skeleton-shine skeleton-circle"></div>';
+    s += '<div style="flex:1;">';
+    for (var i = 0; i < (lines || 3); i++) {
+        s += '<div class="skeleton-shine skeleton-line' + (i === lines - 1 ? ' sm' : '') + '"></div>';
+    }
+    s += '</div></div></div>';
+    return s;
+}
+
+// Helper: show skeletons in a list container until real content is rendered.
+function skeletonFill(container, count, lines) {
+    if (!container) return;
+    var html = '';
+    for (var i = 0; i < (count || 3); i++) html += skeletonCard(lines || 3);
+    container.innerHTML = html;
+}
+
+// Build a responsive grid of skeleton cards (for card-grid pages).
+function skeletonGrid(count, cols) {
+    var s = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(' + (cols || 260) + 'px,1fr));gap:14px;">';
+    for (var i = 0; i < (count || 6); i++) {
+        s += '<div class="skeleton-card"><div class="skeleton-shine" style="height:96px;margin:-20px -20px 14px;border-radius:15px 15px 0 0;"></div>' +
+             '<div class="skeleton-shine skeleton-line"></div><div class="skeleton-shine skeleton-line sm"></div>' +
+             '<div class="skeleton-shine skeleton-pill" style="margin-top:12px;"></div></div>';
+    }
+    return s + '</div>';
+}
+
+// Auto loading buttons: any <form data-auto-loading> shows a spinner on its
+// submit button automatically while the (native) submission is in flight.
+document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form || !form.hasAttribute || !form.hasAttribute('data-auto-loading')) return;
+    var btn = form.querySelector('button[type="submit"], button:not([type]), input[type="submit"]');
+    if (btn && typeof setButtonLoading === 'function') setButtonLoading(btn, true, btn.getAttribute('data-loading-label') || 'Saving…');
+}, true);
+
+// Auto-enhance: every <form> submit shows a spinner on its submit button (once).
+document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (form.dataset.noSpinner) return;
+    var btn = form.querySelector('button[type="submit"], .btn-submit');
+    if (btn && !btn.disabled) setButtonLoading(btn, true, btn.dataset.loading || 'Saving…');
+}, true);

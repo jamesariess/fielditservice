@@ -85,8 +85,7 @@ class Auth {
 
     public static function logout(): void {
         session_destroy();
-        header('Location: /fielditservice/public/login');
-        exit;
+        redirect('/login');
     }
 
     public static function isLoggedIn(): bool {
@@ -101,7 +100,7 @@ class Auth {
                 echo json_encode(['error' => 'Authentication required']);
                 exit;
             }
-            header('Location: /fielditservice/public/login');
+            header('Location: /login');
             exit;
         }
         if (time() - ($_SESSION['login_time'] ?? 0) > SESSION_LIFETIME) {
@@ -118,7 +117,7 @@ class Auth {
                 exit;
             }
             http_response_code(403);
-            include APP_ROOT . '/public/pages/403.php';
+            include APP_ROOT . '/public/pages/errors/403.php';
             exit;
         }
     }

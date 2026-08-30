@@ -1,8 +1,11 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Knowledge Management';
 $active_menu = 'admin-kb';
+$required_permission = 'knowledge.manage';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
-Auth::requirePermission('knowledge.manage');
 
 // Fetch articles from database
 $articles = Database::fetchAll(
@@ -26,14 +29,19 @@ foreach ($articles as $a) {
 }
 ?>
 <div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+    <div class="page-hero fx-reveal">
         <div>
-            <h1 style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;">Knowledge Base Management</h1>
-            <p style="font-size:13px;color:#64748b;margin-top:2px;">Create, edit, review, and manage knowledge articles</p>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico blue"><i data-lucide="file-check"></i></div>
+                <div>
+                    <h1 class="page-hero-title">Knowledge Base Management</h1>
+                    <p class="page-hero-sub">Create, edit, review, and manage knowledge articles</p>
+                </div>
+            </div>
         </div>
-        <button onclick="openKbEditor(null)" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
-            <i data-lucide="plus" style="width:15px;height:15px;"></i> New Article
-        </button>
+        <div class="page-hero-actions">
+            <button onclick="openKbEditor(null)" class="btn btn-primary"><i data-lucide="plus" style="width:15px;height:15px;"></i> New Article</button>
+        </div>
     </div>
 
     <!-- Filters -->
@@ -393,9 +401,13 @@ function saveKbArticle(e) {
     var method = id ? 'PUT' : 'POST';
     if (id) data.id = parseInt(id);
 
+    var saveBtn = document.getElementById('kb-editor-save-btn');
+    if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, true, 'Saving…');
+
     fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
     .then(function(r) { return r.json(); })
     .then(function(d) {
+        if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, false);
         if (d.success) {
             Swal.fire({ title: id ? 'Updated!' : 'Created!', text: 'Article has been ' + (id ? 'updated' : 'created') + '.', icon: 'success', timer: 1500, showConfirmButton: false });
             closeKbEditor();
@@ -404,7 +416,7 @@ function saveKbArticle(e) {
             Swal.fire('Error', d.error || 'Failed to save', 'error');
         }
     })
-    .catch(function() { Swal.fire('Error', 'Network error', 'error'); });
+    .catch(function() { if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, false); Swal.fire('Error', 'Network error', 'error'); });
     return false;
 }
 

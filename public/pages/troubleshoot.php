@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Troubleshoot';
 $active_menu = 'troubleshoot';
 require APP_ROOT . '/includes/layout_header.php';
@@ -523,7 +525,7 @@ function renderIssues(issues) {
     issues.forEach(function(iss) {
         var sev = sevColors[iss.severity] || sevColors.info;
         var icon = iconMap[iss.slug] || 'help-circle';
-        html += '<a class="th-issue-card" href="<?= $urlBase ?>troubleshoot/wizard.php?issue='+iss.slug+'&device='+(currentDevice?currentDevice.id:'')+'">';
+        html += '<a class="th-issue-card" href="<?= $urlBase ?>troubleshoot/wizard?issue='+iss.slug+'&device='+(currentDevice?currentDevice.id:'')+'">';
         html += '<div class="th-issue-head">';
         html += '<div class="th-issue-icon" style="background:'+sev.bg+';color:'+sev.fg+';"><i data-lucide="'+icon+'"></i></div>';
         html += '<div class="th-issue-sev" style="background:'+sev.fg+';"></div>';

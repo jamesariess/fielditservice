@@ -1,14 +1,24 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Statistics';
 $active_menu = 'admin-statistics';
+$required_permission = 'audit.view';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
-Auth::requirePermission('audit.view');
 ?>
 
 <div>
-    <div style="margin-bottom:24px;">
-        <h1 style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;">Statistics & Analytics</h1>
-        <p style="font-size:13px;color:#64748b;margin-top:2px;">System usage analytics and performance metrics</p>
+    <div class="page-hero fx-reveal">
+        <div>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico cyan"><i data-lucide="bar-chart-3"></i></div>
+                <div>
+                    <h1 class="page-hero-title">Statistics &amp; Analytics</h1>
+                    <p class="page-hero-sub">System usage analytics and performance metrics</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Overview Stats -->
@@ -22,16 +32,25 @@ Auth::requirePermission('audit.view');
             ['icon'=>'users','label'=>'Active Users','value'=>'24','change'=>'+2','up'=>true,'color'=>'purple'],
             ['icon'=>'sparkles','label'=>'AI Sessions','value'=>'342','change'=>'+28%','up'=>true,'color'=>'orange'],
         ];
-        foreach ($stats as $s): ?>
-            <div class="stat-card">
-                <div class="stat-icon <?= $s['color'] ?>"><i data-lucide="<?= $s['icon'] ?>" style="width:22px;height:22px;"></i></div>
+        $statColors = [
+            'blue'   => ['#2563eb', '#eff6ff', '#dbeafe'],
+            'green'  => ['#059669', '#ecfdf5', '#d1fae5'],
+            'red'    => ['#dc2626', '#fef2f2', '#fee2e2'],
+            'yellow' => ['#d97706', '#fffbeb', '#fef3c7'],
+            'purple' => ['#7c3aed', '#f5f3ff', '#ede9fe'],
+            'orange' => ['#ea580c', '#fff7ed', '#ffedd5'],
+        ];
+        $si = 0;
+        foreach ($stats as $s): $sc = $statColors[$s['color']] ?? $statColors['blue']; ?>
+            <div class="stat-card-premium fx-reveal" style="--fx-delay:<?= $si * 60 ?>ms;--stat-color:<?= $sc[0] ?>;--stat-bg:<?= $sc[1] ?>;--stat-bg2:<?= $sc[2] ?>;">
+                <div class="stat-icon"><i data-lucide="<?= $s['icon'] ?>" style="width:22px;height:22px;"></i></div>
                 <div>
                     <div class="stat-value" style="font-size:22px;"><?= $s['value'] ?></div>
                     <div class="stat-label"><?= $s['label'] ?></div>
                 </div>
                 <span class="stat-change <?= $s['up']?'up':'down' ?>" style="margin-left:auto;"><?= $s['change'] ?></span>
             </div>
-        <?php endforeach; ?>
+        <?php $si++; endforeach; ?>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" class="hide-mobile">

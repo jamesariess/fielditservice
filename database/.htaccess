@@ -1,0 +1,2 @@
+# Block web access to SQL schema/seed dumps — never expose these.
+Require all denied

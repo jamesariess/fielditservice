@@ -87,6 +87,8 @@ foreach ($sidebarItems as $item) {
     <meta name="csrf-token" content="<?= Auth::generateCsrfToken() ?>">
     <meta name="theme-color" content="#1e40af">
     <title><?= e($page_title ?? 'Dashboard') ?> — <?= APP_NAME ?></title>
+    <link rel="icon" type="image/svg+xml" href="<?= $urlBase ?>assets/img/favicon.svg">
+    <link rel="apple-touch-icon" href="<?= $urlBase ?>assets/img/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -98,7 +100,7 @@ foreach ($sidebarItems as $item) {
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="<?= $urlBase ?>assets/css/app.css">
+    <link rel="stylesheet" href="<?= $urlBase ?>assets/css/app.css?v=<?= filemtime(APP_ROOT . '/public/assets/css/app.css') ?>">
     <script src="<?= $urlBase ?>assets/js/app.js?v=<?= filemtime(APP_ROOT . '/public/assets/js/app.js') ?>"></script>
     <style>
         .bottom-nav { display:none; position:fixed; bottom:0; left:0; right:0; z-index:60; background:rgba(255,255,255,0.95); backdrop-filter:blur(12px); border-top:1px solid #e5e7eb; padding:6px 0 env(safe-area-inset-bottom,6px); }
@@ -127,7 +129,7 @@ foreach ($sidebarItems as $item) {
     <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
     <aside id="sidebar" class="sidebar">
         <div class="sidebar-logo">
-            <div class="sidebar-logo-icon"><i data-lucide="headphones"></i></div>
+            <div class="sidebar-logo-icon"><img src="<?= $urlBase ?>assets/img/logo.svg" alt="Field IT Hub logo" style="width:22px;height:22px;"></div>
             <div><div class="sidebar-logo-text">Field IT Hub</div><div class="sidebar-logo-sub">Support Platform</div></div>
         </div>
         <nav class="sidebar-nav custom-scroll">
@@ -153,6 +155,7 @@ foreach ($sidebarItems as $item) {
         </div>
     </aside>
     <div class="app-main">
+        <div class="bg-aurora" aria-hidden="true"></div>
         <header class="app-header">
             <button onclick="openSidebar()" class="header-btn hide-desktop"><i data-lucide="menu" style="width:20px;height:20px;"></i></button>
             <div class="header-search hide-mobile-nav">
@@ -166,23 +169,26 @@ foreach ($sidebarItems as $item) {
                     <i data-lucide="moon" style="width:18px;height:18px;" class="hidden dark:block"></i>
                 </button>
                 <div style="position:relative;">
-                    <button id="notif-btn" class="header-btn" data-tooltip="Notifications" onclick="toggleNotifications()" style="position:relative;">
+                    <button id="notif-btn" class="header-btn" data-tooltip="Notifications" onclick="toggleNotifications(event)" type="button" style="position:relative;">
                         <i data-lucide="bell" style="width:18px;height:18px;"></i>
                         <span class="dot" id="notif-dot"></span>
                     </button>
                     <div id="notif-dropdown" class="notif-dropdown">
                         <div style="padding:16px 16px 12px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
                             <span style="font-size:14px;font-weight:700;color:#111827;">Notifications</span>
-                            <button onclick="document.getElementById('notif-dot').style.display='none'" style="font-size:12px;color:#2563eb;background:none;border:none;cursor:pointer;font-weight:600;">Mark all read</button>
+                            <button type="button" onclick="markAllNotificationsRead(event)" style="font-size:12px;color:#2563eb;background:none;border:none;cursor:pointer;font-weight:600;">Mark all read</button>
                         </div>
                         <div id="notif-list" style="max-height:360px;overflow-y:auto;">
                             <div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">Loading notifications...</div>
                         </div>
                         <div style="padding:12px 16px;border-top:1px solid #f1f5f9;text-align:center;">
-                            <a href="<?= $urlBase ?>admin/audit-logs" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;">View all activity</a>
+                            <a href="<?= $urlBase ?>admin/audit" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;">View all activity</a>
                         </div>
                     </div>
                 </div>
             </div>
         </header>
         <div class="page-content">
+<?php if (str_starts_with($active_menu ?? '', 'admin-')): ?>
+    <div class="admin-sash" style="margin-bottom:16px;"><i data-lucide="shield-check"></i> Admin Area · Restricted Access</div>
+<?php endif; ?>

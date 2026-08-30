@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Knowledge Base';
 $active_menu = 'knowledge';
 require APP_ROOT . '/includes/layout_header.php';
@@ -38,18 +40,26 @@ $catIcons = [
 ?>
 
 <div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+    <!-- Page Hero -->
+    <div class="page-hero fx-reveal">
         <div>
-            <h1 style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;">Knowledge Base</h1>
-            <p style="font-size:13px;color:#64748b;margin-top:2px;">Approved troubleshooting guides and technical documentation</p>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico blue"><i data-lucide="book-open"></i></div>
+                <div>
+                    <h1 class="page-hero-title">Knowledge Base</h1>
+                    <p class="page-hero-sub">Approved troubleshooting guides and technical documentation</p>
+                </div>
+            </div>
         </div>
         <?php if (Auth::hasPermission('documentation.create')): ?>
-            <a href="<?= $urlBase ?>documentation" class="btn btn-primary"><i data-lucide="plus" style="width:15px;height:15px;"></i> Submit Article</a>
+            <div class="page-hero-actions">
+                <a href="<?= $urlBase ?>documentation" class="btn btn-primary"><i data-lucide="plus" style="width:15px;height:15px;"></i> Submit Article</a>
+            </div>
         <?php endif; ?>
     </div>
 
     <!-- Search & Filters -->
-    <div class="card" style="margin-bottom:20px;">
+    <div class="card fx-reveal" style="margin-bottom:20px;--fx-delay:40ms;" id="kb-filter-card">
         <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;">
             <div style="flex:1;min-width:240px;position:relative;">
                 <i data-lucide="search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:#94a3b8;"></i>
@@ -74,7 +84,7 @@ $catIcons = [
     </div>
 
     <!-- Stats -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;" class="hide-mobile">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;--fx-delay:80ms;" class="hide-mobile fx-reveal">
         <?php
         // Calculate real stats
         $helpfulTotal = array_sum(array_column($articles, 'helpful_count'));
@@ -104,7 +114,7 @@ $catIcons = [
 
     <!-- Articles Grid -->
     <div id="kb-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;">
-        <?php foreach ($articles as $a):
+        <?php $ki = 0; foreach ($articles as $a):
             $cat = strtolower($a['category'] ?? 'general');
             $cc = $catColors[$cat] ?? $defaultCat;
             $icon = $catIcons[$cat] ?? 'file-text';
@@ -112,10 +122,11 @@ $catIcons = [
             $date = date('M j', strtotime($a['created_at']));
             $excerpt = $a['issue'] ?? $a['symptoms'] ?? 'Troubleshooting guide and documentation.';
             $excerpt = mb_strimwidth(strip_tags($excerpt), 0, 120, '...');
+            $fxd = ($ki % 6) * 50; $ki++;
         ?>
             <a href="<?= $urlBase ?>knowledge/view?id=<?= $a['id'] ?>"
-               class="card card-hover"
-               style="text-decoration:none;display:flex;flex-direction:column;"
+               class="card card-hover fx-reveal"
+               style="text-decoration:none;display:flex;flex-direction:column;--fx-delay:<?= $fxd ?>ms;"
                data-title="<?= e(strtolower($a['title'])) ?>"
                data-category="<?= e($cat) ?>"
                data-date="<?= strtotime($a['created_at']) ?>"

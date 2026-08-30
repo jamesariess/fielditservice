@@ -1,6 +1,10 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Troubleshooting Manager';
 $active_menu = 'admin-troubleshoot';
+$required_permission = 'system.settings';
+require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
 
 $roleName = $_SESSION['role_name'] ?? '';
@@ -947,6 +951,8 @@ var selectedDevice = 'all';
 var allNodesForIssue = [];
 
 async function loadAllIssues() {
+    var cardsEl = document.getElementById('tree-issue-cards');
+    if (cardsEl && typeof skeletonGrid === 'function') cardsEl.innerHTML = skeletonGrid(6, 260);
     try {
         var res = await fetch(APP_BASE+'api/troubleshooting/nodes.php?all_issues=1');
         if (!res.ok) {
@@ -1625,6 +1631,8 @@ async function deleteNode(nodeId) {
 }
 // ===== SUBMISSIONS =====
 async function loadSubmissions() {
+    var listEl = document.getElementById('submissions-list');
+    if (listEl && typeof skeletonFill === 'function') skeletonFill(listEl, 4, 3);
     try {
         var res = await fetch(APP_BASE+'api/troubleshooting/submissions.php?all=1');
         var data = await res.json();

@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 $page_title = 'Equipment Database';
 $active_menu = 'equipment';
 require APP_ROOT . '/includes/layout_header.php';
@@ -47,15 +49,21 @@ $typeConfig = [
 ];
 ?>
 <div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+    <!-- Page Hero -->
+    <div class="page-hero fx-reveal">
         <div>
-            <h1 style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;">Equipment Database</h1>
-            <p style="font-size:13px;color:#64748b;margin-top:2px;">Browse devices, models, specifications, and repair guides</p>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico green"><i data-lucide="package"></i></div>
+                <div>
+                    <h1 class="page-hero-title">Equipment Database</h1>
+                    <p class="page-hero-sub">Browse devices, models, specifications, and repair guides</p>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Brands -->
-    <div style="margin-bottom:24px;">
+    <div style="margin-bottom:24px;--fx-delay:50ms;" class="fx-reveal">
         <h2 style="font-size:14px;font-weight:700;color:#374151;margin-bottom:10px;">Browse by Brand</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <?php foreach ($brandCounts as $brand => $count):

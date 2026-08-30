@@ -1,4 +1,6 @@
 <?php
+if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
+
 /**
  * Documentation - Submit New Solution
  */
@@ -9,11 +11,21 @@ require APP_ROOT . '/includes/layout_header.php';
 ?>
 
 <div class="max-w-3xl mx-auto">
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Document New Solution</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Submit a troubleshooting solution for admin review and potential publication</p>
-        <div class="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-xs text-blue-700 dark:text-blue-400">
-            <strong>Note:</strong> Submitted documentation will go through admin review before being published to the knowledge base.
+    <div class="page-hero fx-reveal" style="margin-bottom:20px;">
+        <div>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="page-hero-ico blue"><i data-lucide="file-plus-2"></i></div>
+                <div>
+                    <h1 class="page-hero-title">Document New Solution</h1>
+                    <p class="page-hero-sub">Submit a troubleshooting solution for admin review and publication</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="fx-reveal" style="--fx-delay:50ms;">
+        <div class="info-banner">
+            <i data-lucide="info" style="width:16px;height:16px;flex-shrink:0;"></i>
+            <span><strong>Note:</strong> Submitted documentation will go through admin review before being published to the knowledge base.</span>
         </div>
     </div>
     
@@ -129,7 +141,7 @@ require APP_ROOT . '/includes/layout_header.php';
         
         <!-- Submit -->
         <div class="flex gap-3">
-            <a href="/dashboard.php" class="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-center">Cancel</a>
+            <a href="<?= $urlBase ?>" class="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-center">Cancel</a>
             <button type="submit" class="flex-1 px-4 py-3 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-lg transition">
                 Submit for Review
             </button>
