@@ -38,18 +38,25 @@ if ($method === 'GET') {
     if (!(defined('DEMO_MODE') && DEMO_MODE)) {
         try { $row = AIDatabase::fetch("SELECT COUNT(*) as cnt FROM ai_training_files WHERE is_active = 1"); $trainingCount = $row['cnt'] ?? 0; } catch (Exception $e) {}
     }
-    json_response(['personality' => $personality, 'history' => $history, 'training_count' => $trainingCount]);
+    json_response(['personality' => $personality, 'history' => $history, 'training_count' => $trainingCount, 'quota' => aiQuotaInfo($userId)]);
     exit;
 }
 
 // ===== POST: Send message =====
 if ($method !== 'POST') { json_response(['error' => 'POST or GET required'], 405); exit; }
 
-// Rate limiting
+// ===== AI usage limits: admins unlimited; others get burst protection + daily quota =====
+$quota = aiQuotaInfo($userId);
 if (!isset($_SESSION['ai_requests'])) $_SESSION['ai_requests'] = [];
 $now = time();
 $_SESSION['ai_requests'] = array_filter($_SESSION['ai_requests'], fn($t) => $now - $t < 60);
-if (count($_SESSION['ai_requests']) >= 30) { json_response(['error' => 'Rate limit exceeded. Try again in a minute.'], 429); exit; }
+$burstLimit = defined('AI_BURST_LIMIT') ? (int)AI_BURST_LIMIT : 30;
+if (count($_SESSION['ai_requests']) >= $burstLimit) {
+    json_response(['error' => 'You are sending messages too quickly. Please wait a minute and try again.', 'limit_type' => 'burst', 'retry_after' => 60], 429); exit;
+}
+if (!$quota['unlimited'] && $quota['remaining_today'] <= 0) {
+    json_response(['error' => 'You have used all ' . $quota['daily_limit'] . ' free AI messages for today. Your allowance resets tomorrow. Admins have unlimited AI access.', 'limit_type' => 'daily', 'quota' => $quota], 429); exit;
+}
 $_SESSION['ai_requests'][] = $now;
 
 $input = json_decode(file_get_contents('php://input'), true);
@@ -63,7 +70,7 @@ $lowerMsg = strtolower($message);
 
 // Block prompt injection
 $blocked = ['ignore previous', 'system prompt', 'reveal', 'api key', 'password', 'ignore all', 'you are now'];
-foreach ($blocked as $p) { if (stripos($lowerMsg, $p) !== false) { json_response(['response' => "I can only assist with IT troubleshooting. What's going on with your device?", 'confidence' => 'low', 'session_id' => $sessionId]); exit; } }
+foreach ($blocked as $p) { if (stripos($lowerMsg, $p) !== false) { json_response(['response' => "I can only assist with IT troubleshooting. What's going on with your device?", 'confidence' => 'low', 'session_id' => $sessionId, 'quota' => $quota]); exit; } }
 
 // Always load conversation history from DB for context
 $conversationHistory = [];
@@ -84,10 +91,10 @@ if ($conversationalReply !== null) {
     // Try Groq first so small-talk gets natural, smart replies; template is only a fallback
     $groqReply = tryGroqChat($message, $conversationHistory);
     if ($groqReply !== false) {
-        json_response(['response' => $groqReply, 'confidence' => 'high', 'sources' => ['AI Assistant'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot']);
+        json_response(['response' => $groqReply, 'confidence' => 'high', 'sources' => ['AI Assistant'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot', 'quota' => $quota]);
         exit;
     }
-    json_response(['response' => $conversationalReply, 'confidence' => 'high', 'sources' => ['IT Bot'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot']);
+    json_response(['response' => $conversationalReply, 'confidence' => 'high', 'sources' => ['IT Bot'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot', 'quota' => $quota]);
     exit;
 }
 
@@ -208,7 +215,7 @@ if (defined('AI_PROVIDER') && AI_PROVIDER === 'openai') {
     }
 }
 
-json_response(['response' => $response, 'confidence' => $confidence, 'sources' => $sources, 'session_id' => $sessionId, 'bot_name' => $botName]);
+json_response(['response' => $response, 'confidence' => $confidence, 'sources' => $sources, 'session_id' => $sessionId, 'bot_name' => $botName, 'quota' => $quota]);
 
 
 // ===== HELPER FUNCTIONS =====
@@ -822,4 +829,36 @@ function tryGroqChat($message, $conversationHistory) {
     $messages[] = ['role' => 'user', 'content' => $message];
     $reply = $ai->chat($messages, 0.7, 400);
     return ($reply !== false && trim($reply) !== '') ? trim($reply) : false;
+}
+
+/**
+ * Is the current user an admin (unlimited AI)?
+ */
+function aiUserIsAdmin() {
+    $role = strtolower((string)($_SESSION['role'] ?? $_SESSION['role_name'] ?? ''));
+    if (in_array($role, ['admin', 'super_admin', 'superadmin'], true)) return true;
+    try { if (class_exists('Auth') && Auth::hasPermission('*.*')) return true; } catch (Exception $e) {}
+    return false;
+}
+
+/**
+ * Quota info for the current user: admins are always unlimited.
+ * Daily count comes from ai_conversation_logs (works across devices/browsers).
+ */
+function aiQuotaInfo($userId) {
+    if (aiUserIsAdmin()) {
+        return ['unlimited' => true, 'remaining_today' => null, 'daily_limit' => null, 'used_today' => null];
+    }
+    $limit = defined('AI_DAILY_LIMIT') ? (int)AI_DAILY_LIMIT : 0;
+    if ($limit <= 0) {
+        return ['unlimited' => true, 'remaining_today' => null, 'daily_limit' => null, 'used_today' => null];
+    }
+    $used = 0;
+    if (!(defined('DEMO_MODE') && DEMO_MODE)) {
+        try {
+            $row = AIDatabase::fetch("SELECT COUNT(*) AS c FROM ai_conversation_logs WHERE user_id = ? AND created_at >= CURDATE()", [$userId]);
+            $used = (int)($row['c'] ?? 0);
+        } catch (Exception $e) { $used = 0; }
+    }
+    return ['unlimited' => false, 'remaining_today' => max(0, $limit - $used), 'daily_limit' => $limit, 'used_today' => $used];
 }

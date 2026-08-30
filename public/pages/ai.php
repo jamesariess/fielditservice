@@ -55,6 +55,7 @@ require APP_ROOT . '/includes/layout_header.php';
                 </div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
+                <span id="ai-quota-chip" style="display:none;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(139,92,246,.12);color:#7c3aed;"></span>
                 <span id="training-badge" style="font-size:10px;color:#94a3b8;"></span>
                 <button onclick="clearChat()" style="padding:5px 10px;font-size:11px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;">New Chat</button>
             </div>
@@ -122,6 +123,7 @@ var botName = 'IT Bot';
             if (data.training_count > 0) {
                 document.getElementById('training-badge').textContent = data.training_count + ' trained docs';
             }
+            updateQuotaChip(data.quota);
             if (data.history && data.history.length > 0) {
                 data.history.forEach(function(msg) {
                     addMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', false);
@@ -167,17 +169,40 @@ function aiSendMessage(e) {
     .then(r => r.json())
     .then(data => {
         removeTyping(tid);
+        if (data.error) {
+            addMessage('⚠️ ' + data.error, 'ai');
+            aiProcessing = false;
+            return;
+        }
         addMessage(data.response, 'ai', true, data.sources, data.confidence);
         aiHistory.push({ role: 'user', content: msg });
         aiHistory.push({ role: 'assistant', content: data.response });
         aiProcessing = false;
         scheduleRatingPrompt();
+        updateQuotaChip(data.quota);
     })
     .catch(() => {
         removeTyping(tid);
         addMessage("Sorry, I encountered an error. Please try again or describe your issue differently.", 'ai');
         aiProcessing = false;
     });
+}
+
+function updateQuotaChip(quota) {
+    var el = document.getElementById('ai-quota-chip');
+    if (!el || !quota) return;
+    if (quota.unlimited) {
+        el.textContent = '∞ Unlimited';
+        el.style.display = '';
+        el.style.background = 'rgba(34,197,94,.12)';
+        el.style.color = '#059669';
+    } else if (typeof quota.remaining_today === 'number') {
+        el.textContent = quota.remaining_today + ' AI messages left today';
+        el.style.display = '';
+        if (quota.remaining_today <= 5) { el.style.background = 'rgba(239,68,68,.12)'; el.style.color = '#dc2626'; }
+        else if (quota.remaining_today <= 15) { el.style.background = 'rgba(245,158,11,.15)'; el.style.color = '#b45309'; }
+        else { el.style.background = 'rgba(139,92,246,.12)'; el.style.color = '#7c3aed'; }
+    }
 }
 
 // ==================== Conversation rating (after 10 min inactivity) ====================

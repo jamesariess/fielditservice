@@ -39,7 +39,9 @@ if (!defined('OPENAI_API_KEY')) { define('OPENAI_API_KEY', ''); } // empty = AI 
 define('AI_PROVIDER', 'openai'); // ollama, openai, none
 define('OPENAI_BASE_URL', 'https://api.groq.com/openai/v1'); // Groq OpenAI-compatible endpoint
 define('OPENAI_MODEL', 'openai/gpt-oss-120b');
-define('AI_RATE_LIMIT', 30); // requests per minute per user
+// AI usage limits — admins always have unlimited AI access
+define('AI_BURST_LIMIT', 30);  // max messages per minute (all users, incl. burst protection)
+define('AI_DAILY_LIMIT', 50);  // max messages per user per day (0 = unlimited; admins always unlimited)
 
 // Timezone
 date_default_timezone_set('UTC');
