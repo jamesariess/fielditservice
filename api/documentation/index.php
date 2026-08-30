@@ -13,16 +13,26 @@ header('Content-Type: application/json');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { json_response(['error' => 'POST required'], 405); }
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $title = $input['title'] ?? '';
-$content = $input['content'] ?? '';
+$solution = $input['content'] ?? $input['solution'] ?? '';
 $category = $input['category'] ?? 'General';
 $tags = $input['tags'] ?? '';
-if (!$title || !$content) { json_response(['error' => 'Title and content required'], 400); }
+if (!$title || !$solution) { json_response(['error' => 'Title and content required'], 400); }
 
 $demo = !defined('DEMO_MODE') || DEMO_MODE;
 if (!$demo) {
     try {
-        $db = Database::getInstance();
-        $db->execute("INSERT INTO knowledge_articles (title, content, category, tags, author_id, status, created_at) VALUES (?, ?, ?, ?, ?, 'draft', NOW())", [$title, $content, $category, $tags, Auth::userId()]);
+        Database::insert('knowledge_articles', [
+            'title' => $title,
+            'category' => $category,
+            'solution' => $solution,
+            'symptoms' => $input['symptoms'] ?? '',
+            'root_cause' => $input['root_cause'] ?? '',
+            'tools_used' => $input['tools'] ?? '',
+            'commands_used' => $input['commands'] ?? '',
+            'device_type' => $input['device_type'] ?? '',
+            'author_id' => Auth::userId(),
+            'status' => 'submitted',
+        ]);
         json_response(['success' => true, 'message' => 'Documentation submitted for review']);
     } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
 } else {

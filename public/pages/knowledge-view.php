@@ -4,30 +4,47 @@ $active_menu = 'knowledge';
 require APP_ROOT . '/includes/layout_header.php';
 
 // Get article ID from query string
-$articleId = isset($_GET['id']) ? intval($_GET['id']) : 1;
+$articleId = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $demo = !defined('DEMO_MODE') || DEMO_MODE;
 $article = null;
 
-if (!$demo) {
-    $article = Database::fetch("SELECT ka.*, u.full_name as author_name FROM knowledge_articles ka LEFT JOIN users u ON ka.author_id = u.id WHERE ka.id = ?", [$articleId]);
+if (!$demo && $articleId > 0) {
+    $article = Database::fetch(
+        "SELECT ka.*, u.full_name as author_name
+         FROM knowledge_articles ka
+         LEFT JOIN users u ON ka.author_id = u.id
+         WHERE ka.id = ? AND ka.deleted_at IS NULL AND ka.status = 'published'",
+        [$articleId]
+    );
 }
 
-// Demo data fallback
 if (!$article) {
-    $articles = DemoData::getKnowledgeArticles();
-    $article = $articles[0] ?? [
-        'id' => 1, 'title' => 'No Display — Desktop Troubleshooting', 'content' => '',
-        'category' => 'Hardware', 'status' => 'published', 'quality_score' => 92,
-        'use_count' => 137, 'avg_rating' => 4.8, 'author_name' => 'Admin',
-        'created_at' => '2026-08-15', 'version' => '1.0',
-        'symptoms' => 'Black screen, No signal message, Monitor LED on but no image, Flickering display',
-        'root_cause' => 'Most commonly caused by loose display cables, improperly seated RAM, or monitor input source misconfiguration.',
-        'solution_steps' => 'Check Power:Verify both computer and monitor have power.|Reseat Display Cable:Disconnect and reconnect HDMI/DisplayPort/VGA cable.|Test Different Cable:Try a known-good display cable.|Test Different Monitor:Connect a known-good monitor.|Reseat RAM:Power off, remove and reseat RAM modules.|Reseat GPU:Power off, remove and reinsert the graphics card.',
-        'tools_needed' => 'Known-good monitor, Known-good cable, Phillips screwdriver, ESD wrist strap',
-        'safety_warning' => 'Turn off and disconnect power before opening the computer case. Use ESD protection when handling internal components.',
-        'related_commands' => 'systeminfo,msinfo32',
-        'success_rate' => 92, 'views' => 137
-    ];
+    // Try any status for direct links
+    if (!$demo && $articleId > 0) {
+        $article = Database::fetch(
+            "SELECT ka.*, u.full_name as author_name
+             FROM knowledge_articles ka
+             LEFT JOIN users u ON ka.author_id = u.id
+             WHERE ka.id = ? AND ka.deleted_at IS NULL",
+            [$articleId]
+        );
+    }
+    if (!$article) {
+        $article = [
+            'id' => 0, 'title' => 'Article Not Found', 'category' => 'General',
+            'status' => 'unknown', 'version' => '1.0', 'quality_score' => 0,
+            'use_count' => 0, 'helpful_count' => 0, 'not_helpful_count' => 0,
+            'success_count' => 0, 'author_name' => 'System', 'created_at' => date('Y-m-d'),
+            'symptoms' => '', 'root_cause' => '', 'solution' => '',
+            'tools_used' => '', 'commands_used' => '', 'issue' => '',
+            'safety_warning' => '',
+        ];
+    }
+}
+
+// Increment view count
+if ($article['id'] > 0 && !$demo) {
+    try { Database::query("UPDATE knowledge_articles SET use_count = use_count + 1 WHERE id = ?", [$article['id']]); } catch (Exception $e) {}
 }
 ?>
 <div style="max-width:800px;margin:0 auto;">
@@ -40,23 +57,38 @@ if (!$article) {
         <div class="card-body">
             <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
                 <span class="badge badge-blue"><?= e($article['category'] ?? 'General') ?></span>
-                <span class="badge badge-green"><i data-lucide="check-circle" style="width:10px;height:10px;"></i> <?= e($article['status'] ?? 'Published') ?></span>
+                <span class="badge badge-green"><i data-lucide="check-circle" style="width:10px;height:10px;"></i> <?= e(ucfirst($article['status'] ?? 'Published')) ?></span>
                 <span class="badge badge-gray">v<?= e($article['version'] ?? '1.0') ?></span>
+                <?php if (!empty($article['device_type'])): ?>
+                    <span class="badge badge-gray"><i data-lucide="monitor" style="width:10px;height:10px;"></i> <?= e($article['device_type']) ?></span>
+                <?php endif; ?>
             </div>
             <h1 style="font-size:22px;font-weight:800;color:#111827;margin-bottom:8px;"><?= e($article['title']) ?></h1>
-            <p style="font-size:14px;color:#64748b;line-height:1.6;">Complete step-by-step guide for diagnosing and resolving this issue.</p>
+            <?php if (!empty($article['issue'])): ?>
+                <p style="font-size:14px;color:#475569;line-height:1.6;background:#f8fafc;padding:12px 16px;border-radius:8px;border-left:3px solid #2563eb;"><?= e($article['issue']) ?></p>
+            <?php endif; ?>
 
             <div style="display:flex;gap:16px;margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9;flex-wrap:wrap;font-size:12px;color:#94a3b8;">
                 <span style="display:flex;align-items:center;gap:4px;"><i data-lucide="user" style="width:13px;height:13px;"></i> <?= e($article['author_name'] ?? 'Admin') ?></span>
-                <span style="display:flex;align-items:center;gap:4px;"><i data-lucide="calendar" style="width:13px;height:13px;"></i> <?= e($article['created_at'] ?? 'Aug 15, 2026') ?></span>
-                <span style="display:flex;align-items:center;gap:4px;"><i data-lucide="eye" style="width:13px;height:13px;"></i> <?= intval($article['views'] ?? $article['use_count'] ?? 0) ?> views</span>
-                <span style="display:flex;align-items:center;gap:4px;"><i data-lucide="star" style="width:13px;height:13px;color:#d97706;"></i> <?= number_format($article['avg_rating'] ?? 4.8, 1) ?> rating</span>
+                <span style="display:flex;align-items:center;gap:4px;"><i data-lucide="calendar" style="width:13px;height:13px;"></i> <?= e($article['created_at'] ?? '') ?></span>
+                <span style="display:flex;align-items:center;gap:4px;"><i data-lucide="eye" style="width:13px;height:13px;"></i> <?= intval($article['use_count'] ?? 0) ?> views</span>
+                <?php
+                $helpful = intval($article['helpful_count'] ?? 0);
+                $total = $helpful + intval($article['not_helpful_count'] ?? 0);
+                $rating = $total > 0 ? round(($helpful / $total) * 5, 1) : 5.0;
+                ?>
+                <span style="display:flex;align-items:center;gap:4px;"><i data-lucide="star" style="width:13px;height:13px;color:#d97706;"></i> <?= number_format($rating, 1) ?> rating</span>
             </div>
         </div>
     </div>
 
     <!-- Symptoms -->
-    <?php $symptoms = explode(', ', $article['symptoms'] ?? 'Black screen, No signal, Monitor LED on'); ?>
+    <?php
+    $symptomsRaw = $article['symptoms'] ?? '';
+    $symptoms = !empty($symptomsRaw) ? preg_split('/[,;|]/', $symptomsRaw) : [];
+    $symptoms = array_map('trim', array_filter($symptoms));
+    ?>
+    <?php if (!empty($symptoms)): ?>
     <div class="card" style="margin-bottom:16px;">
         <div class="card-header"><h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;"><i data-lucide="search" style="width:15px;height:15px;color:#64748b;"></i> Symptoms</h3></div>
         <div class="card-body">
@@ -67,85 +99,119 @@ if (!$article) {
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Root Cause -->
+    <?php if (!empty($article['root_cause'])): ?>
     <div class="card" style="margin-bottom:16px;">
         <div class="card-header"><h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;"><i data-lucide="target" style="width:15px;height:15px;color:#64748b;"></i> Root Cause</h3></div>
-        <div class="card-body"><p style="font-size:13.5px;color:#475569;line-height:1.7;"><?= e($article['root_cause'] ?? 'Commonly caused by configuration or connection issues.') ?></p></div>
+        <div class="card-body"><p style="font-size:13.5px;color:#475569;line-height:1.7;"><?= e($article['root_cause']) ?></p></div>
     </div>
+    <?php endif; ?>
 
     <!-- Solution Steps -->
+    <?php if (!empty($article['solution'])): ?>
     <div class="card" style="margin-bottom:16px;">
-        <div class="card-header"><h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;"><i data-lucide="wrench" style="width:15px;height:15px;color:#64748b;"></i> Solution Steps</h3></div>
+        <div class="card-header">
+            <h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;"><i data-lucide="wrench" style="width:15px;height:15px;color:#64748b;"></i> Solution Steps</h3>
+            <button onclick="copySolution()" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#f1f5f9;border:none;border-radius:6px;font-size:11px;color:#475569;cursor:pointer;font-weight:600;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
+                <i data-lucide="copy" style="width:12px;height:12px;"></i> Copy
+            </button>
+        </div>
         <div class="card-body">
-            <div class="space-y-4">
+            <div id="solution-steps" class="space-y-4">
                 <?php
-                $stepsRaw = $article['solution_steps'] ?? 'Check Power:Verify both computer and monitor have power.|Reseat Display Cable:Disconnect and reconnect HDMI cable.|Test Different Cable:Try a known-good display cable.|Test Different Monitor:Connect a known-good monitor.|Reseat RAM:Power off, remove and reseat RAM.|Reseat GPU:Power off, remove and reinsert GPU.';
-                $stepLines = explode('|', $stepsRaw);
+                $stepsRaw = $article['solution'] ?? '';
+                $stepLines = preg_split('/[\n|]/', $stepsRaw);
                 $stepNum = 1;
                 foreach ($stepLines as $line) {
-                    $parts = explode(':', $line, 2);
-                    $title = $parts[0] ?? 'Step ' . $stepNum;
-                    $desc = $parts[1] ?? '';
-                    $risk = in_array($stepNum, [5, 6]) ? 'caution' : 'safe';
-                    $riskColor = $risk === 'safe' ? '#16a34a' : '#d97706';
+                    $line = trim($line);
+                    if (empty($line)) continue;
+                    // Check for step:desc format or just text
+                    if (preg_match('/^([A-Z][\w\s\.]+?):\s*(.+)/', $line, $m)) {
+                        $title = trim($m[1]);
+                        $desc = trim($m[2]);
+                    } else {
+                        $title = 'Step ' . $stepNum;
+                        $desc = trim($line);
+                    }
                 ?>
                     <div style="display:flex;gap:12px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #f1f5f9;">
                         <div style="width:28px;height:28px;border-radius:8px;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;"><?= $stepNum ?></div>
                         <div>
                             <div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:2px;"><?= e($title) ?></div>
                             <div style="font-size:12px;color:#64748b;line-height:1.5;"><?= e($desc) ?></div>
-                            <div style="margin-top:4px;"><span class="risk-dot <?= $risk ?>" style="display:inline-block;"></span> <span style="font-size:10px;color:<?= $riskColor ?>;font-weight:600;text-transform:uppercase;"><?= $risk ?></span></div>
                         </div>
                     </div>
                 <?php $stepNum++; } ?>
             </div>
+            <div id="solution-text" style="display:none;"><?= e($article['solution']) ?></div>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Tools Needed -->
-    <?php $tools = explode(', ', $article['tools_needed'] ?? 'Phillips screwdriver, ESD wrist strap'); ?>
+    <?php
+    $toolsRaw = $article['tools_used'] ?? '';
+    $tools = !empty($toolsRaw) ? preg_split('/[,;|]/', $toolsRaw) : [];
+    $tools = array_map('trim', array_filter($tools));
+    ?>
+    <?php if (!empty($tools)): ?>
     <div class="card" style="margin-bottom:16px;">
         <div class="card-header"><h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;"><i data-lucide="screwdriver" style="width:15px;height:15px;color:#64748b;"></i> Tools Needed</h3></div>
         <div class="card-body">
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <?php foreach ($tools as $t): ?>
-                    <span class="badge badge-blue"><?= e(trim($t)) ?></span>
+                    <span class="badge badge-blue"><i data-lucide="wrench" style="width:10px;height:10px;"></i> <?= e(trim($t)) ?></span>
                 <?php endforeach; ?>
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
-    <!-- Safety Warnings -->
+    <!-- Safety Warning -->
     <?php if (!empty($article['safety_warning'])): ?>
-    <div class="alert alert-warning" style="margin-bottom:16px;">
-        <i data-lucide="shield-alert"></i>
-        <div><b>Safety:</b> <?= e($article['safety_warning']) ?></div>
+    <div style="display:flex;gap:10px;padding:14px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;margin-bottom:16px;">
+        <i data-lucide="shield-alert" style="width:18px;height:18px;color:#dc2626;flex-shrink:0;margin-top:1px;"></i>
+        <div>
+            <div style="font-size:13px;font-weight:700;color:#991b1b;margin-bottom:2px;">Safety Warning</div>
+            <div style="font-size:12.5px;color:#991b1b;line-height:1.5;"><?= e($article['safety_warning']) ?></div>
+        </div>
     </div>
     <?php endif; ?>
 
     <!-- Related Commands -->
-    <?php $cmds = explode(',', $article['related_commands'] ?? 'systeminfo'); ?>
+    <?php
+    $cmdsRaw = $article['commands_used'] ?? '';
+    $cmds = !empty($cmdsRaw) ? preg_split('/[,;|]/', $cmdsRaw) : [];
+    $cmds = array_map('trim', array_filter($cmds));
+    ?>
+    <?php if (!empty($cmds)): ?>
     <div class="card" style="margin-bottom:16px;">
         <div class="card-header"><h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;"><i data-lucide="terminal" style="width:15px;height:15px;color:#64748b;"></i> Related Commands</h3></div>
         <div class="card-body">
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <?php foreach ($cmds as $c): ?>
-                    <code style="padding:4px 10px;background:#f1f5f9;border-radius:6px;font-size:12px;font-weight:600;color:#1d4ed8;"><?= e(trim($c)) ?></code>
+                    <code onclick="navigator.clipboard.writeText('<?= e(trim($c)) ?>');showToast('Copied!','success')" style="padding:4px 10px;background:#f1f5f9;border-radius:6px;font-size:12px;font-weight:600;color:#1d4ed8;cursor:pointer;" title="Click to copy"><?= e(trim($c)) ?></code>
                 <?php endforeach; ?>
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Quality Score -->
+    <?php
+    $qs = floatval($article['quality_score'] ?? 0);
+    $qsDisplay = $qs > 0 ? $qs : 92;
+    ?>
     <div class="card" style="margin-bottom:16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-color:#bbf7d0;">
         <div class="card-body" style="text-align:center;">
             <div style="font-size:12px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Verified Knowledge</div>
             <div style="display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:4px;">
                 <span style="font-size:18px;color:#d97706;">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
             </div>
-            <div style="font-size:13px;color:#15803d;font-weight:600;"><?= intval($article['success_rate'] ?? $article['quality_score'] ?? 92) ?>% successful</div>
-            <div style="font-size:12px;color:#16a34a;">Used <?= intval($article['views'] ?? $article['use_count'] ?? 0) ?> times · Last reviewed: <?= e($article['created_at'] ?? 'Aug 15, 2026') ?></div>
+            <div style="font-size:13px;color:#15803d;font-weight:600;"><?= intval($qsDisplay) ?>% successful</div>
+            <div style="font-size:12px;color:#16a34a;">Used <?= intval($article['use_count'] ?? 0) ?> times</div>
         </div>
     </div>
 
@@ -161,35 +227,53 @@ if (!$article) {
             </div>
             <div style="display:flex;gap:8px;">
                 <button onclick="kbRateArticle('helpful')" class="btn btn-secondary btn-sm" id="rate-helpful"><i data-lucide="thumbs-up" style="width:13px;height:13px;"></i> Helpful</button>
-                <button onclick="kbRateArticle('nothelpful')" class="btn btn-secondary btn-sm" id="rate-not"><i data-lucide="thumbs-down" style="width:13px;height:13px;"></i> Not Helpful</button>
+                <button onclick="kbRateArticle('not_helpful')" class="btn btn-secondary btn-sm" id="rate-not"><i data-lucide="thumbs-down" style="width:13px;height:13px;"></i> Not Helpful</button>
             </div>
             <div id="rating-feedback" style="display:none;margin-top:12px;">
-                <textarea placeholder="Optional: tell us why..." class="form-input" rows="2" style="resize:none;"></textarea>
-                <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="showToast('Feedback submitted!','success')">Submit Feedback</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Related Articles -->
-    <div class="card" style="margin-bottom:16px;">
-        <div class="card-header"><h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;"><i data-lucide="link" style="width:15px;height:15px;color:#64748b;"></i> Related Articles</h3></div>
-        <div class="card-body">
-            <div class="space-y-2">
-                <a href="<?= $urlBase ?>knowledge/view?id=2" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-                    <i data-lucide="file-text" style="width:14px;height:14px;color:#64748b;"></i>
-                    <span style="font-size:13px;color:#2563eb;font-weight:500;">Printer Offline — HP LaserJet Troubleshooting</span>
-                </a>
-                <a href="<?= $urlBase ?>knowledge/view?id=3" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-                    <i data-lucide="file-text" style="width:14px;height:14px;color:#64748b;"></i>
-                    <span style="font-size:13px;color:#2563eb;font-weight:500;">WiFi Connectivity Troubleshooting</span>
-                </a>
-                <a href="<?= $urlBase ?>knowledge/view?id=4" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-                    <i data-lucide="file-text" style="width:14px;height:14px;color:#64748b;"></i>
-                    <span style="font-size:13px;color:#2563eb;font-weight:500;">RAM Reseat Procedure</span>
-                </a>
+                <textarea id="rating-comment" placeholder="Optional: tell us why..." class="form-input" rows="2" style="resize:none;"></textarea>
+                <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="submitFeedback()">Submit Feedback</button>
             </div>
         </div>
     </div>
 </div>
 
+<script>
+var articleId = <?= intval($article['id']) ?>;
+
+function kbRateArticle(rating) {
+    fetch('<?= $urlBase ?>api/knowledge/rate.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ article_id: articleId, rating: rating })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.success) {
+            showToast('Thanks for your feedback!', 'success');
+            // Highlight the button pressed
+            document.querySelectorAll('#rate-yes,#rate-partial,#rate-no,#rate-helpful,#rate-not').forEach(function(b) {
+                b.style.opacity = '0.5';
+            });
+            var btnMap = { solved: 'rate-yes', partial: 'rate-partial', no: 'rate-no', helpful: 'rate-helpful', not_helpful: 'rate-not' };
+            var btn = document.getElementById(btnMap[rating]);
+            if (btn) { btn.style.opacity = '1'; btn.style.transform = 'scale(1.05)'; }
+        }
+    }).catch(function() { showToast('Error submitting rating', 'error'); });
+}
+
+function copySolution() {
+    var el = document.getElementById('solution-text');
+    var text = el ? el.textContent : '';
+    navigator.clipboard.writeText(text).then(function() {
+        showToast('Solution copied to clipboard!', 'success');
+    });
+}
+
+function submitFeedback() {
+    var comment = document.getElementById('rating-comment').value;
+    fetch('<?= $urlBase ?>api/knowledge/rate.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ article_id: articleId, rating: 'helpful', feedback: comment })
+    }).then(function() { showToast('Feedback submitted!', 'success'); });
+}
+</script>
 <?php require APP_ROOT . '/includes/layout_footer.php'; ?>

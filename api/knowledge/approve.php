@@ -4,7 +4,7 @@
  * POST /api/knowledge/approve.php
  * Body: { "article_id": 1, "action": "approve" | "reject" }
  */
-if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(__DIR__))); }
+if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(dirname(__DIR__)))); }
 require_once APP_ROOT . '/config/app.php';
 require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
@@ -20,20 +20,27 @@ $input = json_decode(file_get_contents('php://input'), true);
 $articleId = (int)($input['article_id'] ?? 0);
 $action = $input['action'] ?? '';
 
-if (!$articleId || !in_array($action, ['approve', 'reject'])) {
-    json_response(['error' => 'article_id and action (approve/reject) required'], 400);
+if (!$articleId || !in_array($action, ['approve', 'reject', 'delete'])) {
+    json_response(['error' => 'article_id and action (approve/reject/delete) required'], 400);
     exit;
 }
 
 try {
-    $newStatus = $action === 'approve' ? 'published' : 'draft';
     $article = Database::fetch("SELECT id, title FROM knowledge_articles WHERE id = ?", [$articleId]);
     if (!$article) { json_response(['error' => 'Article not found'], 404); exit; }
 
-    Database::update('knowledge_articles', [
-        'status' => $newStatus,
-        'reviewer_id' => Auth::userId(),
-    ], 'id = ?', [$articleId]);
+    if ($action === 'delete') {
+        Database::update('knowledge_articles', [
+            'deleted_at' => date('Y-m-d H:i:s'),
+        ], 'id = ?', [$articleId]);
+        $newStatus = 'deleted';
+    } else {
+        $newStatus = $action === 'approve' ? 'published' : 'draft';
+        Database::update('knowledge_articles', [
+            'status' => $newStatus,
+            'reviewer_id' => Auth::userId(),
+        ], 'id = ?', [$articleId]);
+    }
 
     Database::insert('audit_logs', [
         'user_id' => Auth::userId(),

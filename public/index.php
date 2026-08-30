@@ -66,6 +66,7 @@ $routes = [
     '/knowledge/view' => APP_ROOT . '/public/pages/knowledge-view.php',
     '/equipment' => APP_ROOT . '/public/pages/equipment.php',
     '/equipment/model' => APP_ROOT . '/public/pages/equipment-model.php',
+    '/brand' => APP_ROOT . '/public/pages/brand.php',
     '/commands' => APP_ROOT . '/public/pages/commands.php',
     '/tools' => APP_ROOT . '/public/pages/tools.php',
     '/ai' => APP_ROOT . '/public/pages/ai.php',
