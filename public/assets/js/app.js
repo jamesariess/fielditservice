@@ -4,6 +4,7 @@
  */
 
 // ==================== Base URL ====================
+document.documentElement.classList.add('js');
 var APP_BASE = (function() {
     var m = window.location.pathname.match(/^(.*\/public)/);
     return m ? m[1] + '/' : '/';
@@ -170,11 +171,20 @@ function loadNotifications() {
         if (dot) {
             var unread = items.filter(function(n) { return !n.is_read; }).length;
             dot.style.display = unread > 0 ? '' : 'none';
+            // Pulse the dot if there are new notifications
+            if (unread > 0) {
+                dot.classList.add('animate-pulse');
+            } else {
+                dot.classList.remove('animate-pulse');
+            }
         }
     }).catch(function() {
         list.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">No notifications</div>';
     });
 }
+
+// Start periodic notification updates (every 2 minutes)
+setInterval(loadNotifications, 2 * 60 * 1000);
 // Close the dropdown when clicking anywhere outside it (or the bell button)
 document.addEventListener('click', function(e) {
     var dd = document.getElementById('notif-dropdown');
@@ -224,7 +234,10 @@ function api(endpoint, options) {
     return fetch(endpoint, merged).then(function(response) {
         return response.json().then(function(data) {
             if (!response.ok) {
-                if (response.status === 401) { window.location.href = APP_BASE + 'login'; return; }
+                if (response.status === 401) { 
+                    window.location.href = APP_BASE + 'login'; 
+                    return; 
+                }
                 throw new Error(data.error || 'Request failed');
             }
             return data;
@@ -945,6 +958,118 @@ document.addEventListener('keydown', function(e) {
     }
 })();
 
+// ==================== Session Timeout ====================
+function initSessionTimeout() {
+    var sessionStartTime = parseInt(document.querySelector('meta[name="session-start-time"]')?.content) || 0;
+    var sessionLifetime = parseInt(document.querySelector('meta[name="session-lifetime"]')?.content) || 28800; // 8 hours in seconds
+    var warningTime = 5 * 60; // 5 minutes before expiry
+    
+    if (sessionStartTime === 0) return;
+    
+    function checkSession() {
+        var currentTime = Math.floor(Date.now() / 1000);
+        var elapsed = currentTime - sessionStartTime;
+        var remaining = sessionLifetime - elapsed;
+        
+        if (remaining <= 0) {
+            // Session expired
+            logoutDueToInactivity();
+            return;
+        }
+        
+        if (remaining <= warningTime) {
+            // Show warning
+            showSessionWarning(remaining);
+        }
+    }
+    
+    function showSessionWarning(secondsLeft) {
+        // If warning is already shown, don't show again
+        if (document.getElementById('session-timeout-warning')) return;
+        
+        var minutesLeft = Math.ceil(secondsLeft / 60);
+        var swal = Swal.fire({
+            title: 'Session Expiring Soon',
+            html: 'Your session will expire in <strong>' + minutesLeft + ' minute' + (minutesLeft !== 1 ? 's' : '') + '</strong> for security reasons.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Extend Session',
+            cancelButtonText: 'Log Out Now',
+            timer: secondsLeft * 1000,
+            timerProgressBar: true,
+            didOpen: () => {
+                Swal.getTimerLeft().then((timeLeft) => {
+                    if (timeLeft) {
+                        Swal.getHtmlContainer().querySelector('strong').textContent = 
+                            Math.ceil(timeLeft / 60000) + ' minute' + (Math.ceil(timeLeft / 60000) !== 1 ? 's' : '');
+                    }
+                });
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // User chose to extend session
+                extendSession().then(() => {
+                    // Reset session start time on server and continue
+                    sessionStartTime = Math.floor(Date.now() / 1000);
+                    // Update meta tag for consistency
+                    var meta = document.querySelector('meta[name="session-start-time"]');
+                    if (meta) meta.content = sessionStartTime;
+                    Swal.fire({
+                        title: 'Session Extended',
+                        text: 'Your session has been extended for another 8 hours.',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }).catch(() => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Failed to extend session. Please log in again.',
+                        icon: 'error'
+                    }).then(() => {
+                        window.location.href = APP_BASE + 'login';
+                    });
+                });
+            } else {
+                // User chose to log out or timer expired
+                logoutDueToInactivity();
+            }
+        });
+    }
+    
+    function logoutDueToInactivity() {
+        Swal.fire({
+            title: 'Session Expired',
+            text: 'Your session has expired due to inactivity. Please log in again.',
+            icon: 'info',
+            confirmButtonText: 'Log In'
+        }).then(() => {
+            window.location.href = APP_BASE + 'login';
+        });
+    }
+    
+    function extendSession() {
+        return fetch(APP_BASE + '/api/session/extend', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            },
+            credentials: 'same-origin'
+        }).then(response => {
+            if (!response.ok) throw new Error('Failed to extend session');
+            return response.json();
+        });
+    }
+    
+    // Check session every minute
+    setInterval(checkSession, 60 * 1000);
+    // Also check on user activity
+    document.addEventListener('mousemove', checkSession);
+    document.addEventListener('keypress', checkSession);
+    document.addEventListener('click', checkSession);
+}
+
 // ==================== Init ====================
 document.addEventListener('DOMContentLoaded', function() {
     initDarkMode();
@@ -969,7 +1094,154 @@ document.addEventListener('DOMContentLoaded', function() {
     try { lucide.createIcons(); } catch(e) {}
     // Load notifications if dropdown exists
     if (document.getElementById('notif-list')) loadNotifications();
+    // Init session timeout
+    initSessionTimeout();
+    // Start heartbeat for keeping session alive and updating critical data
+    startHeartbeat();
+    // Add live indicator
+    addLiveIndicator();
 });
+
+// ==================== Live Indicator ====================
+function addLiveIndicator() {
+    var headerActions = document.querySelector('.header-actions');
+    if (!headerActions) return;
+    
+    var liveIndicator = document.createElement('div');
+    liveIndicator.className = 'live-indicator';
+    liveIndicator.innerHTML = '<i data-lucide="radio" style="width:12px;height:12px;"></i>';
+    liveIndicator.title = 'Live updates enabled';
+    liveIndicator.style.cssText = 'display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:rgba(16,185,129,0.2);color:#10b981;font-size:10px;margin-left:8px;position:relative;overflow:hidden;';
+    
+    // Add pulse animation
+    liveIndicator.innerHTML += '<style>@keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); } 70% { box-shadow: 0 0 0 8px rgba(16,185,129,0); } 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); } } .live-indicator { animation: livePulse 2s ease-in-out infinite; }</style>';
+    
+    headerActions.insertBefore(liveIndicator, headerActions.firstChild);
+    
+    // Initialize Lucide icons for the new element
+    try { lucide.createIcons({ nodes: [liveIndicator] }); } catch(e) {}
+}
+
+// ==================== Heartbeat System ====================
+function startHeartbeat() {
+    // Track visibility state
+    var isVisible = !document.hidden;
+    
+    // Handle visibility changes
+    document.addEventListener('visibilitychange', function() {
+        isVisible = !document.hidden;
+        if (!isVisible) {
+            // Pause non-essential updates when tab is hidden
+            pauseNonEssentialUpdates();
+        } else {
+            // Resume updates when tab becomes visible
+            resumeNonEssentialUpdates();
+        }
+    });
+    
+    // Ping server every 2 minutes to keep session alive during active use
+    setInterval(function() {
+        // Only send heartbeat if user has interacted recently (last 30 seconds) AND tab is visible
+        if (Date.now() - (window.lastUserActivity || 0) < 30000 && isVisible) {
+            fetch(APP_BASE + '/api/heartbeat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                },
+                credentials: 'same-origin'
+            }).catch(() => {}); // Ignore errors
+        }
+    }, 2 * 60 * 1000); // 2 minutes
+    
+    // Track user activity
+    ['mousemove', 'keypress', 'click', 'scroll'].forEach(function(event) {
+        document.addEventListener(event, function() {
+            window.lastUserActivity = Date.now();
+        });
+    });
+    
+    // Update ticket counts periodically if on tickets page
+    if (document.body.classList.contains('tickets-page')) {
+        ticketCountsInterval = setInterval(updateTicketCounts, 60 * 1000); // Every minute
+    }
+    
+    // Update knowledge base stats if on KB page
+    if (document.body.classList.contains('kb-page')) {
+        kbStatsInterval = setInterval(updateKBStats, 5 * 60 * 1000); // Every 5 minutes
+    }
+}
+
+// ==================== Pause/Resume Non-Essential Updates ====================
+function pauseNonEssentialUpdates() {
+    if (window.ticketCountsInterval) {
+        clearInterval(window.ticketCountsInterval);
+        window.ticketCountsInterval = null;
+    }
+    if (window.kbStatsInterval) {
+        clearInterval(window.kbStatsInterval);
+        window.kbStatsInterval = null;
+    }
+}
+
+function resumeNonEssentialUpdates() {
+    // Resume ticket counts if on tickets page
+    if (document.body.classList.contains('tickets-page') && !window.ticketCountsInterval) {
+        window.ticketCountsInterval = setInterval(updateTicketCounts, 60 * 1000);
+    }
+    
+    // Resume KB stats if on KB page
+    if (document.body.classList.contains('kb-page') && !window.kbStatsInterval) {
+        window.kbStatsInterval = setInterval(updateKBStats, 5 * 60 * 1000);
+    }
+}
+
+// ==================== Heartbeat API Endpoint ====================
+// This would need a corresponding API endpoint at /api/heartbeat
+// For now, we'll just comment that it needs to be created
+/*
+function createHeartbeatEndpoint() {
+    // This would be implemented in /api/heartbeat.php
+    // It would just return a 200 OK to keep the session alive
+}
+*/
+
+// ==================== Ticket Count Updates ====================
+function updateTicketCounts() {
+    // Only update if we're on the tickets page and not currently viewing a modal
+    if (!document.body.classList.contains('tickets-page') || 
+        document.querySelector('.modal-overlay.open')) return;
+        
+    api('/api/tickets/counts').then(function(data) {
+        // Update badge counts in sidebar
+        var pendingBadge = document.querySelector('.sidebar-link[url*="/tickets"] .badge');
+        if (pendingBadge && data.pending !== undefined) {
+            pendingBadge.textContent = data.pending;
+        }
+        
+        // Update any dashboard-style counters if they exist
+        var pendingCountEl = document.getElementById('pending-ticket-count');
+        if (pendingCountEl) pendingCountEl.textContent = data.pending || 0;
+        
+        var resolvedCountEl = document.getElementById('resolved-ticket-count');
+        if (resolvedCountEl) resolvedCountEl.textContent = data.resolved || 0;
+    }).catch(() => {}); // Silently fail
+}
+
+// ==================== KB Stats Updates ====================
+function updateKBStats() {
+    // Only update if we're on the KB page
+    if (!document.body.classList.contains('kb-page')) return;
+    
+    api('/api/knowledge/stats').then(function(data) {
+        // Update KB stats if elements exist
+        var articlesCountEl = document.getElementById('kb-articles-count');
+        if (articlesCountEl) articlesCountEl.textContent = data.articles || 0;
+        
+        var pendingReviewEl = document.getElementById('kb-pending-review');
+        if (pendingReviewEl) pendingReviewEl.textContent = data.pending_review || 0;
+    }).catch(() => {}); // Silently fail
+}
 
 // ==================== Reveal on Scroll + Count-up FX ====================
 document.documentElement.classList.add('js');

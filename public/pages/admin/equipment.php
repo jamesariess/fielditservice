@@ -7,13 +7,35 @@ $required_permission = 'equipment.manage';
 require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
 
-$equipment = Database::fetchAll(
-    "SELECT e.*, u.full_name as author_name
-     FROM equipment e
-     LEFT JOIN users u ON e.created_by = u.id
-     WHERE e.deleted_at IS NULL
-     ORDER BY e.device_type, e.manufacturer, e.model_name"
-);
+$equipmentTableExists = Database::fetch("SHOW TABLES LIKE 'equipment'") !== null;
+
+if ($equipmentTableExists) {
+    $equipment = Database::fetchAll(
+        "SELECT e.*, u.full_name as author_name
+         FROM equipment e
+         LEFT JOIN users u ON e.created_by = u.id
+         WHERE e.deleted_at IS NULL
+         ORDER BY e.device_type, e.manufacturer, e.model_name"
+    );
+} else {
+    $equipment = Database::fetchAll(
+        "SELECT dm.id,
+                COALESCE(m.name, dm.manufacturer_name) as manufacturer,
+                dm.model as model_name,
+                dm.device_type,
+                dm.generation as year,
+                dm.known_issues,
+                dm.tools_needed,
+                NULL as location,
+                'active' as status,
+                u.full_name as author_name,
+                dm.created_at
+         FROM device_models dm
+         LEFT JOIN manufacturers m ON m.id = dm.manufacturer_id
+         LEFT JOIN users u ON u.id = 1
+         ORDER BY dm.device_type, manufacturer, dm.model"
+    );
+}
 
 $total = count($equipment);
 $counts = ['laptop'=>0,'desktop'=>0,'server'=>0,'printer'=>0,'switch'=>0,'cctv'=>0];

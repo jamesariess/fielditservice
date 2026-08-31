@@ -85,6 +85,8 @@ foreach ($sidebarItems as $item) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="<?= Auth::generateCsrfToken() ?>">
+    <meta name="session-start-time" content="<?= $_SESSION['login_time'] ?? 0 ?>">
+    <meta name="session-lifetime" content="<?= SESSION_LIFETIME ?>">
     <meta name="theme-color" content="#1e40af">
     <title><?= e($page_title ?? 'Dashboard') ?> — <?= APP_NAME ?></title>
     <link rel="icon" type="image/svg+xml" href="<?= $urlBase ?>assets/img/favicon.svg">
@@ -125,7 +127,7 @@ foreach ($sidebarItems as $item) {
         }
     </style>
 </head>
-<body class="h-full">
+<body class="h-full <?= $active_menu ?? '' ?>">
     <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
     <aside id="sidebar" class="sidebar">
         <div class="sidebar-logo">

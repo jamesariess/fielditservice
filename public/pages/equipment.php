@@ -5,13 +5,42 @@ $page_title = 'Equipment Database';
 $active_menu = 'equipment';
 require APP_ROOT . '/includes/layout_header.php';
 
-// Fetch equipment from database
-$equipment = Database::fetchAll(
-    "SELECT id, manufacturer, model_name, device_type, category, year, cpu, ram, storage,
-            display_spec, ports, known_issues, tools_needed, repair_guides, location, status,
-            image_url, disassembly_guide, assembly_guide, guide_videos
-     FROM equipment WHERE deleted_at IS NULL ORDER BY device_type, manufacturer, model_name"
-);
+$equipmentTableExists = Database::fetch("SHOW TABLES LIKE 'equipment'") !== null;
+
+if ($equipmentTableExists) {
+    $equipment = Database::fetchAll(
+        "SELECT id, manufacturer, model_name, device_type, category, year, cpu, ram, storage,
+                display_spec, ports, known_issues, tools_needed, repair_guides, location, status,
+                image_url, disassembly_guide, assembly_guide, guide_videos
+         FROM equipment WHERE deleted_at IS NULL ORDER BY device_type, manufacturer, model_name"
+    );
+} else {
+    $equipment = Database::fetchAll(
+        "SELECT dm.id,
+                COALESCE(m.name, dm.manufacturer_name) as manufacturer,
+                dm.model as model_name,
+                dm.device_type,
+                NULL as category,
+                dm.generation as year,
+                NULL as cpu,
+                NULL as ram,
+                NULL as storage,
+                NULL as display_spec,
+                NULL as ports,
+                dm.known_issues,
+                dm.tools_needed,
+                NULL as repair_guides,
+                NULL as location,
+                'active' as status,
+                NULL as image_url,
+                NULL as disassembly_guide,
+                NULL as assembly_guide,
+                NULL as guide_videos
+         FROM device_models dm
+         LEFT JOIN manufacturers m ON m.id = dm.manufacturer_id
+         ORDER BY dm.device_type, manufacturer, dm.model"
+    );
+}
 
 // Count by type
 $typeCounts = [];

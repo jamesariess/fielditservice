@@ -12,7 +12,11 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Da
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
 Auth::requireLogin();
-Auth::requirePermission('knowledge.manage');
+
+// For updates/approvals, need permission. For creating, just need to be logged in.
+if ($_SERVER['REQUEST_METHOD'] === 'PUT' || $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    Auth::requirePermission('knowledge.manage');
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT') {
     json_response(['error' => 'POST or PUT required'], 405);
@@ -22,21 +26,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT
 $input = json_decode(file_get_contents('php://input'), true);
 if (!is_array($input)) $input = [];
 
+// Parse form fields
 $title = trim($input['title'] ?? '');
 $category = trim($input['category'] ?? 'General');
-$issue = trim($input['issue'] ?? '');
-$solution = trim($input['solution'] ?? '');
-$symptoms = trim($input['symptoms'] ?? '');
-$root_cause = trim($input['root_cause'] ?? '');
-$tools_used = trim($input['tools_used'] ?? '');
-$commands_used = trim($input['commands_used'] ?? '');
 $device_type = trim($input['device_type'] ?? '');
 $manufacturer = trim($input['manufacturer'] ?? '');
-$status = $input['status'] ?? 'draft';
+$model = trim($input['model'] ?? '');
+$symptoms = trim($input['symptoms'] ?? '');
+$root_cause = trim($input['root_cause'] ?? '');
+$solution = trim($input['solution'] ?? '');
+$tools_used = trim($input['tools_used'] ?? '');
+$commands_used = trim($input['commands_used'] ?? '');
+$safety_warning = trim($input['safety_warning'] ?? '');
+$issue = trim($input['issue'] ?? $symptoms); // Fallback for compatibility
+$status = isset($input['status']) ? trim($input['status']) : 'submitted';
 $id = intval($input['id'] ?? 0);
 
 if (empty($title)) { json_response(['error' => 'Title is required'], 400); exit; }
-if (empty($issue)) { json_response(['error' => 'Issue description is required'], 400); exit; }
+if (empty($symptoms)) { json_response(['error' => 'Symptoms/Issue description is required'], 400); exit; }
 if (empty($solution)) { json_response(['error' => 'Solution steps are required'], 400); exit; }
 
 // Validate status
@@ -54,6 +61,8 @@ try {
         'commands_used' => $commands_used,
         'device_type' => $device_type,
         'manufacturer' => $manufacturer,
+        'model_name' => $model,
+        'safety_warning' => $safety_warning,
         'status' => $status,
     ];
 
