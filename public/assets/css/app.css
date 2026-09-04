@@ -1884,3 +1884,304 @@ html.js .fx-reveal.fx-in { opacity: 1; transform: none; }
     position: relative;
     z-index: 1;
 }
+
+/* ============================================================
+   Equipment Database — brand-driven browse UI
+   ============================================================ */
+.eq-brand-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 14px;
+}
+.brand-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    padding: 22px 16px 16px;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s, border-color .2s;
+    animation: eqCardIn .5s cubic-bezier(.16,1,.3,1) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+    overflow: hidden;
+}
+@keyframes eqCardIn {
+    from { opacity: 0; transform: translateY(16px) scale(.97); }
+    to   { opacity: 1; transform: none; }
+}
+.brand-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(37,99,235,.06), rgba(124,58,237,.06));
+    opacity: 0;
+    transition: opacity .25s;
+}
+.brand-card:hover {
+    transform: translateY(-4px);
+    border-color: #2563eb;
+    box-shadow: 0 12px 28px -10px rgba(37,99,235,.28);
+}
+.brand-card:hover::before { opacity: 1; }
+.brand-card.is-active {
+    border-color: #2563eb;
+    background: #eff6ff;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.18);
+}
+.brand-card > * { position: relative; z-index: 1; }
+.brand-card-logo {
+    width: 58px;
+    height: 58px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #eff6ff, #f5f3ff);
+    border: 1px solid #e0e7ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 800;
+    color: #2563eb;
+    letter-spacing: .02em;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.brand-card-logo img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+.brand-card-name { font-size: 13.5px; font-weight: 800; color: #111827; }
+.brand-card-desc { font-size: 11px; color: #94a3b8; line-height: 1.45; min-height: 16px; }
+.brand-card-types { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+.eq-mini-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: #f1f5f9;
+    border-radius: 99px;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #475569;
+}
+.eq-mini-chip i { width: 10px; height: 10px; }
+.brand-card-count {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #2563eb;
+    background: #eff6ff;
+    padding: 2px 10px;
+    border-radius: 99px;
+}
+.brand-card-edit {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .2s, background .2s, color .2s;
+}
+.brand-card:hover .brand-card-edit { opacity: 1; }
+.brand-card-edit:hover { background: #2563eb; color: #fff; }
+.brand-card-edit i { width: 13px; height: 13px; }
+
+/* Device-type filter chips */
+.eq-chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.eq-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #374151;
+    cursor: pointer;
+    transition: all .2s cubic-bezier(.16,1,.3,1);
+    animation: eqChipIn .4s cubic-bezier(.16,1,.3,1) both;
+    animation-delay: calc(var(--i, 0) * 35ms);
+}
+@keyframes eqChipIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+.eq-chip i { width: 14px; height: 14px; color: #2563eb; transition: color .2s; }
+.eq-chip:hover { border-color: #2563eb; transform: translateY(-2px); box-shadow: 0 6px 14px -6px rgba(37,99,235,.3); }
+.eq-chip.is-active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    border-color: #2563eb;
+    color: #fff;
+    box-shadow: 0 6px 16px -6px rgba(37,99,235,.5);
+}
+.eq-chip.is-active i { color: #fff; }
+.eq-chip-count { font-weight: 600; opacity: .65; font-size: 11px; }
+
+/* Brand management modal */
+.eq-modal {
+    z-index: 10010;
+    border: none;
+    border-radius: 18px;
+    padding: 0;
+    width: min(520px, 94vw);
+    box-shadow: 0 24px 64px -12px rgba(0,0,0,.35);
+    animation: eqModalIn .35s cubic-bezier(.16,1,.3,1);
+}
+.eq-modal::backdrop { background: rgba(15,23,42,.55); backdrop-filter: blur(4px); }
+@keyframes eqModalIn {
+    from { opacity: 0; transform: translate(-50%, calc(-50% + 14px)) scale(.97); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.eq-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+.eq-modal-body { padding: 20px; max-height: 62vh; overflow-y: auto; }
+.eq-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid #e5e7eb;
+    background: #f8fafc;
+    border-radius: 0 0 18px 18px;
+}
+.eq-type-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all .15s;
+    user-select: none;
+}
+.eq-type-check i { width: 13px; height: 13px; color: #64748b; }
+.eq-type-check:has(input:checked) { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+.eq-type-check:has(input:checked) i { color: #2563eb; }
+.eq-type-check input { display: none; }
+
+/* Aliases + additional classes used by the equipment page */
+.eq-brand-grid, .brand-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 14px;
+}
+.eq-type-check, .eq-check-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all .15s;
+    user-select: none;
+}
+.eq-check-chip i { width: 13px; height: 13px; color: #64748b; }
+.eq-check-chip:has(input:checked) { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+.eq-check-chip:has(input:checked) i { color: #2563eb; }
+.eq-check-chip input { display: none; }
+
+.eq-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s cubic-bezier(.16,1,.3,1);
+    box-shadow: 0 4px 12px -4px rgba(37,99,235,.45);
+}
+.eq-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 18px -6px rgba(37,99,235,.55); }
+.eq-btn-primary i { width: 15px; height: 15px; }
+.eq-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    background: #fff;
+    color: #374151;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+}
+.eq-btn-ghost:hover { border-color: #cbd5e1; background: #f8fafc; }
+.eq-add-btn { animation: eqChipIn .4s cubic-bezier(.16,1,.3,1) both; }
+.eq-table-wrap {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    overflow-x: auto;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.eq-brand-context {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 18px;
+    background: linear-gradient(135deg, #eff6ff, #f5f3ff);
+    border: 1px solid #e0e7ff;
+    border-radius: 12px;
+    margin-bottom: 14px;
+}
+.eq-step-label { font-size: 12px; color: #374151; line-height: 1.5; }
+.eq-step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+.brand-card-body { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; z-index: 1; }
+.brand-card--all { border-style: dashed; }
+.brand-card-logo--all { background: linear-gradient(135deg, #f1f5f9, #e2e8f0); color: #64748b; }
+
+/* Row entrance for the equipment table */
+.eq-row { animation: eqRowIn .4s ease both; }
+@keyframes eqRowIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@media (max-width: 640px) {
+    .eq-brand-grid, .brand-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .brand-card { padding: 16px 10px 12px; }
+}
