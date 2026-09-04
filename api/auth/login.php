@@ -74,6 +74,6 @@ json_response([
         'id' => $user['id'],
         'name' => $user['full_name'] ?? $user['name'],
         'email' => $user['email'],
-        'role' => $user['role_name'] ?? $user['role'],
+        'role' => $user['role_name'] ?? ($user['role'] ?? null),
     ],
 ]);

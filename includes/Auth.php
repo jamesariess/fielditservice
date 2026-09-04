@@ -92,6 +92,9 @@ class Auth {
         }
         self::audit('LOGIN', $user['id'], ['method' => 'password']);
 
+        // Return a clean user payload: role name attached, password hash stripped.
+        $user['role_name'] = $role['name'] ?? 'User';
+        unset($user['password_hash']);
         return $user;
     }
 
