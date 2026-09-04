@@ -8,12 +8,8 @@ $currentUser = [
     'role' => $_SESSION['role_name'] ?? 'User',
 ];
 
-$fUrlBase = '/';
-if (preg_match('#^(.*/public)#', $_SERVER['REQUEST_URI'] ?? '', $fm)) {
-    $fUrlBase = $fm[1] . '/';
-} elseif (php_sapi_name() === 'cli-server') {
-    $fUrlBase = '/';
-}
+// App base path — centralised helper (see includes/helpers.php).
+$fUrlBase = app_base();
 $mainNav = [
     ['id' => 'dashboard', 'label' => 'Home', 'icon' => 'layout-dashboard', 'url' => $fUrlBase],
     ['id' => 'troubleshoot', 'label' => 'Fix', 'icon' => 'stethoscope', 'url' => $fUrlBase . 'troubleshoot'],
@@ -52,14 +48,6 @@ $mainNav = [
         </div>
     </div>
 
-    <?php
-    $fUrlBase2 = '/';
-    if (preg_match('#^(.*/public)#', $_SERVER['REQUEST_URI'] ?? '', $fm2)) {
-        $fUrlBase2 = $fm2[1] . '/';
-    } elseif (php_sapi_name() === 'cli-server') {
-        $fUrlBase2 = '/';
-    }
-    ?>
     <script>lucide.createIcons();</script>
 </body>
 </html>

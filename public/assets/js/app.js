@@ -6,8 +6,42 @@
 // ==================== Base URL ====================
 document.documentElement.classList.add('js');
 var APP_BASE = (function() {
+    // Prefer the base URL injected by PHP (correct for clean URLs & sub-folder installs).
+    var meta = document.querySelector('meta[name="app-base"]');
+    if (meta && meta.content) return meta.content;
+    // Fallback: derive from the pathname (legacy /public URL style).
     var m = window.location.pathname.match(/^(.*\/public)/);
     return m ? m[1] + '/' : '/';
+})();
+
+// ==================== Global CSRF Injection ====================
+// Every state-changing fetch automatically carries the session CSRF token,
+// so the server-side CSRF gate (public/index.php) is satisfied regardless of
+// whether a call uses the api() helper or a raw fetch().
+(function() {
+    var TOKEN_HEADER = 'X-CSRF-Token';
+    function getToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        return m ? m.content : '';
+    }
+    function isStateChanging(method) {
+        return ['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1;
+    }
+    var originalFetch = window.fetch;
+    window.fetch = function(url, opts) {
+        opts = opts || {};
+        var method = (opts.method || 'GET').toUpperCase();
+        if (isStateChanging(method)) {
+            if (opts.headers && typeof opts.headers.append === 'function') {
+                // Headers instance
+                if (!opts.headers.has(TOKEN_HEADER)) opts.headers.append(TOKEN_HEADER, getToken());
+            } else {
+                opts.headers = opts.headers || {};
+                if (!opts.headers[TOKEN_HEADER]) opts.headers[TOKEN_HEADER] = getToken();
+            }
+        }
+        return originalFetch.call(this, url, opts);
+    };
 })();
 
 // ==================== Page Load Progress Bar ====================
@@ -959,36 +993,48 @@ document.addEventListener('keydown', function(e) {
 })();
 
 // ==================== Session Timeout ====================
+// Enforces BOTH timeouts client-side for good UX:
+//   - idle timeout (SESSION_IDLE_TIMEOUT - resets on user activity)
+//   - absolute cap (SESSION_LIFETIME - cannot be extended)
+// The server (Auth::enforceTimeouts) stays authoritative; this JS only warns the
+// user and offers "Extend Session" before the idle window runs out.
 function initSessionTimeout() {
     var sessionStartTime = parseInt(document.querySelector('meta[name="session-start-time"]')?.content) || 0;
-    var sessionLifetime = parseInt(document.querySelector('meta[name="session-lifetime"]')?.content) || 28800; // 8 hours in seconds
-    var warningTime = 5 * 60; // 5 minutes before expiry
-    
+    var sessionLifetime  = parseInt(document.querySelector('meta[name="session-lifetime"]')?.content) || 28800;
+    var sessionLastSeen  = parseInt(document.querySelector('meta[name="session-last-activity"]')?.content) || sessionStartTime;
+    var idleTimeout      = parseInt(document.querySelector('meta[name="session-idle-timeout"]')?.content) || 1800;
+    var warningTime      = 5 * 60; // warn 5 minutes before either expiry
+
     if (sessionStartTime === 0) return;
-    
+
+    var nowSec = function() { return Math.floor(Date.now() / 1000); };
+    var lastActivity = Math.max(sessionLastSeen, nowSec());
+
+    // Track genuine user activity (the server remains the source of truth).
+    ['mousemove', 'keypress', 'click', 'scroll', 'touchstart'].forEach(function(ev) {
+        document.addEventListener(ev, function() { lastActivity = nowSec(); }, { passive: true });
+    });
+
     function checkSession() {
-        var currentTime = Math.floor(Date.now() / 1000);
-        var elapsed = currentTime - sessionStartTime;
-        var remaining = sessionLifetime - elapsed;
-        
+        var now = nowSec();
+        var idleRemaining = idleTimeout - (now - lastActivity);
+        var absRemaining  = sessionLifetime - (now - sessionStartTime);
+        var remaining     = Math.min(idleRemaining, absRemaining);
+
         if (remaining <= 0) {
-            // Session expired
-            logoutDueToInactivity();
+            logoutDueToInactivity(absRemaining <= 0);
             return;
         }
-        
         if (remaining <= warningTime) {
-            // Show warning
             showSessionWarning(remaining);
         }
     }
-    
+
     function showSessionWarning(secondsLeft) {
-        // If warning is already shown, don't show again
         if (document.getElementById('session-timeout-warning')) return;
-        
+
         var minutesLeft = Math.ceil(secondsLeft / 60);
-        var swal = Swal.fire({
+        Swal.fire({
             title: 'Session Expiring Soon',
             html: 'Your session will expire in <strong>' + minutesLeft + ' minute' + (minutesLeft !== 1 ? 's' : '') + '</strong> for security reasons.',
             icon: 'warning',
@@ -998,73 +1044,68 @@ function initSessionTimeout() {
             timer: secondsLeft * 1000,
             timerProgressBar: true,
             didOpen: () => {
-                Swal.getTimerLeft().then((timeLeft) => {
+                Swal.getTimerLeft().then(function(timeLeft) {
                     if (timeLeft) {
-                        Swal.getHtmlContainer().querySelector('strong').textContent = 
-                            Math.ceil(timeLeft / 60000) + ' minute' + (Math.ceil(timeLeft / 60000) !== 1 ? 's' : '');
+                        var strong = Swal.getHtmlContainer().querySelector('strong');
+                        if (strong) strong.textContent = Math.ceil(timeLeft / 60000) + ' minute' + (Math.ceil(timeLeft / 60000) !== 1 ? 's' : '');
                     }
                 });
             }
-        }).then((result) => {
+        }).then(function(result) {
             if (result.isConfirmed) {
-                // User chose to extend session
-                extendSession().then(() => {
-                    // Reset session start time on server and continue
-                    sessionStartTime = Math.floor(Date.now() / 1000);
-                    // Update meta tag for consistency
-                    var meta = document.querySelector('meta[name="session-start-time"]');
-                    if (meta) meta.content = sessionStartTime;
+                // Extend only the idle window - the absolute cap stays fixed.
+                extendSession().then(function() {
+                    lastActivity = nowSec();
+                    var meta = document.querySelector('meta[name="session-last-activity"]');
+                    if (meta) meta.content = lastActivity;
                     Swal.fire({
                         title: 'Session Extended',
-                        text: 'Your session has been extended for another 8 hours.',
+                        text: 'Your session has been refreshed.',
                         icon: 'success',
                         timer: 1500,
                         showConfirmButton: false
                     });
-                }).catch(() => {
+                }).catch(function() {
                     Swal.fire({
                         title: 'Error',
                         text: 'Failed to extend session. Please log in again.',
                         icon: 'error'
-                    }).then(() => {
+                    }).then(function() {
                         window.location.href = APP_BASE + 'login';
                     });
                 });
             } else {
-                // User chose to log out or timer expired
                 logoutDueToInactivity();
             }
         });
     }
-    
-    function logoutDueToInactivity() {
+
+    function logoutDueToInactivity(absolute) {
         Swal.fire({
             title: 'Session Expired',
-            text: 'Your session has expired due to inactivity. Please log in again.',
+            text: absolute
+                ? 'Your session has reached its maximum length. Please log in again.'
+                : 'Your session has expired due to inactivity. Please log in again.',
             icon: 'info',
             confirmButtonText: 'Log In'
-        }).then(() => {
+        }).then(function() {
             window.location.href = APP_BASE + 'login';
         });
     }
-    
+
     function extendSession() {
-        return fetch(APP_BASE + '/api/session/extend', {
+        // The global CSRF interceptor auto-adds the X-CSRF-Token header.
+        return fetch(APP_BASE + 'api/session/extend', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
-            },
             credentials: 'same-origin'
-        }).then(response => {
+        }).then(function(response) {
             if (!response.ok) throw new Error('Failed to extend session');
             return response.json();
         });
     }
-    
-    // Check session every minute
-    setInterval(checkSession, 60 * 1000);
-    // Also check on user activity
+
+    // Check periodically and on user activity.
+    setInterval(checkSession, 30 * 1000);
     document.addEventListener('mousemove', checkSession);
     document.addEventListener('keypress', checkSession);
     document.addEventListener('click', checkSession);

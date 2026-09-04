@@ -28,14 +28,44 @@ require_once APP_ROOT . '/includes/DemoData.php';
 
 Auth::start();
 
-// Serve static files directly
+// HTTP security headers (defense-in-depth) — applied to every response.
+Security::applyHeaders();
+
+// Parse + normalize the request path to an app-relative route.
+//
+// Works for every install style:
+//   /fielditservice/login          -> /login
+//   /fielditservice/public/login   -> /login   (legacy style)
+//   /login                         -> /login   (domain-root install)
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+$scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/index.php');
+if (str_ends_with($scriptName, '/public/index.php')) {
+    // Front controller lives in /public  => app base is its parent directory.
+    $appBase = rtrim(substr($scriptName, 0, -strlen('/public/index.php')), '/');
+} else {
+    $appBase = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+}
+
+if ($appBase !== '' && $appBase !== '/' && str_starts_with($uri, $appBase . '/')) {
+    $uri = substr($uri, strlen($appBase));
+}
+// Legacy /public prefix (kept for old bookmarks/links).
+if ($uri === '/public') {
+    $uri = '/';
+}
+if (str_starts_with($uri, '/public/')) {
+    $uri = substr($uri, strlen('/public'));
+}
+
+// Serve static files directly (CSS/JS/images/fonts).
+// $uri is now app-relative (e.g. /assets/js/app.js), so it resolves cleanly
+// against the /public directory this router lives in. The docroot fallback
+// covers installs served directly from the domain root.
 if (preg_match('/\.(css|js|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|eot)$/', $uri)) {
-    // For static files, use the full URI path relative to the server document root
-    // Try document root first (Apache), then __DIR__ (built-in server)
-    $filePath = $_SERVER['DOCUMENT_ROOT'] . $uri;
+    $filePath = __DIR__ . $uri;                      // clean URL style (assets live under /public)
     if (!file_exists($filePath)) {
-        $filePath = __DIR__ . $uri;
+        $filePath = $_SERVER['DOCUMENT_ROOT'] . $uri; // domain-root / docroot style
     }
     if (file_exists($filePath)) {
         $mimeTypes = [
@@ -52,12 +82,6 @@ if (preg_match('/\.(css|js|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|eot)$/',
     }
     http_response_code(404);
     exit;
-}
-
-// Strip base path when accessed through Apache (e.g., /fielditservice/public/login -> /login)
-$publicPos = strpos($uri, '/public/');
-if ($publicPos !== false) {
-    $uri = substr($uri, $publicPos + 7); // +7 for '/public/'
 }
 
 // Strip .php extension for clean URLs
@@ -119,7 +143,7 @@ if ($uri === '/logout') {
 // Handle login (guest route)
 if ($uri === '/login') {
     if (Auth::isLoggedIn()) {
-        redirect('/');
+        redirect(app_base());
     }
     require APP_ROOT . '/public/pages/auth/login.php';
     exit;
@@ -158,6 +182,16 @@ if (isset($routes[$uri])) {
 
 // Handle API routes
 if (str_starts_with($uri, '/api/')) {
+    // CSRF gate for state-changing, authenticated API calls.
+    // The JS layer auto-attaches the X-CSRF-Token header to every fetch,
+    // so any request missing (or mismatching) the token is rejected here.
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET'
+        && $uri !== '/api/auth/login'      // login has its own explicit CSRF check
+        && Auth::isLoggedIn()
+    ) {
+        Security::requireCsrf();
+    }
+
     $apiPath = substr($uri, 4);
     $apiFile = APP_ROOT . '/api' . $apiPath . '.php';
     $apiIndex = APP_ROOT . '/api' . $apiPath . '/index.php';

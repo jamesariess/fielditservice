@@ -47,14 +47,9 @@ $sidebarItems = [
 $initials = '';
 foreach (explode(' ', $currentUser['name']) as $p) { $initials .= strtoupper(substr($p, 0, 1)); if (strlen($initials) >= 2) break; }
 
-// Calculate base URL from request URI (handles both direct Apache access and PHP built-in server)
-$urlBase = '/';
-if (preg_match('#^(.*/public)#', $_SERVER['REQUEST_URI'] ?? '', $m)) {
-    $urlBase = $m[1] . '/';
-} elseif (php_sapi_name() === 'cli-server') {
-    // PHP built-in server: started with -t public, so / is the base
-    $urlBase = '/';
-}
+// App base path — centralised so clean URLs (/fielditservice/login), the legacy
+// /public style, and domain-root installs all resolve correctly.
+$urlBase = app_base();
 
 // Prepend base to all sidebar/nav URLs
 foreach ($sidebarItems as &$item) {
@@ -85,8 +80,11 @@ foreach ($sidebarItems as $item) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="<?= Auth::generateCsrfToken() ?>">
+    <meta name="app-base" content="<?= e($urlBase) ?>">
     <meta name="session-start-time" content="<?= $_SESSION['login_time'] ?? 0 ?>">
     <meta name="session-lifetime" content="<?= SESSION_LIFETIME ?>">
+    <meta name="session-last-activity" content="<?= $_SESSION['last_activity'] ?? $_SESSION['login_time'] ?? 0 ?>">
+    <meta name="session-idle-timeout" content="<?= SESSION_IDLE_TIMEOUT ?>">
     <meta name="theme-color" content="#1e40af">
     <title><?= e($page_title ?? 'Dashboard') ?> — <?= APP_NAME ?></title>
     <link rel="icon" type="image/svg+xml" href="<?= $urlBase ?>assets/img/favicon.svg">

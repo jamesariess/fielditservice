@@ -5,12 +5,13 @@ Organized so it's easy to understand what lives where, and what's secured.
 ```
 fielditservice/
 │
-├── public/                      ← Web root (only folder Apache should serve)
-│   ├── index.php                ← Single entry point / router (all requests)
+├── .htaccess                    ← Routes ALL requests to public/index.php (clean URLs)
+├── public/                      ← Web root — the only directory with web-served files
+│   ├── index.php                ← Single entry point / router (every request lands here)
 │   ├── .htaccess
 │   ├── assets/
 │   │   ├── css/app.css          ← Global design system (design tokens, components)
-│   │   ├── js/app.js            ← Global JS (animations, helpers, API wrappers)
+│   │   ├── js/app.js            ← Global JS (animations, helpers, API wrappers, CSRF injection)
 │   │   └── img/                 ← Brand logo, favicon, empty-state illustrations
 │   └── pages/
 │       ├── auth/login.php       ← Guest-only (login)
@@ -42,10 +43,11 @@ fielditservice/
 │   ├── layout.php               ← Legacy layout helper
 │   ├── Admin guard:
 │   ├── admin_guard.php          ← ⚠ Central admin permission check (defense-in-depth)
-│   ├── Auth.php                 ← Login / sessions / permissions
+│   ├── Auth.php                 ← Login / sessions / permissions / timeouts / fingerprint
+│   ├── Security.php             ← 🔒 Session hardening, CSRF, security headers, throttling
 │   ├── Database.php             ← PDO wrapper
 │   ├── DemoData.php             ← Demo mode users/data
-│   └── helpers.php              ← e(), json_response(), badges, time_ago()
+│   └── helpers.php              ← e(), app_base(), json_response(), badges, time_ago()
 │
 ├── config/                      ← Configuration
 │   ├── app.php                  ← App, DB, security, AI settings
@@ -65,10 +67,24 @@ fielditservice/
 
 | Layer | Enforcement |
 |---|---|
-| Router | `public/index.php` maps every `/admin/*` URL to a **permission key** and rejects unauthorized users *before any admin markup renders*. |
+| Clean URLs | Root `.htaccess` routes every request through `public/index.php` — internal folders (`config/`, `includes/`, `database/`) are never directly servable. |
+| Router | `public/index.php` normalizes the app base path, maps every `/admin/*` URL to a **permission key**, and rejects unauthorized users *before any admin markup renders*. |
 | Page guard | Each admin page requires `includes/admin_guard.php` which re-checks the permission (defense in depth). |
-| Session | `HttpOnly` + `SameSite=Strict` cookies, CSRF token in `<meta>` and API `X-CSRF-Token` header. |
-| API | `/api/*` endpoints return `401`/`403` JSON when unauthenticated/unauthorized. |
+| Session | `HttpOnly` + `SameSite=Strict` + hardened cookie params, **session ID rotated on login**, client-fingerprint binding (hijack detection), **server-side idle timeout (30 min)** + **absolute lifetime (8 h)** — both authoritative. |
+| CSRF | Token in `<meta>` is auto-attached to every state-changing `fetch` (global JS interceptor); the router **rejects any authenticated state-changing `/api/*` call without a valid token (HTTP 419)**. |
+| Login | Brute-force throttle: max `MAX_LOGIN_ATTEMPTS` failures per email+IP in `LOCKOUT_DURATION` (HTTP 429). |
+| Headers | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-XSS-Protection` on every response. |
+| API | `/api/*` endpoints return `401`/`403`/`419` JSON when unauthenticated, unauthorized, or cross-site. |
+
+### Session timeout tuning (`config/app.php`)
+
+```php
+define('SESSION_LIFETIME', 8 * 3600);    // absolute max session life: 8 hours
+define('SESSION_IDLE_TIMEOUT', 30 * 60); // idle timeout: 30 min without activity
+define('SESSION_WARNING_SECONDS', 5 * 60); // UI warns 5 min before expiry
+```
+
+The UI warns the user with an "Extend Session" dialog (extends only the idle window — the absolute cap stays fixed). The browser heartbeat only fires while the user is actively moving/typing, so walking away truly expires the session.
 
 ## Design system
 

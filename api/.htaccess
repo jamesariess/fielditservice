@@ -1,4 +1,15 @@
-# Block direct HTTP access to API files.
-# API endpoints must be reached through the router (public/index.php at /api/*),
-# which enforces authentication, CSRF, and consistent error handling.
-Require all denied
+# api/.htaccess
+#
+# API endpoint files live here on disk but are NEVER served from this directory.
+#
+# Clean-URL requests (e.g. /fielditservice/api/heartbeat) and any direct attempt
+# to open endpoint files are both forwarded to the front controller
+# (public/index.php). The router is the ONLY gateway into the API layer — it
+# enforces authentication, CSRF, and per-endpoint permissions.
+#
+# Note: `Require all denied` is intentionally NOT used here. With clean URLs the
+# browser legitimately requests /fielditservice/api/*, and a blanket deny would
+# block those requests before the router could run. Security is enforced inside
+# the router + each endpoint instead.
+RewriteEngine On
+RewriteRule ^(.*)$ ../public/index.php [QSA,L]

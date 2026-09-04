@@ -1,0 +1,25 @@
+# ============================================
+# Field IT Support Hub — Front-Controller Routing
+# --------------------------------------------
+# Makes clean URLs work when the app lives in a
+# sub-folder of the web root, e.g.:
+#   http://localhost/fielditservice/login
+#
+# 1) Real files/directories under /public are served directly
+#    (css/js/images — no PHP involved).
+# 2) EVERYTHING else (pages, /api/*, protected dirs, unknown paths)
+#    goes through public/index.php, whose scoped per-route access
+#    control is the single gateway to the app.
+# ============================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1) Serve static assets that physically live under /public
+    RewriteCond %{CONTEXT_DOCUMENT_ROOT}/public/$1 -f [OR]
+    RewriteCond %{CONTEXT_DOCUMENT_ROOT}/public/$1 -d
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # 2) Route everything else through the front controller
+    RewriteRule ^(.*)$ public/index.php [QSA,L]
+</IfModule>

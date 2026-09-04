@@ -34,6 +34,37 @@ function time_ago(string $datetime): string {
     return date('M j, Y', $time);
 }
 
+/**
+ * Return the application's base URL path, always ending in '/'.
+ *
+ * Examples:
+ *   domain-root install        -> '/'
+ *   sub-folder install         -> '/fielditservice/'
+ *   legacy /public/ URL style  -> '/fielditservice/'  (front controller sits in /public)
+ *
+ * Centralises the base-path logic that used to be copy-pasted
+ * throughout the layout files.
+ */
+function app_base(): string
+{
+    static $base = null;
+    if ($base !== null) {
+        return $base;
+    }
+
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/');
+    // Directory that hosts the front controller (index.php).
+    $dir = rtrim(str_replace('\\', '/', dirname($script)), '/');
+
+    // When the controller lives in a /public sub-folder, the app base
+    // is its parent directory (so clean URLs drop the /public part).
+    if (preg_match('#^(.+)/public$#', $dir, $m)) {
+        return $base = $m[1] . '/';
+    }
+
+    return $base = ($dir === '' || $dir === '.' || $dir === '/') ? '/' : $dir . '/';
+}
+
 function status_badge(string $status): string {
     $colors = [
         'draft' => 'bg-gray-100 text-gray-700',

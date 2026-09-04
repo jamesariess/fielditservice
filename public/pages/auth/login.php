@@ -2,7 +2,8 @@
 if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
 
 if (session_status() === PHP_SESSION_NONE) session_start();
-$uBase = '/';
+// App base path (/, /fielditservice/, ...) — injected into JS below for fetch() URLs.
+$uBase = app_base();
 ?>
 <!DOCTYPE html>
 <html lang="en" class="h-full">
@@ -10,6 +11,7 @@ $uBase = '/';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login — Field IT Support Hub</title>
+    <meta name="csrf-token" content="<?= Auth::generateCsrfToken() ?>">
     <link rel="icon" type="image/svg+xml" href="<?= $uBase ?>assets/img/favicon.svg">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -109,6 +111,7 @@ $uBase = '/';
     </div>
     <script>lucide.createIcons();</script>
     <script>
+    var appBase = <?= json_encode($uBase) ?>;
     function togglePw() {
         const inp = document.getElementById('pw-input');
         const icon = document.getElementById('pw-icon');
@@ -125,9 +128,10 @@ $uBase = '/';
         errDiv.style.display = 'none';
         const fd = new FormData(e.target);
         try {
-            var base = (window.location.pathname.match(/^(.*\/public)/) || ['',''])[1]; const r = await fetch(base + '/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:fd.get('email'),password:fd.get('password'),remember:fd.get('remember')==='on'}) });
+            const r = await fetch(appBase + 'api/auth/login', { method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':document.querySelector('meta[name="csrf-token"]')?.content||''}, body:JSON.stringify({email:fd.get('email'),password:fd.get('password'),remember:fd.get('remember')==='on'}) });
             const d = await r.json();
-            if (r.ok && d.success) window.location.href = (d.redirect || '/').replace(/^\//, base + '/');
+            if (r.status === 419) { location.reload(); return; }
+            if (r.ok && d.success) window.location.href = appBase + String(d.redirect || '/').replace(/^\//, '');
             else { errDiv.innerHTML = '<i data-lucide="alert-circle" style="width:15px;height:15px;flex-shrink:0;"></i><span>' + (d.error || 'Invalid credentials') + '</span>'; errDiv.style.display = 'flex'; lucide.createIcons(); }
         } catch(err) { errDiv.innerHTML = '<i data-lucide="alert-circle" style="width:15px;height:15px;flex-shrink:0;"></i><span>Connection error.</span>'; errDiv.style.display = 'flex'; lucide.createIcons(); }
         btn.disabled = false;

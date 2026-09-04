@@ -21,10 +21,12 @@ define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
 
 // Security
-define('SESSION_LIFETIME', 8 * 3600); // 8 hours
+define('SESSION_LIFETIME', 8 * 3600);       // absolute max session life: 8 hours
+define('SESSION_IDLE_TIMEOUT', 30 * 60);    // idle timeout: 30 min without user activity
+define('SESSION_WARNING_SECONDS', 5 * 60);  // how early the UI warns before expiring
 define('CSRF_TOKEN_NAME', '_csrf');
-define('MAX_LOGIN_ATTEMPTS', 5);
-define('LOCKOUT_DURATION', 900); // 15 minutes
+define('MAX_LOGIN_ATTEMPTS', 5);            // failed attempts before lockout
+define('LOCKOUT_DURATION', 900);            // lockout window: 15 minutes
 
 // File Upload
 define('UPLOAD_MAX_SIZE', 10 * 1024 * 1024); // 10MB

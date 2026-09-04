@@ -12,7 +12,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Require authentication
 Auth::requireLogin();
 
-// Just return success - the session activity is already tracked by Auth::requireLogin()
-// being called in the API route handling
+// A heartbeat is only sent when the user has actively interacted with the page,
+// so it legitimately counts as activity for the idle timeout.
+$_SESSION['last_activity'] = time();
+
 json_response(['success' => true, 'timestamp' => time()]);
 ?>
