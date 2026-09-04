@@ -2,4 +2,10 @@
 # Pages are loaded through the router (public/index.php) via the filesystem,
 # which enforces authentication, permissions, and the app bootstrap.
 # Direct browser access would bypass all of that.
+#
+# Instead of an ugly Apache 403, blocked requests are handed to the
+# front controller, which maps the file back to its clean route and
+# redirects (e.g. /public/pages/auth/login.php -> /login).
+# Unknown files still get the router's 404.
+ErrorDocument 403 /fielditservice/public/index.php
 Require all denied

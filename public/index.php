@@ -135,6 +135,41 @@ $routes = [
     '/api/troubleshooting/nodes' => APP_ROOT . '/api/troubleshooting/nodes.php',
 ];
 
+/**
+ * ------------------------------------------------------------------
+ * FRIENDLY REDIRECTS — direct hits on real page files.
+ * ------------------------------------------------------------------
+ * Old bookmarks may point straight at PHP files, e.g.
+ *   /fielditservice/public/pages/auth/login.php
+ * public/pages/.htaccess blocks raw execution (it would bypass auth)
+ * and hands the request here. Rather than a hard 403, we reverse-look
+ * the file in the route tables above and redirect to its clean route.
+ * Files with no route (e.g. errors/*.php) fall through to a 404.
+ */
+if (preg_match('#^/pages/(.+?)(?:\.php)?$#', $uri, $directHit)) {
+    // Canonical (forward-slash) file path — APP_ROOT may use backslashes on Windows.
+    $requestedFile = str_replace('\\', '/', APP_ROOT . '/public/pages/' . $directHit[1] . '.php');
+
+    // Build a one-time file -> clean-route reverse map from the tables above.
+    $routeByFile = [];
+    foreach ($routes as $route => $pageFile) {
+        $routeByFile[str_replace('\\', '/', $pageFile)] = $route;
+    }
+    foreach ($adminRoutes as $route => $config) {
+        $routeByFile[str_replace('\\', '/', $config['file'])] = $route;
+    }
+    // Special guest route (handled outside the tables above).
+    $routeByFile[str_replace('\\', '/', APP_ROOT . '/public/pages/auth/login.php')] = '/login';
+
+    if (isset($routeByFile[$requestedFile])) {
+        redirect(rtrim(app_base(), '/') . $routeByFile[$requestedFile]);
+    }
+
+    http_response_code(404);
+    include APP_ROOT . '/public/pages/errors/404.php';
+    exit;
+}
+
 // Check for logout
 if ($uri === '/logout') {
     Auth::logout();
