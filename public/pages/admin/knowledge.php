@@ -324,11 +324,6 @@ function openKbViewer(id) {
     document.getElementById('kb-viewer-panel').style.display = 'block';
 }
 
-function closeKbViewer() {
-    document.getElementById('kb-viewer-overlay').style.display = 'none';
-    document.getElementById('kb-viewer-panel').style.display = 'none';
-}
-
 function escHtml(str) {
     if (!str) return '';
     var div = document.createElement('div');
@@ -374,6 +369,18 @@ function closeKbEditor() {
     document.getElementById('kb-editor-overlay').style.display = 'none';
     document.getElementById('kb-editor-panel').style.display = 'none';
 }
+
+// Move modals outside page-content to ensure position:fixed works correctly
+(function(){
+    var eOv = document.getElementById('kb-editor-overlay');
+    var ePanel = document.getElementById('kb-editor-panel');
+    var vOv = document.getElementById('kb-viewer-overlay');
+    var vPanel = document.getElementById('kb-viewer-panel');
+    if(eOv) document.body.appendChild(eOv);
+    if(ePanel) document.body.appendChild(ePanel);
+    if(vOv) document.body.appendChild(vOv);
+    if(vPanel) document.body.appendChild(vPanel);
+})();
 
 function saveKbArticle(e) {
     e.preventDefault();

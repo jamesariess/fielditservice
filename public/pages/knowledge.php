@@ -64,9 +64,9 @@ $catIcons = [
         border-radius: 999px;
         background: linear-gradient(90deg, #2563eb, #7c3aed);
     }
-    .kb-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+    .kb-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); z-index: 10000; align-items: center; justify-content: center; }
     .kb-modal.active { display: flex; }
-    .kb-modal-content { background: #fff; border-radius: 18px; max-width: 700px; width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .kb-modal-content { background: #fff; border-radius: 18px; max-width: 700px; width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,0.3); position: relative; z-index: 1; }
     .dark .kb-modal-content { background: rgba(15,23,42,0.95); }
     .kb-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #f1f5f9; position: sticky; top: 0; background: #fff; }
     .dark .kb-modal-header { background: rgba(15,23,42,0.95); border-bottom-color: rgba(51,65,85,0.9); }

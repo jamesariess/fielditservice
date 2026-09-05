@@ -179,15 +179,15 @@ if (!in_array(strtolower($roleName), ['admin', 'super admin', 'super_admin'])) {
 
 /* ===== SLIDE-OVER PANEL ===== */
 .tm-panel-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); z-index: 10000;
     opacity: 0; pointer-events: none; transition: opacity 0.25s;
 }
 .tm-panel-overlay.open { opacity: 1; pointer-events: auto; }
 
 .tm-panel {
     position: fixed; top: 0; right: -520px; width: 500px; max-width: 95vw;
-    height: 100vh; background: #fff; z-index: 1000;
-    box-shadow: -8px 0 30px rgba(0,0,0,0.12);
+    height: 100vh; background: #fff; z-index: 10001;
+    box-shadow: -8px 0 30px rgba(0,0,0,0.2);
     transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
     display: flex; flex-direction: column;
 }

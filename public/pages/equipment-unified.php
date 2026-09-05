@@ -219,16 +219,16 @@ $typeConfig = [
         display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; font-size: 10px; font-weight: 700;
     }
 
-    .eq-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.56); z-index: 1000; align-items: center; justify-content: center; }
+    .eq-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); z-index: 10000; align-items: center; justify-content: center; }
     .eq-modal.active { display: flex; }
     .eq-modal-content {
-        background: rgba(255,255,255,0.98); border-radius: 24px; max-width: 700px; width: 95vw; max-height: 90vh;
-        overflow-y: auto; box-shadow: 0 28px 70px -34px rgba(15,23,42,0.7);
+        background: #fff; border-radius: 24px; max-width: 700px; width: 95vw; max-height: 90vh;
+        overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,0.3); position: relative; z-index: 1;
     }
     .dark .eq-modal-content { background: rgba(15,23,42,0.96); }
     .eq-modal-header {
         display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; border-bottom: 1px solid #e2e8f0;
-        position: sticky; top: 0; background: rgba(255,255,255,0.98); backdrop-filter: blur(10px);
+        position: sticky; top: 0; background: #fff; backdrop-filter: blur(10px);
     }
     .dark .eq-modal-header { background: rgba(15,23,42,0.96); border-bottom-color: rgba(51,65,85,0.9); }
     .eq-modal-body { padding: 24px; }

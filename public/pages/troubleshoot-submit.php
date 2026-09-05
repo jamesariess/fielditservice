@@ -136,13 +136,13 @@ require APP_ROOT . '/includes/layout_header.php';
 
 /* Modal */
 .ts-modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-    z-index: 1000; align-items: center; justify-content: center;
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+    z-index: 10000; align-items: center; justify-content: center;
 }
 .ts-modal-overlay.open { display: flex; }
 .ts-modal {
     background: #fff; border-radius: 16px; padding: 24px; width: 90%; max-width: 520px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.3); max-height: 85vh; overflow-y: auto; position: relative; z-index: 1;
 }
 .dark .ts-modal { background: #1e293b; }
 .ts-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #0f172a; }

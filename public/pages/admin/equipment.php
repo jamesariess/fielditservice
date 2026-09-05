@@ -438,7 +438,11 @@ function openEqViewer(id) {
     if(art.location)html+='<span style="padding:2px 8px;background:#f0fdf4;border-radius:12px;font-size:11px;color:#166534;font-weight:600;">'+esc(art.location)+'</span>';
     html += '</div></div></div>';
     var specs=[['CPU',art.cpu],['RAM',art.ram],['Storage',art.storage],['Display',art.display_spec],['Ports',art.ports]];
-    var sH='';specs.forEach(function(s){if(s[1])sH+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span style="font-size:12px;color:#64748b;">'+s[0]+'</span><span style="font-size:12px;color:#111827;font-weight:600;text-align:right;max-width:60%;">'+esc(s[1])+'</span></div>';});
+    var sH='';specs.forEach(function(s){
+        if(s[1] && String(s[1]).trim()!=='' && String(s[1]).toUpperCase()!=='N/A' && String(s[1]).toLowerCase()!=='null' && String(s[1])!=='undefined') {
+            sH+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span style="font-size:12px;color:#64748b;">'+s[0]+'</span><span style="font-size:12px;color:#111827;font-weight:600;text-align:right;max-width:60%;">'+esc(s[1])+'</span></div>';
+        }
+    });
     if(sH)html+='<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px;margin-bottom:16px;"><h3 style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">Specifications</h3>'+sH+'</div>';
 
     // Tools as image grid
@@ -496,6 +500,14 @@ function renderGuideSteps(steps, title, color, bgColor, borderColor, textColor, 
     return h;
 }
 function closeEqViewer(){document.getElementById('eq-viewer-overlay').style.display='none';document.getElementById('eq-viewer-panel').style.display='none';}
+
+// Move modal outside page-content to ensure position:fixed works correctly
+(function(){
+    var ov = document.getElementById('eq-viewer-overlay');
+    var panel = document.getElementById('eq-viewer-panel');
+    if(ov) document.body.appendChild(ov);
+    if(panel) document.body.appendChild(panel);
+})();
 
 /* ---- Tool hover and detail ---- */
 document.addEventListener('mouseover',function(e){var t=e.target.closest('.tool-thumb');if(t){var o=t.querySelector('.tool-overlay');if(o)o.style.display='flex';}});

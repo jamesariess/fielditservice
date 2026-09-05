@@ -10,8 +10,8 @@ require APP_ROOT . '/includes/layout_header.php';
 <div class="max-w-6xl mx-auto">
     <!-- Add Department Modal -->
     <div id="add-dept-modal" class="modal-overlay" style="display:none;">
-        <div class="backdrop" onclick="closeModal('add-dept-modal')"></div>
-        <div class="modal-panel" style="max-width:460px;">
+        <div class="backdrop" onclick="closeModal('add-dept-modal')" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);z-index:10000;"></div>
+        <div class="modal-panel" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:460px;background:#fff;border-radius:16px;z-index:10001;box-shadow:0 25px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto;">
             <div style="padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
                 <h2 style="font-size:18px;font-weight:700;color:#111827;">Add Department</h2>
                 <button onclick="closeModal('add-dept-modal')" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&#10005;</button>
