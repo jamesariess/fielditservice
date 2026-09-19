@@ -504,20 +504,41 @@ function kbRateArticle(rating) {
     api('/api/knowledge/rate', { method: 'POST', body: { article_id: 1, rating: rating } }).catch(function(){});
 }
 
-// ==================== Ticket Filters ====================
+// ==================== Ticket Filters / Search / Sort ====================
 function filterTickets(status) { ticketFilter(status); }
 function ticketFilter(status) {
-    document.querySelectorAll('.ticket-card').forEach(function(card) {
-        if (status === 'all' || card.dataset.status === status) {
-            card.style.display = '';
-        } else {
-            card.style.display = 'none';
-        }
-    });
+    window.ticketActiveFilter = status;
     document.querySelectorAll('.filter-btn').forEach(function(btn) {
-        btn.classList.remove('active');
-        if (btn.dataset.filter === status) btn.classList.add('active');
+        btn.classList.toggle('active', btn.dataset.filter === status);
     });
+    ticketApplyFilters();
+}
+
+// Combined filter (status chips) + search + sort over the ticket card grid.
+function ticketApplyFilters() {
+    var searchEl = document.getElementById('ticket-search');
+    var sortEl   = document.getElementById('ticket-sort');
+    var grid     = document.getElementById('tickets-grid');
+    if (!grid) return;
+    var q = searchEl ? searchEl.value.toLowerCase().trim() : '';
+    var filter = window.ticketActiveFilter || 'all';
+    var sort = sortEl ? sortEl.value : 'newest';
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.ft-ticket-card'));
+    cards.forEach(function(card) {
+        var okFilter = filter === 'all' || card.dataset.status === filter;
+        var okSearch = !q || (card.dataset.search || '').indexOf(q) !== -1;
+        card.style.display = (okFilter && okSearch) ? '' : 'none';
+    });
+    cards.sort(function(a, b) {
+        var ca = parseInt(a.dataset.created || '0', 10);
+        var cb = parseInt(b.dataset.created || '0', 10);
+        var ua = parseInt(a.dataset.updated || '0', 10);
+        var ub = parseInt(b.dataset.updated || '0', 10);
+        if (sort === 'oldest') return ca - cb;
+        if (sort === 'updated') return ub - ua;
+        return cb - ca; // newest
+    });
+    cards.forEach(function(card) { grid.appendChild(card); });
 }
 
 // ==================== Command Filters ====================
@@ -1411,117 +1432,685 @@ function ticketSubmitTimeIn() {
     });
 }
 
-// ---- Time Out ----
-function ticketTimeOut(ticketId) {
-    var timeEl = document.getElementById('to-' + ticketId + '-time');
-    var resEl  = document.getElementById('to-' + ticketId + '-resolution');
-    var partsEl= document.getElementById('to-' + ticketId + '-parts');
-    var toolsEl= document.getElementById('to-' + ticketId + '-tools');
-    var addrEl = document.getElementById('to-' + ticketId + '-addr');
-    var msgEl  = document.getElementById('to-' + ticketId + '-msg');
-    var endedAt = timeEl ? timeEl.value.trim() : '';
-    if (!resEl || !partsEl || !toolsEl) { showToast('Time-out form not found.', 'error'); return; }
+// ==================== Ticket Drawer (View Ticket) ====================
+function ttEsc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
-    var resolution = resEl.value.trim();
-    var partsReplaced = partsEl.value.trim();
-    var toolsUsed = toolsEl.value.trim();
-    var address = addrEl ? addrEl.value.trim() : '';
+function ttStatusBadge(status) {
+    var map = {
+        'new':         ['#fffbeb', '#d97706', 'New'],
+        'in_progress': ['#eff6ff', '#2563eb', 'In Progress'],
+        'solved':      ['#f0fdf4', '#16a34a', 'Solved'],
+        'partial':     ['#f0fdf4', '#16a34a', 'Solved'],
+        'escalated':   ['#fef2f2', '#dc2626', 'Escalated']
+    };
+    var m = map[status] || map['new'];
+    return '<span class="badge" style="background:' + m[0] + ';color:' + m[1] + ';">' + m[2] + '</span>';
+}
 
-    if (!resolution) { showToast('Please describe the result of the repair.', 'warning'); return; }
+function ttStatusLabel(status) {
+    var labels = { 'new':'New', 'in_progress':'In Progress', 'solved':'Solved', 'partial':'Solved', 'escalated':'Escalated' };
+    return labels[status] || status;
+}
 
-    if (msgEl) msgEl.textContent = 'Saving…';
-    api('/api/tickets/timeout', { method: 'POST', body: {
-        ticket_id: ticketId,
-        ended_at: endedAt || undefined,
-        resolution: resolution,
-        resolution_type: 'completed',
-        parts_replaced: partsReplaced || undefined,
-        tools_used: toolsUsed || undefined,
-        address: address || undefined,
-        status: 'solved'
-    }}).then(function(res) {
-        if (msgEl) msgEl.textContent = '';
-        if (res.success) {
-            showToast('Time-out saved — ' + (res.time_spent_minutes ? res.time_spent_minutes + ' min logged.' : 'done.'), 'success');
-            setTimeout(function() { window.location.reload(); }, 1200);
-        } else {
-            if (msgEl) msgEl.textContent = 'Error: ' + (res.error || 'unknown');
-            showToast('Time-out failed: ' + (res.error || 'unknown'), 'error');
+// Renders a drawer section; rows with empty values are skipped entirely.
+function ttDrawerSection(title, rows) {
+    var html = '<div class="ftd-section"><div class="ftd-title">' + ttEsc(title) + '</div>';
+    rows.forEach(function(r) {
+        var v = r[1];
+        if (v === undefined || v === null || String(v).trim() === '') return;
+        html += '<div class="ftd-row"><div class="ftd-lbl">' + ttEsc(r[0]) + '</div><div class="ftd-val">' + ttEsc(v) + '</div></div>';
+    });
+    return html + '</div>';
+}
+
+// Issue / Task "View more" toggle on the card.
+function ticketToggleIssue(ticketId, btn) {
+    var el = document.getElementById('issue-' + ticketId);
+    if (!el) return;
+    var clamped = el.classList.toggle('ft-clamped');
+    btn.textContent = clamped ? 'View more' : 'Show less';
+}
+
+// Duration helper: prefer the DB value; compute from the timestamps as fallback.
+function ttDurationStr(S) {
+    var mins = S.time_spent_minutes;
+    if ((mins === undefined || mins === null || mins === '') && S.started_at && S.ended_at) {
+        var a = new Date(String(S.started_at).replace(' ', 'T'));
+        var b = new Date(String(S.ended_at).replace(' ', 'T'));
+        if (!isNaN(a.getTime()) && !isNaN(b.getTime())) { mins = Math.max(0, Math.round((b.getTime() - a.getTime()) / 60000)); }
+    }
+    if (mins === undefined || mins === null || mins === '') return '';
+    mins = parseInt(mins, 10);
+    if (isNaN(mins)) return '';
+    if (mins >= 60) { var hh = Math.floor(mins / 60), mm = mins % 60; return hh + 'h' + (mm ? ' ' + mm + 'm' : ''); }
+    return mins + ' minute' + (mins === 1 ? '' : 's');
+}
+
+// Keep unsaved report input values when the drawer re-renders (time in/out/done).
+function ttCacheReport(ticketId) {
+    var cache = window._ttReportCache = window._ttReportCache || {};
+    var c = cache[ticketId] = {};
+    ['action', 'result', 'reco', 'confirm'].forEach(function(k) {
+        var el = document.getElementById('rep-' + ticketId + '-' + k);
+        if (el) { c[k] = el.value; }
+    });
+}
+
+function openTicketDrawer(ticketId) {
+    var S = (window.ttTicketData && window.ttTicketData[ticketId]) || null;
+    if (!S) { showToast('Ticket data not found.', 'error'); return; }
+    var status = S.status || 'new';
+    var device = ((S.manufacturer || '') + ' ' + (S.model || '')).trim();
+    var problem = S.problem_description || S.task || S.title || '';
+    var timeIn = S.started_at ? ttFmtTime(S.started_at) : '00';
+    var timeOut = S.ended_at ? ttFmtTime(S.ended_at) : '00';
+
+    // ---- Header: company, ticket #, SN, device, location | status ----
+    var h = '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:16px;border-bottom:1px solid #e5e7eb;">';
+    h += '<div style="display:flex;gap:12px;min-width:0;">';
+    h += '<div class="ft-co-ico"><i data-lucide="building-2"></i></div>';
+    h += '<div style="min-width:0;">';
+    h += '<div style="font-size:17px;font-weight:800;color:#111827;word-break:break-word;">' + ttEsc(S.company_name || 'Company not specified') + '</div>';
+    h += '<div style="font-size:12px;color:#64748b;font-weight:600;margin-top:3px;">Ticket #' + ttEsc(S.ticket_number || '') + (S.serial_number ? '<span style="margin-left:10px;">SN: ' + ttEsc(S.serial_number) + '</span>' : '') + '</div>';
+    h += '</div></div>';
+    h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + ttStatusBadge(status)
+       + '<button onclick="closeTicketDrawer()" class="btn btn-sm btn-ghost" style="color:#64748b;">&#10005;</button></div>';
+    h += '</div>';
+
+    h += '<div class="ftd-grid">';
+
+    // ================= LEFT: ticket / device / work time / issue =================
+    h += '<div>';
+    h += ttDrawerSection('Ticket', [
+        ['Ticket #', S.ticket_number],
+        ['Status', ttStatusLabel(status)],
+        ['Created', S.created_at ? ttFmtDate(S.created_at) : (S.started_at ? ttFmtDate(S.started_at) : '')],
+        ['Priority', S.priority]
+    ]);
+    h += ttDrawerSection('Device', [
+        ['Device', device],
+        ['Serial Number', S.serial_number]
+    ]);
+
+    // ---- Work Time: Time In / Time Out / Duration + state-driven button ----
+    h += '<div class="ftd-section"><div class="ftd-title">Work Time</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+    h += '<div class="ftd-timebox"><div class="ftd-lbl">TIME IN</div>'
+       + '<div class="ftd-time' + (S.started_at ? '' : ' ftd-zero') + '">' + ttEsc(timeIn) + '</div>'
+       + '<div class="ftd-subdate">' + (S.started_at ? ttEsc(ttFmtDate(S.started_at)) : '&nbsp;') + '</div></div>';
+    h += '<div class="ftd-timebox"><div class="ftd-lbl">TIME OUT</div>'
+       + '<div class="ftd-time' + (S.ended_at ? '' : ' ftd-zero') + '">' + ttEsc(timeOut) + '</div>'
+       + '<div class="ftd-subdate">' + (S.ended_at ? ttEsc(ttFmtDate(S.ended_at)) : '&nbsp;') + '</div></div>';
+    h += '</div>';
+    var dur = ttDurationStr(S);
+    h += '<div style="margin-top:10px;font-size:12px;color:#64748b;font-weight:600;">Duration: <span style="color:#111827;font-weight:700;">' + (dur ? ttEsc(dur) : '—') + '</span></div>';
+    // Lifecycle: START TIME IN → TIME OUT → MARK AS DONE → ✓ COMPLETED
+    var act = '';
+    if (!S.started_at) {
+        act += '<button onclick="ticketTimeIn(' + ticketId + ')" class="btn btn-sm btn-primary" style="flex:1;"><i data-lucide="play" style="width:13px;height:13px;"></i> Start Time In</button>';
+    } else if (!S.ended_at) {
+        act += '<button onclick="ticketTimeOut(' + ticketId + ')" class="btn btn-sm btn-warning" style="flex:1;"><i data-lucide="square" style="width:13px;height:13px;"></i> Time Out</button>';
+    } else if (status !== 'solved') {
+        act += '<button onclick="ticketDone(' + ticketId + ')" class="btn btn-sm btn-success" style="flex:1;"><i data-lucide="check" style="width:13px;height:13px;"></i> Mark as Done</button>';
+    } else {
+        act += '<span class="badge" style="background:#f0fdf4;color:#16a34a;flex:1;text-align:center;padding:7px 10px;font-size:12px;font-weight:700;">&#10003; Completed</span>';
+    }
+    h += '<div style="display:flex;gap:8px;margin-top:12px;">' + act + '</div>';
+    h += '<div id="to-' + ticketId + '-msg" style="font-size:11px;color:#64748b;margin-top:6px;min-height:15px;"></div>';
+    h += '</div>';
+
+    // ---- Issue / Task (multi-line preserved) ----
+    h += '<div class="ftd-section"><div class="ftd-title">Issue / Task</div>'
+       + '<div class="ftd-val" style="text-align:left;white-space:pre-wrap;line-height:1.6;">' + ttEsc(problem) + '</div></div>';
+
+    // ---- Troubleshooting checklist (tap to check what you did + add custom rows) ----
+    h += '<div class="ftd-section">'
+       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+       + '<div class="ftd-title" style="margin:0;">Troubleshooting Checklist</div>'
+       + '<span id="chk-count-' + ticketId + '" style="font-size:11px;color:#64748b;font-weight:600;"></span></div>'
+       + '<div id="chk-' + ticketId + '"><div style="font-size:12px;color:#94a3b8;">Loading checklist…</div></div>'
+       + '<div id="chk-msg-' + ticketId + '" style="font-size:11px;color:#16a34a;min-height:15px;margin-top:2px;"></div>'
+       + '</div>';
+    h += '</div>'; // /left
+
+    // ================= RIGHT: field guide + report =================
+    h += '<div>';
+    // Field Guide: tools / videos / tips — loaded from the DB for this issue + device
+    h += '<div class="ftd-section" id="guide-' + ticketId + '" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px;">'
+       + '<div class="ftd-title">Field Guide</div>'
+       + '<div style="font-size:12px;color:#94a3b8;">Loading tools, videos & tips…</div></div>';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">'
+       + '<div class="ftd-title" style="margin:0;color:#1e40af;">Report</div>'
+       + '<button onclick="ticketCopyReport(' + ticketId + ')" class="btn btn-sm btn-primary"><i data-lucide="copy" style="width:12px;height:12px;"></i> Copy Report</button>'
+       + '</div>';
+    // Live report preview (updates instantly as times/fields change)
+    h += '<div id="report-' + ticketId + '" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:6px 14px 4px;margin-bottom:12px;"></div>';
+
+    // Technician inputs — textareas, several sentences are expected
+    h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-action">Action Taken</label>
+       + '<textarea id="rep-' + ticketId + '-action" class="form-input" rows="3" placeholder="Manual action notes (used only if no checklist steps were checked)..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;"></textarea></div>';
+    h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-result">Result of Checking</label>'
+       + '<textarea id="rep-' + ticketId + '-result" class="form-input" rows="3" placeholder="Enter what you found..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;"></textarea></div>';
+    h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-reco">Recommendation</label>'
+       + '<textarea id="rep-' + ticketId + '-reco" class="form-input" rows="2" placeholder="Enter your recommendation..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;"></textarea></div>';
+    h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-confirm">Confirmed By</label>'
+       + '<input id="rep-' + ticketId + '-confirm" class="form-input" placeholder="e.g. System Admin" style="width:100%;font-size:12.5px;padding:8px 10px;"></div>';
+
+    // Steps done — live mirror of the checklist (auto-saved with every change)
+    h += '<div class="ftd-section"><div class="ftd-title">Steps Done</div><div id="logged-' + ticketId + '" class="ftd-steps"></div></div>';
+    h += ttDrawerSection('Parts & Tools', [['Parts Replaced', S.parts_replaced], ['Tools Used', S.tools_used]]);
+    h += '</div>'; // /right
+
+    h += '</div>'; // /ftd-grid
+
+    var body = document.getElementById('ticket-drawer-body');
+    if (!body) return;
+    body.innerHTML = h;
+    // Restore unsaved report input values after a re-render (time in/out/done)
+    var cache = (window._ttReportCache || {})[ticketId];
+    if (cache) {
+        ['action', 'result', 'reco', 'confirm'].forEach(function(k) {
+            var el = document.getElementById('rep-' + ticketId + '-' + k);
+            if (el && cache[k]) { el.value = cache[k]; }
+        });
+    }
+    if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+    var addInput = document.getElementById('chk-add-' + ticketId);
+    if (addInput) { addInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); ttAddStep(ticketId); } }); }
+    var drawer = document.getElementById('ticket-drawer');
+    var overlay = document.getElementById('ticket-drawer-overlay');
+    if (drawer) drawer.style.display = 'block';
+    if (overlay) overlay.style.display = 'block';
+    ticketRenderReport(ticketId);
+    ttRenderLoggedSteps(ticketId);
+    ttLoadGuide(ticketId);
+    ['action', 'result', 'reco', 'confirm'].forEach(function(k) {
+        var el = document.getElementById('rep-' + ticketId + '-' + k);
+        if (el && !el.dataset.reportWired) {
+            el.dataset.reportWired = '1';
+            el.addEventListener('input', function() { ticketRenderReport(ticketId); });
         }
-    }).catch(function(err) {
-        if (msgEl) msgEl.textContent = '';
-        showToast('Error: ' + err.message, 'error');
     });
 }
 
-function ticketCloseWithoutSave(ticketId) {
-    swalConfirm('Discard time-out?', 'Your entry will not be saved. The session will remain open.', function() {
-        window.location.reload();
+function closeTicketDrawer() {
+    var d = document.getElementById('ticket-drawer');
+    var o = document.getElementById('ticket-drawer-overlay');
+    if (d) d.style.display = 'none';
+    if (o) o.style.display = 'none';
+}
+
+// ---- Troubleshooting checklist + field guide (real DB data, auto-saved) ----
+function ttLoadGuide(ticketId) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    var box = document.getElementById('chk-' + ticketId);
+    if (!S || !box) { return; }
+    var qs = 'issue_id=' + encodeURIComponent(S.issue_id || 0)
+           + '&model=' + encodeURIComponent(S.model || '')
+           + '&manufacturer=' + encodeURIComponent(S.manufacturer || '');
+    api('/api/tickets/guide?' + qs).then(function(g) {
+        S._guide = g || {};
+        ttRenderChecklist(ticketId);
+        ttRenderGuide(ticketId);
+    }).catch(function() {
+        box.innerHTML = '<div style="font-size:12px;color:#94a3b8;">Checklist unavailable right now.</div>';
+        var g2 = document.getElementById('guide-' + ticketId);
+        if (g2) { g2.innerHTML = '<div class="ftd-title">Field Guide</div><div style="font-size:12px;color:#94a3b8;">Guide unavailable right now.</div>'; }
     });
 }
 
-// ---- Report generation (Viber-style template) ----
+// Renders the checkable rows: suggested steps + custom typed steps + add-row.
+function ttRenderChecklist(ticketId) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    var box = document.getElementById('chk-' + ticketId);
+    if (!box || !S) { return; }
+    var guide = S._guide || {};
+    var suggestions = guide.steps || [];
+    var done = S.steps || [];
+    var doneLower = done.map(function(s) { return String(s).toLowerCase().trim(); });
+    var sugLower = suggestions.map(function(st) { return String(st.title || '').toLowerCase().trim(); });
+    var html = '';
+    // Suggested steps for this issue (from the troubleshooting guide)
+    suggestions.forEach(function(st) {
+        var text = String(st.title || ('Step ' + st.n));
+        var checked = doneLower.indexOf(text.toLowerCase().trim()) !== -1;
+        var risk = st.risk === 'danger' ? ' ⚠' : (st.risk === 'caution' ? ' ⚡' : '');
+        html += '<div class="ft-chk-row' + (checked ? ' done' : '') + '" data-step="' + ttEsc(text) + '" onclick="ttToggleStepEl(this, ' + ticketId + ')">'
+              + '<span class="ft-chk-box">' + (checked ? '✓' : '') + '</span>'
+              + '<span class="ft-chk-txt">' + ttEsc(text) + risk + '</span></div>';
+    });
+    // Custom steps the technician typed on site (removable)
+    done.forEach(function(text) {
+        if (sugLower.indexOf(String(text).toLowerCase().trim()) !== -1) { return; }
+        html += '<div class="ft-chk-row done" data-step="' + ttEsc(text) + '">'
+              + '<span class="ft-chk-box">✓</span>'
+              + '<span class="ft-chk-txt" onclick="ttToggleStepEl(this.parentElement, ' + ticketId + ')">' + ttEsc(text) + '</span>'
+              + '<button type="button" onclick="event.stopPropagation(); ttRemoveStepEl(this.closest(&quot;.ft-chk-row&quot;), ' + ticketId + ')" style="margin-left:auto;background:none;border:none;color:#dc2626;cursor:pointer;font-size:13px;padding:0 2px;flex-shrink:0;">✕</button></div>';
+    });
+    // Add-row: type anything extra you did (as many rows as needed)
+    html += '<div style="display:flex;gap:6px;margin-top:8px;">'
+          + '<input id="chk-add-' + ticketId + '" class="form-input" placeholder="Add what you did on site..." style="flex:1;min-width:0;font-size:12.5px;padding:8px 10px;">'
+          + '<button type="button" onclick="ttAddStep(' + ticketId + ')" class="btn btn-sm btn-secondary" style="flex-shrink:0;">Add</button></div>';
+    box.innerHTML = html;
+    var countEl = document.getElementById('chk-count-' + ticketId);
+    if (countEl) { countEl.textContent = done.length + (suggestions.length ? ' / ' + suggestions.length + ' done' : ' done'); }
+    var addInput = document.getElementById('chk-add-' + ticketId);
+    if (addInput) { addInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); ttAddStep(ticketId); } }); }
+}
+
+// Check / uncheck a step; auto-saves immediately.
+function ttToggleStepEl(rowEl, ticketId) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (!S || !rowEl) { return; }
+    var text = rowEl.dataset.step || '';
+    if (!text) { return; }
+    var done = S.steps || [];
+    var lower = done.map(function(s) { return String(s).toLowerCase().trim(); });
+    var idx = lower.indexOf(text.toLowerCase().trim());
+    if (idx !== -1) {
+        done.splice(idx, 1);
+        rowEl.classList.remove('done');
+        var b1 = rowEl.querySelector('.ft-chk-box'); if (b1) { b1.textContent = ''; }
+    } else {
+        done.push(text);
+        rowEl.classList.add('done');
+        var b2 = rowEl.querySelector('.ft-chk-box'); if (b2) { b2.textContent = '✓'; }
+    }
+    S.steps = done;
+    ttSaveSteps(ticketId);
+    ttRenderLoggedSteps(ticketId);
+    var countEl = document.getElementById('chk-count-' + ticketId);
+    if (countEl) {
+        var total = ((S._guide && S._guide.steps) || []).length;
+        countEl.textContent = done.length + (total ? ' / ' + total + ' done' : ' done');
+    }
+}
+
+// Remove a custom step row.
+function ttRemoveStepEl(rowEl, ticketId) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (!S || !rowEl) { return; }
+    var text = rowEl.dataset.step || '';
+    S.steps = (S.steps || []).filter(function(s) { return String(s).toLowerCase().trim() !== text.toLowerCase().trim(); });
+    ttSaveSteps(ticketId);
+    ttRenderChecklist(ticketId);
+    ttRenderLoggedSteps(ticketId);
+}
+
+// Add a manually typed step (as many as needed).
+function ttAddStep(ticketId) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    var input = document.getElementById('chk-add-' + ticketId);
+    if (!S || !input) { return; }
+    var text = input.value.trim();
+    if (!text) { showToast('Type what you did first.', 'warning'); return; }
+    S.steps = S.steps || [];
+    S.steps.push(text);
+    input.value = '';
+    ttSaveSteps(ticketId);
+    ttRenderChecklist(ticketId);
+    ttRenderLoggedSteps(ticketId);
+}
+
+// Persist the checklist to the DB (steps_performed JSON) after every change.
+function ttSaveSteps(ticketId) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (!S) { return; }
+    var msgEl = document.getElementById('chk-msg-' + ticketId);
+    api('/api/tickets/steps', { method: 'POST', body: { ticket_id: ticketId, steps: S.steps || [] } })
+        .then(function(res) {
+            if (msgEl) {
+                msgEl.textContent = res.success ? 'Saved ✓' : 'Save failed';
+                setTimeout(function() { msgEl.textContent = ''; }, 2000);
+            }
+        }).catch(function(err) {
+            if (msgEl) { msgEl.textContent = 'Save failed'; }
+            showToast('Checklist save failed: ' + err.message, 'error');
+        });
+}
+
+// Field Guide panel: tools / videos / tips (only real DB data).
+function ttRenderGuide(ticketId) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    var box = document.getElementById('guide-' + ticketId);
+    if (!box || !S) { return; }
+    var g = S._guide || {};
+    var html = '';
+    if ((g.tools || []).length) {
+        html += '<div class="ftd-title">Tools Needed</div><div style="margin-bottom:10px;">';
+        g.tools.forEach(function(t) { html += '<span class="ft-tool-chip">🛠 ' + ttEsc(t) + '</span>'; });
+        html += '</div>';
+    }
+    if ((g.videos || []).length) {
+        html += '<div class="ftd-title">Videos &amp; Manuals</div><div style="margin-bottom:10px;">';
+        g.videos.forEach(function(v) {
+            html += '<a class="ft-video-link" href="' + ttEsc(v.url) + '" target="_blank" rel="noopener">▶ ' + ttEsc(v.label) + '</a>';
+        });
+        html += '</div>';
+    }
+    if ((g.tips || []).length) {
+        html += '<div class="ftd-title">Tips &amp; Warnings</div>';
+        g.tips.forEach(function(t) { html += '<div class="ft-tip">⚠ <span>' + ttEsc(t) + '</span></div>'; });
+    }
+    if (g.estimated_time) { html += '<div style="font-size:11.5px;color:#64748b;font-weight:600;">Estimated time: ' + ttEsc(g.estimated_time) + '</div>'; }
+    box.innerHTML = html || '<div class="ftd-title">Field Guide</div><div style="font-size:12px;color:#94a3b8;">No guide data for this issue yet.</div>';
+}
+
+// Right-column mirror of the checked steps.
+function ttRenderLoggedSteps(ticketId) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    var box = document.getElementById('logged-' + ticketId);
+    if (!box || !S) { return; }
+    var steps = S.steps || [];
+    if (!steps.length) {
+        box.innerHTML = '<div style="font-size:12px;color:#cbd5e1;">No steps logged yet — check items in the checklist.</div>';
+        return;
+    }
+    var html = '';
+    steps.forEach(function(st, i) {
+        html += '<div><strong style="color:#64748b;">Step ' + (i + 1) + '</strong> — ' + ttEsc(st) + '</div>';
+    });
+    box.innerHTML = html;
+}
+// ===== Card-level checklist (on-site, mobile-friendly) =====
+// "Steps done" toggle on each ticket card: expand the suggested checklist,
+// check off what you did, add custom rows, and it all saves to steps_performed.
+function ttCardGuideToggle(ticketId, btn) {
+    var body  = document.getElementById('fcgb-' + ticketId);
+    var count = document.getElementById('ftgc-' + ticketId);
+    if (!body) return;
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : '';
+    if (btn) {
+        btn.classList.toggle('open', !open);
+        var cv = btn.querySelector('.ft-card-guide-toggle-chevron');
+        if (cv) { cv.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)'; }
+    }
+    if (!open) { ttRenderCardSuggest(ticketId); ttRenderCardDone(ticketId); }
+}
+
+function ttRenderCardSuggest(ticketId) {
+    var S   = window.ttTicketData && window.ttTicketData[ticketId];
+    var box = document.getElementById('fcgs-' + ticketId);
+    if (!box) return;
+    var guide = S ? (S._guide || {}) : (window._ttCardGuide && window._ttCardGuide[ticketId]);
+    var steps = (guide && guide.steps) || [];
+    var done  = (S && S.steps) ? S.steps.slice() : [];
+    var lower = done.map(function(s){ return String(s).toLowerCase().trim(); });
+    var list  = steps.filter(function(s){ return s && lower.indexOf(String(s).toLowerCase().trim()) === -1; });
+    if (!list.length) { box.innerHTML = ''; return; }
+    var html = '<div style="margin-bottom:8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;">Suggested steps — tap to check</div>';
+    list.forEach(function(s){
+        html += '<div class="ft-chk-row" data-step="' + ttEsc(s) + '" onclick="ttCardGuideCheck(' + ticketId + ', this)">'
+              +  '<span class="ft-chk-box"></span><span class="ft-chk-txt">' + ttEsc(s) + '</span></div>';
+    });
+    box.innerHTML = html;
+}
+
+function ttCardGuideCheck(ticketId, rowEl) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (!S || !rowEl) return;
+    var text = rowEl.getAttribute('data-step') || '';
+    if (!text) return;
+    var done = S.steps || [];
+    var lower = done.map(function(s){ return String(s).toLowerCase().trim(); });
+    var idx = lower.indexOf(text.toLowerCase().trim());
+    if (idx !== -1) {
+        done.splice(idx, 1);
+        rowEl.classList.remove('done');
+        var b = rowEl.querySelector('.ft-chk-box'); if (b) b.textContent = '';
+    } else {
+        done.push(text);
+        rowEl.classList.add('done');
+        var b = rowEl.querySelector('.ft-chk-box'); if (b) b.textContent = '✓';
+    }
+    S.steps = done;
+    ttSaveSteps(ticketId);
+    ttRenderCardDone(ticketId);
+    ttRenderCardCount(ticketId);
+}
+
+function ttRenderCardDone(ticketId) {
+    var S   = window.ttTicketData && window.ttTicketData[ticketId];
+    var box = document.getElementById('fcgd-' + ticketId);
+    if (!box) return;
+    var steps = (S && S.steps) ? S.steps.slice() : [];
+    if (!steps.length) { box.innerHTML = '<div style="font-size:11.5px;color:#cbd5e1;padding:4px 2px;">No steps logged yet.</div>'; return; }
+    var html = '';
+    steps.forEach(function(s){
+        html += '<div class="ft-chk-row done" data-step="' + ttEsc(s) + '" onclick="ttCardGuideCheck(' + ticketId + ', this)">'
+              +  '<span class="ft-chk-box">✓</span><span class="ft-chk-txt">' + ttEsc(s) + '</span>'
+              +  '<button type="button" onclick="event.stopPropagation();ttCardGuideRemove(' + ticketId + ', this)" style="margin-left:auto;background:none;border:none;color:#dc2626;cursor:pointer;font-size:13px;padding:0 2px;flex-shrink:0;">✕</button></div>';
+    });
+    box.innerHTML = html;
+}
+
+function ttRenderCardCount(ticketId) {
+    var el = document.getElementById('ftgc-' + ticketId);
+    if (!el) return;
+    var S  = window.ttTicketData && window.ttTicketData[ticketId];
+    var total = ((S && S._guide && S._guide.steps) || []).length;
+    var done  = ((S && S.steps) || []).length;
+    el.textContent = done + (total ? ' / ' + total : '');
+}
+
+function ttCardGuideAdd(ticketId) {
+    var S   = window.ttTicketData && window.ttTicketData[ticketId];
+    var inp = document.getElementById('fcga-' + ticketId);
+    if (!S || !inp) return;
+    var text = inp.value.trim();
+    if (!text) { showToast('Type what you did first.', 'warning'); return; }
+    S.steps = S.steps || [];
+    S.steps.push(text);
+    inp.value = '';
+    ttSaveSteps(ticketId);
+    ttRenderCardDone(ticketId);
+    ttRenderCardCount(ticketId);
+}
+
+function ttCardGuideRemove(ticketId, btn) {
+    var S   = window.ttTicketData && window.ttTicketData[ticketId];
+    var row = btn && btn.closest && btn.closest('.ft-chk-row');
+    if (!S || !row) return;
+    var text = row.getAttribute('data-step') || '';
+    S.steps = (S.steps || []).filter(function(s){ return String(s).toLowerCase().trim() !== text.toLowerCase().trim(); });
+    ttSaveSteps(ticketId);
+    ttRenderCardDone(ticketId);
+    ttRenderCardCount(ticketId);
+}
+
+// "Guides & Tools" quick button on the card → stash the guide + open the drawer.
+function ttCardGuideQuickOpen(ticketId, guideData, btn) {
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S) { S._guide = guideData; }
+    window._ttCardGuide = window._ttCardGuide || {};
+    window._ttCardGuide[ticketId] = guideData;
+    openTicketDrawer(ticketId);
+}
+
+// Add what you did on site (Enter key support on the card input).
+(function(){
+    document.addEventListener('click', function(e){
+        var addBtn = e.target.closest && e.target.closest('.ft-card-guide-add button');
+        if (!addBtn) return;
+        var card = addBtn.closest && addBtn.closest('.ft-card-guide-add');
+        var inp  = card && card.querySelector('input');
+        if (inp) { inp.focus(); }
+    });
+})();
+
+// ---- Time In: stamps the EXACT current server date + time (action.php) ----
+function ticketTimeIn(ticketId) {
+    api('/api/tickets/action', { method: 'POST', body: { action: 'timein', id: ticketId } })
+        .then(function(res) {
+            if (res.success) {
+                var S = window.ttTicketData && window.ttTicketData[ticketId];
+                if (S) {
+                    S.started_at = res.started_at || S.started_at;
+                    if (S.status === 'new') { S.status = 'in_progress'; }
+                }
+                showToast('Time In recorded — ' + (S && S.started_at ? ttFmtTime(S.started_at) : ''), 'success');
+                ttCacheReport(ticketId);
+                openTicketDrawer(ticketId); // re-render with the actual recorded time
+            } else {
+                showToast('Time In failed: ' + (res.error || 'unknown'), 'error');
+            }
+        }).catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+}
+
+// ---- Time Out: stamps the EXACT current server date + time (timeout.php) ----
+// Sends the checklist steps as the source of "Action Taken". On save, the
+// checklist enters an "approval pending" state until a supervisor approves it.
+function ticketTimeOut(ticketId) {
+    swalConfirm('Time Out?', "Time Out will be recorded with the exact current server date and time. The checked troubleshooting steps will be saved as Action Taken and will require approval before being visible to others.", function() {
+        ttCacheReport(ticketId);
+        var msgEl    = document.getElementById('to-' + ticketId + '-msg');
+        var resultEl = document.getElementById('rep-' + ticketId + '-result');
+        var recoEl   = document.getElementById('rep-' + ticketId + '-reco');
+        var result      = resultEl ? resultEl.value.trim() : '';
+        var reco        = recoEl ? recoEl.value.trim() : '';
+        // Action Taken = the checked checklist steps (the checklist IS the action log)
+        var S = window.ttTicketData && window.ttTicketData[ticketId];
+        var checkedSteps = (S && S.steps) ? S.steps.slice() : [];
+        var notesParts = [result, reco].filter(function(p) { return p; });
+        if (msgEl) msgEl.textContent = 'Saving…';
+        api('/api/tickets/timeout', { method: 'POST', body: {
+            ticket_id: ticketId,
+            resolution: checkedSteps.join('\n'),
+            resolution_type: 'completed',
+            notes: notesParts.join('\n'),
+            status: 'solved',
+            steps_performed: checkedSteps,
+            action_taken_manual: ttRepInput(ticketId, 'action') || ''
+        }}).then(function(res) {
+            if (msgEl) msgEl.textContent = '';
+            if (res.success) {
+                var S2 = window.ttTicketData && window.ttTicketData[ticketId];
+                if (S2) {
+                    var sess = res.session || {};
+                    S2.ended_at = res.ended_at || sess.ended_at || S2.ended_at;
+                    if (sess.time_spent_minutes !== undefined && sess.time_spent_minutes !== null) { S2.time_spent_minutes = sess.time_spent_minutes; }
+                    if (sess.resolution) { S2.resolution = sess.resolution; }
+                    if (sess.status) { S2.status = sess.status; }
+                    if (sess.steps_performed !== undefined) { S2.steps = sess.steps_performed || []; }
+                    S2.steps_approved = sess.steps_approved ? true : false;
+                    S2.steps_approved_by = sess.steps_approved_by || '';
+                }
+                showToast('Time Out recorded — checklist saved (pending approval).', 'success');
+                openTicketDrawer(ticketId);
+            } else {
+                showToast('Time Out failed: ' + (res.error || 'unknown'), 'error');
+            }
+        }).catch(function(err) {
+            if (msgEl) msgEl.textContent = '';
+            showToast('Error: ' + err.message, 'error');
+        });
+    });
+}
+
+// ---- Done: finalizes the ticket (after Time Out) ----
+function ticketDone(ticketId) {
+    swalConfirm('Mark as Done?', 'This ticket will be marked as solved and completed.', function() {
+        ttCacheReport(ticketId);
+        api('/api/tickets/action', { method: 'POST', body: { action: 'resolve', id: ticketId } })
+            .then(function(res) {
+                if (res.success) {
+                    var S = window.ttTicketData && window.ttTicketData[ticketId];
+                    if (S) { S.status = 'solved'; }
+                    showToast('Ticket marked as Done.', 'success');
+                    openTicketDrawer(ticketId);
+                } else {
+                    showToast('Done failed: ' + (res.error || 'unknown'), 'error');
+                }
+            }).catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+    });
+}
+
+// ---- Report generation (exact template for copy/paste reports) ----
+function ttRepInput(ticketId, key) {
+    var el = document.getElementById('rep-' + ticketId + '-' + key);
+    return el ? el.value.trim() : '';
+}
+
+// Date as MM/DD/YYYY (e.g. 09/19/2026)
+function ttFmtDate(dstr) {
+    if (!dstr) return '';
+    var d = new Date(String(dstr).replace(' ', 'T'));
+    if (isNaN(d.getTime())) return '';
+    return ('0' + (d.getMonth() + 1)).slice(-2) + '/' + ('0' + d.getDate()).slice(-2) + '/' + d.getFullYear();
+}
+
+// Time as h:mm AM/PM (e.g. 5:11 PM)
+function ttFmtTime(dstr) {
+    if (!dstr) return '';
+    var d = new Date(String(dstr).replace(' ', 'T'));
+    if (isNaN(d.getTime())) return '';
+    var h24 = d.getHours();
+    var h = h24 % 12; if (h === 0) h = 12;
+    return h + ':' + ('0' + d.getMinutes()).slice(-2) + ' ' + (h24 >= 12 ? 'PM' : 'AM');
+}
+
+// Shared report rows: single source of truth for the preview AND the copy text.
+// NULL Time In / Time Out render as "00" (visual placeholder for "not started").
+function ttReportRows(ticketId, S) {
+    // ACTION TAKEN = the checked troubleshooting steps (the checklist IS the action log).
+    // The manual textarea is only a fallback if no steps were checked.
+    var checkedSteps = (S.steps && S.steps.length) ? S.steps.slice() : [];
+    var manualAction = ttRepInput(ticketId, 'action') || '';
+    var action = '';
+    if (checkedSteps.length) {
+        action = checkedSteps.join('\n');
+    } else {
+        action = manualAction || S.resolution || '';
+    }
+    var result    = ttRepInput(ticketId, 'result');
+    var reco      = ttRepInput(ticketId, 'reco');
+    var confirmed = ttRepInput(ticketId, 'confirm') || S.customer_name || '';
+    var problem   = S.problem_description || S.task || S.title || '';
+    return [
+        ['Company Name',       S.company_name || ''],
+        ['Ticket#',            S.ticket_number || ('TK-' + (S.id || ticketId))],
+        ['SN',                 S.serial_number || ''],
+        ['Date',               ttFmtDate(S.created_at || S.started_at)],
+        ['Time In',            S.started_at ? ttFmtTime(S.started_at) : '00'],
+        ['Time Out',           S.ended_at ? ttFmtTime(S.ended_at) : '00'],
+        ['Problem/Task',       problem],
+        ['Action Taken',       action],
+        ['Result of Checking', result],
+        ['Recommendation',     reco],
+        ['Confirmed By',       confirmed]
+    ];
+}
+
 function ticketBuildReport(ticketId, session) {
-    // session is the full row from troubleshooting_sessions; fall back to DOM scraping if unavailable
-    var S = session || {};
-    var tid = S.id || ticketId;
-    var ticketNum = S.ticket_number || ('TK-' + tid);
-    var now = new Date();
-    var dateStr = S.started_at ? new Date(S.started_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-
-    // Pull from the DOM if not provided in session (covers partial sessions / in-progress)
-    var problemEl = document.getElementById('report-' + ticketId);
-    var titleEl = document.querySelector('.ticket-card-wrap[data-status]');
-    var fallbackCustomer = S.customer_name || 'You';
-    var fallbackDept = S.department || '';
-    var fallbackLocation = S.location || '';
-    var fallbackModel = S.model || '';
-    var fallbackMfr = S.manufacturer || '';
-    var fallbackSerial = S.serial_number || '';
-    var fallbackResolution = S.resolution || '';
-    var fallbackParts = S.parts_replaced || '';
-    var fallbackTools = S.tools_used || '';
-    var fallbackTestResults = S.steps_performed || '';
-    var fallbackTimeSpent = S.time_spent_minutes || null;
-    var fallbackEndTime = S.ended_at || '';
-    var fallbackStatus = S.status || 'in_progress';
-
-    // If DOM scraping is preferred, we can read from the time-out inputs; but the
-    // report should reflect what's in the DB. For an in-progress ticket we show a brief
-    // skeleton that the tech can copy and complete manually.
-    var modelLine = (fallbackMfr ? fallbackMfr + ' ' : '') + fallbackModel;
-    var endTimeStr = fallbackEndTime ? 'Time Out: ' + new Date(fallbackEndTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'Time Out: ';
-    var timeSpentStr = fallbackTimeSpent ? 'Spent: ' + fallbackTimeSpent + ' min' : '';
-
-    var lines = [];
-    lines.push('@ - Ticket ' + ticketNum);
-    lines.push('Company: ' + (fallbackCustomer ? fallbackCustomer : '—'));
-    lines.push('Issue: ' + (S.problem_description || S.title || '—'));
-    lines.push('Machine SN: ' + (fallbackSerial || '—'));
-    lines.push('Model: ' + (modelLine || '—'));
-    if (fallbackDept) lines.push('Dept: ' + fallbackDept);
-    if (fallbackLocation) lines.push('Location: ' + fallbackLocation);
-    lines.push('Date: ' + dateStr);
-    lines.push('Time In: ' + (S.started_at ? new Date(S.started_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'));
-    lines.push(endTimeStr);
-    if (timeSpentStr) lines.push(timeSpentStr);
-    lines.push('Action Taken: ' + (fallbackResolution || fallbackTestResults || '—'));
-    // Parts replaced shown only if present
-    if (fallbackParts) lines.push('Replaced: ' + fallbackParts);
-    // Tools only if present
-    if (fallbackTools) lines.push('Tools: ' + fallbackTools);
-    if (fallbackTestResults && fallbackTestResults !== fallbackResolution) lines.push('Notes: ' + fallbackTestResults);
-    lines.push('Result Of Checking: ' + (fallbackStatus === 'solved' ? 'Completed' : (fallbackStatus === 'partial' ? 'Partial' : 'Pending')));
-    lines.push('Recommendation: ' + (fallbackStatus === 'solved' ? 'Verified working' : (fallbackStatus === 'partial' ? 'Monitored — revisit tomorrow' : 'Follow up or escalate')));
-    lines.push('Confirmed By: ' + (fallbackCustomer || '—'));
-    return lines.join('\n');
+    var S = (window.ttTicketData && window.ttTicketData[ticketId]) || session || {};
+    return ttReportRows(ticketId, S).map(function(r) { return r[0] + ': ' + r[1]; }).join('\n');
 }
 
 function ticketRenderReport(ticketId, session) {
     var reportEl = document.getElementById('report-' + ticketId);
     if (!reportEl) return;
-    var text = ticketBuildReport(ticketId, session);
-    reportEl.textContent = text;
+    var S = (window.ttTicketData && window.ttTicketData[ticketId]) || session || {};
+    var html = '';
+    ttReportRows(ticketId, S).forEach(function(r) {
+        var label = r[0];
+        var value = String(r[1] == null ? '' : r[1]);
+        var muted = (value === '' || value === '00');
+        html += '<div style="display:flex;justify-content:space-between;gap:14px;padding:5px 0;border-bottom:1px solid #eef2f7;">'
+              + '<span style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;flex-shrink:0;padding-top:2px;">' + ttEsc(label) + '</span>'
+              + '<span style="font-size:12.5px;font-weight:600;color:' + (muted ? '#cbd5e1' : '#111827') + ';text-align:right;word-break:break-word;white-space:pre-wrap;">'
+              + ttEsc(value === '' ? '—' : value) + '</span></div>';
+    });
+    // Approval-pending indicator beneath Action Taken (checklist saved but not yet approved by a supervisor)
+    var steps = (S.steps && S.steps.length) ? S.steps : [];
+    if (steps.length && S.ended_at && !S.steps_approved) {
+        html += '<div style="margin-top:8px;padding:6px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:10.5px;color:#92400e;font-weight:600;text-align:center;">⏳ Checklist pending approval — visible to you; awaiting supervisor approval before visible to others.</div>';
+    }
+    reportEl.innerHTML = html;
 }
 
 function ticketCopyReport(ticketId) {
@@ -1541,13 +2130,13 @@ function ticketCopyReport(ticketId) {
         ta.style.opacity = '0';
         document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand('copy'); showToast('Report copied to clipboard!', 'success'); }
+        try { document.execCommand('copy'); showToast('✓ Report copied!', 'success'); }
         catch(e) { showToast('Copy failed — select and copy manually.', 'warning'); }
         document.body.removeChild(ta);
         return;
     }
     navigator.clipboard.writeText(text).then(function() {
-        showToast('Report copied to clipboard!', 'success');
+        showToast('✓ Report copied!', 'success');
     }).catch(function() {
         showToast('Clipboard blocked — select and copy manually.', 'warning');
     });
@@ -1649,25 +2238,8 @@ function wireNewTicketModal() {
     // date/time picker to wire up here.
 }
 
-// Auto-render reports for all tickets on page load.
-(function() {
-    function renderAllTicketReports() {
-        var cards = document.querySelectorAll('.ticket-card-wrap');
-        cards.forEach(function(card) {
-            var id = card.dataset.status;
-            var ticketId = card.querySelector('.timeout-card') ? card.querySelector('.timeout-card').id.match(/to-(\d+)-/)[1] : null;
-            // Find the ticket id from the report card or timeout card
-            var reportId = card.querySelector('.report-card') ? card.querySelector('.report-card').querySelector('div[id^="report-"]') : null;
-            var rid = reportId ? reportId.id.replace('report-', '') : null;
-            if (rid) ticketRenderReport(parseInt(rid, 10), null);
-        });
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', renderAllTicketReports);
-    } else {
-        renderAllTicketReports();
-    }
-})();
+// Ticket cards are rendered server-side; search / sort / filter run inline via
+// ticketApplyFilters(). Reports render inside the drawer (openTicketDrawer).
 
 // ==================== End New Ticket ==================== 
 

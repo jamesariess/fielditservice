@@ -154,14 +154,17 @@ try {
     $now       = date('Y-m-d H:i:s');
 
     $resolvedAt = null;
-    $endedAt    = null;          // time-in always opens a fresh session
+    $endedAt    = null;          // no time-out yet
     $resolution = '';
     $resolutionType = '';
     $partsReplaced = '';
     $toolsUsed = '';
     $timeSpentMinutes = null;
     $stepsPerformed = '';
-    $status = 'in_progress';    // a time-in means work has begun
+    // Creating a ticket is NOT a Time In. started_at stays NULL ("00" on screen)
+    // until the technician clicks "Start Time In" in the ticket drawer
+    // (which calls action.php with action=timein and stamps the server time).
+    $status = 'new';
 
     $problemDesc = $problem !== '' ? $problem : $title;
     if ($task !== '' && $task !== $problemDesc) { $problemDesc = $task . "\n" . $problemDesc; }
@@ -169,12 +172,10 @@ try {
         $problemDesc .= "\n" . $description;
     }
 
-    // Use the time the technician confirmed, when it is a valid timestamp.
-    $startedAt = $now;
-    if ($timeInInput !== '') {
-        $ts = strtotime($timeInInput);
-        if ($ts !== false && $ts > 0) { $startedAt = date('Y-m-d H:i:s', $ts); }
-    }
+    // Time In stays NULL until the technician clicks "Start Time In".
+    // The ticket creation timestamp lives in created_at (DB DEFAULT), which is a
+    // different thing from the actual work start.
+    $startedAt = null;
 
     $sessionId = Database::insert('troubleshooting_sessions', [
         'ticket_number'    => $ticketNum,

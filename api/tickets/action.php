@@ -42,6 +42,10 @@ if (!$demo) {
             case 'start':
                 $updates = ['status' => 'in_progress'];
                 break;
+            case 'timein':
+                // Time In: stamp started_at with today's date + the current time.
+                $updates = ['started_at' => date('Y-m-d H:i:s'), 'status' => 'in_progress'];
+                break;
             default:
                 json_response(['error' => 'Invalid action'], 400);
         }
@@ -55,7 +59,7 @@ if (!$demo) {
             $vals[] = $ticketId;
             $db->execute("UPDATE troubleshooting_sessions SET " . implode(', ', $sets) . " WHERE id = ?", $vals);
         }
-        json_response(['success' => true, 'action' => $action, 'ticket_id' => $ticketId]);
+        json_response(['success' => true, 'action' => $action, 'ticket_id' => $ticketId, 'time_in' => date('g:i A'), 'started_at' => date('Y-m-d H:i:s')]);
     } catch (Exception $e) {
         json_response(['error' => 'Database error: ' . $e->getMessage()], 500);
     }

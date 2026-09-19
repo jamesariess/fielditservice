@@ -33,6 +33,8 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
         [$ticketId, Auth::userId()]
     );
     if (!$session) { json_response(['error' => 'Ticket not found or not owned by you'], 404); exit; }
+    // Workflow guard: a technician cannot Time Out before recording Time In.
+    if (empty($session['started_at'])) { json_response(['error' => 'Record Time In before Time Out'], 400); exit; }
 }
 
 $endedAtRaw     = trim($input['ended_at'] ?? '');
@@ -55,6 +57,14 @@ $status         = trim($input['status'] ?? 'solved');     // solved | partial | 
 $latitude       = trim($input['latitude'] ?? '');
 $longitude      = trim($input['longitude'] ?? '');
 $address        = trim($input['address'] ?? '');
+
+// Checklist steps sent from the Time Out button (the checklist IS the action log).
+// These are stored in steps_performed as JSON and marked as pending approval.
+$checklistSteps = $input['steps_performed'] ?? [];
+if (!is_array($checklistSteps)) { $checklistSteps = []; }
+$checklistJson = json_encode(array_values(array_filter(array_map('trim', $checklistSteps), function($s) { return $s !== ''; })));
+$stepsApproved = 0;  // checklist saved but not yet approved by a supervisor
+$stepsApprovedBy = trim($input['steps_approved_by'] ?? '') ?: null;
 
 // ----- Company origin config (routing) -----
 // The tech can override this from the per-user settings page; here we fall back to a
@@ -174,7 +184,9 @@ try {
         'resolution_type'  => $resolutionType,
         'parts_replaced'   => $partsReplaced,
         'tools_used'       => $toolsUsed,
-        'steps_performed'  => $notesJson,
+        'steps_performed'  => strlen($checklistJson) > 2 ? $checklistJson : $notesJson,
+        'steps_approved'   => $stepsApproved,
+        'steps_approved_by'=> $stepsApprovedBy,
         'time_spent_minutes' => $timeSpentMinutes,
         'status'           => $status,
         // Persist where this job ended (next time-in starts from here).

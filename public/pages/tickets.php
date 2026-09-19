@@ -115,7 +115,7 @@ if (!$demo) {
              LEFT JOIN troubleshooting_issues i ON ts.issue_id = i.id
              LEFT JOIN troubleshooting_categories c ON i.category_id = c.id
              WHERE ts.user_id = ?
-             ORDER BY ts.started_at DESC",
+             ORDER BY ts.id DESC",
             [Auth::userId()]
         );
     } catch (Exception $e) {}
@@ -134,15 +134,15 @@ $total = count($tickets);
 $solved = 0; $inProgress = 0; $escalated = 0; $newCount = 0;
 foreach ($tickets as $t) {
     if ($t['status'] === 'solved' || $t['status'] === 'partial') $solved++;
-    elseif ($t['status'] === 'in_progress' || $t['status'] === 'new') $inProgress++;
+    elseif ($t['status'] === 'in_progress') $inProgress++;
     elseif ($t['status'] === 'escalated') $escalated++;
     else $newCount++;
 }
 ?>
 
 <div id="new-ticket-modal" class="modal-overlay" style="display:none;">
-    <div class="backdrop" onclick="closeModal('new-ticket-modal')" style="background:rgba(15,23,42,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);"></div>
-    <div id="new-ticket-panel" class="modal-panel" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:560px;background:#fff;border-radius:16px;z-index:10001;box-shadow:0 25px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto;">
+    <div class="backdrop" onclick="closeModal('new-ticket-modal')"></div>
+    <div id="new-ticket-panel" class="modal-panel" style="max-width:560px;background:#fff;border-radius:16px;z-index:10002;box-shadow:0 25px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto;">
         <div style="padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
             <h2 style="font-size:18px;font-weight:700;color:#111827;margin:0;">New Ticket</h2>
             <button onclick="closeModal('new-ticket-modal')" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;line-height:1;">&#10005;</button>
@@ -262,7 +262,7 @@ foreach ($tickets as $t) {
 
                 <div style="display:flex;gap:8px;justify-content:space-between;margin-top:6px;">
                     <button type="button" onclick="ticketStepBack()" class="btn btn-secondary">Back</button>
-                    <button type="button" id="tt-next-2" class="btn btn-primary">Start Session (Time In)</button>
+                    <button type="button" id="tt-next-2" class="btn btn-primary">Create Ticket</button>
                 </div>
             </div>
         </div>
@@ -276,7 +276,7 @@ foreach ($tickets as $t) {
                 <div class="page-hero-ico blue"><i data-lucide="ticket"></i></div>
                 <div>
                     <h1 class="page-hero-title">My Tickets</h1>
-                    <p class="page-hero-sub">Manage your troubleshooting sessions and view ticket history</p>
+                    <p class="page-hero-sub">Manage your field IT tickets and troubleshooting requests</p>
                 </div>
             </div>
         </div>
@@ -284,18 +284,57 @@ foreach ($tickets as $t) {
             <button onclick="openNewTicketModal()" class="btn btn-primary"><i data-lucide="plus" style="width:16px;height:16px;"></i> New Ticket</button>
         </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
-        <div class="card"><div class="card-body" style="text-align:center;"><div style="font-size:28px;font-weight:800;color:#2563eb;"><?= $total ?></div><div style="font-size:12px;color:#64748b;">Total Tickets</div></div></div>
-        <div class="card"><div class="card-body" style="text-align:center;"><div style="font-size:28px;font-weight:800;color:#16a34a;"><?= $solved ?></div><div style="font-size:12px;color:#64748b;">Solved</div></div></div>
-        <div class="card"><div class="card-body" style="text-align:center;"><div style="font-size:28px;font-weight:800;color:#d97706;"><?= $inProgress ?></div><div style="font-size:12px;color:#64748b;">In Progress</div></div></div>
-        <div class="card"><div class="card-body" style="text-align:center;"><div style="font-size:28px;font-weight:800;color:#dc2626;"><?= $escalated ?></div><div style="font-size:12px;color:#64748b;">Escalated</div></div></div>
+    <div class="ft-stats">
+        <div class="card"><div class="card-body" style="text-align:center;padding:14px 10px;">
+            <div class="ft-stat-ico" style="background:#eff6ff;"><i data-lucide="ticket" style="color:#2563eb;"></i></div>
+            <div class="ft-stat-num" style="color:#2563eb;"><?= $total ?></div>
+            <div class="ft-stat-lbl">Total Tickets</div>
+            <span class="ft-dot" style="background:#2563eb;"></span>
+        </div></div>
+        <div class="card"><div class="card-body" style="text-align:center;padding:14px 10px;">
+            <div class="ft-stat-ico" style="background:#fffbeb;"><i data-lucide="plus-circle" style="color:#d97706;"></i></div>
+            <div class="ft-stat-num" style="color:#d97706;"><?= $newCount ?></div>
+            <div class="ft-stat-lbl">New</div>
+            <span class="ft-dot" style="background:#d97706;"></span>
+        </div></div>
+        <div class="card"><div class="card-body" style="text-align:center;padding:14px 10px;">
+            <div class="ft-stat-ico" style="background:#eff6ff;"><i data-lucide="loader" style="color:#2563eb;"></i></div>
+            <div class="ft-stat-num" style="color:#2563eb;"><?= $inProgress ?></div>
+            <div class="ft-stat-lbl">In Progress</div>
+            <span class="ft-dot" style="background:#2563eb;"></span>
+        </div></div>
+        <div class="card"><div class="card-body" style="text-align:center;padding:14px 10px;">
+            <div class="ft-stat-ico" style="background:#f0fdf4;"><i data-lucide="check-circle" style="color:#16a34a;"></i></div>
+            <div class="ft-stat-num" style="color:#16a34a;"><?= $solved ?></div>
+            <div class="ft-stat-lbl">Solved</div>
+            <span class="ft-dot" style="background:#16a34a;"></span>
+        </div></div>
+        <div class="card"><div class="card-body" style="text-align:center;padding:14px 10px;">
+            <div class="ft-stat-ico" style="background:#fef2f2;"><i data-lucide="alert-triangle" style="color:#dc2626;"></i></div>
+            <div class="ft-stat-num" style="color:#dc2626;"><?= $escalated ?></div>
+            <div class="ft-stat-lbl">Escalated</div>
+            <span class="ft-dot" style="background:#dc2626;"></span>
+        </div></div>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-        <button onclick="ticketFilter('all')" class="btn btn-sm filter-btn active" data-filter="all">All (<?= $total ?>)</button>
-        <button onclick="ticketFilter('in_progress')" class="btn btn-sm btn-secondary filter-btn" data-filter="in_progress">In Progress</button>
-        <button onclick="ticketFilter('solved')" class="btn btn-sm btn-secondary filter-btn" data-filter="solved">Solved</button>
-        <button onclick="ticketFilter('escalated')" class="btn btn-sm btn-secondary filter-btn" data-filter="escalated">Escalated</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button onclick="ticketFilter('all')" class="btn btn-sm filter-btn active" data-filter="all">All (<?= $total ?>)</button>
+            <button onclick="ticketFilter('new')" class="btn btn-sm btn-secondary filter-btn" data-filter="new">New (<?= $newCount ?>)</button>
+            <button onclick="ticketFilter('in_progress')" class="btn btn-sm btn-secondary filter-btn" data-filter="in_progress">In Progress (<?= $inProgress ?>)</button>
+            <button onclick="ticketFilter('solved')" class="btn btn-sm btn-secondary filter-btn" data-filter="solved">Solved (<?= $solved ?>)</button>
+            <button onclick="ticketFilter('escalated')" class="btn btn-sm btn-secondary filter-btn" data-filter="escalated">Escalated (<?= $escalated ?>)</button>
+        </div>
+        <div style="flex:1;min-width:220px;position:relative;">
+            <i data-lucide="search" class="ft-search-ico"></i>
+            <input id="ticket-search" oninput="ticketApplyFilters()" placeholder="Search company, ticket #, serial, device, problem..." class="form-input" style="width:100%;padding:8px 12px 8px 32px;font-size:13px;border-radius:10px;">
+        </div>
+        <select id="ticket-sort" onchange="ticketApplyFilters()" class="form-input" style="width:auto;padding:8px 12px;font-size:13px;border-radius:10px;color:#374151;">
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="updated">Recently Updated</option>
+        </select>
     </div>
+    <div class="tickets-grid" id="tickets-grid">
     <?php foreach ($tickets as $t):
         $ticketId      = $t['id'];
         $ticketNum     = $t['ticket_number'] ?? ('TK-' . $t['id']);
@@ -313,6 +352,7 @@ foreach ($tickets as $t) {
         $ticketNote    = $t['notes'] ?? '';
         $deviceTypeVal = $t['device_type'] ?? '';
         $startTime     = $t['started_at'] ?? '';
+        $createdAt     = $t['created_at'] ?? $startTime;
         $endTime       = $t['ended_at'] ?? '';
         $resolution    = $t['resolution'] ?? '';
         $resolutionType= $t['resolution_type'] ?? '';
@@ -344,145 +384,305 @@ foreach ($tickets as $t) {
         $hasEndTime = $endTime && $status !== 'new' && $status !== 'in_progress';
         $isOpenSession = ($status === 'in_progress' || $status === 'new') && $startTime && !$endTime;
     ?>
-    <div class="ticket-card-wrap" data-status="<?= e($status) ?>" style="margin-bottom:14px;">
-        <div class="card ticket-card" style="padding:0;overflow:hidden;">
-            <div class="card-body" style="padding:16px 20px;">
-                <!-- Top: identity row -->
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-                    <div style="flex:1;min-width:0;">
-                        <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
-                            <span style="font-size:12px;color:#64748b;font-weight:700;"><?= e($ticketNum) ?></span>
-                            <span class="badge" style="background:<?= $statusBg ?>;color:<?= $statusColor ?>;"><?= e(ucwords(str_replace('_',' ',$status))) ?></span>
-                            <span class="badge" style="background:<?= $priorityColor ?>18;color:<?= $priorityColor ?>;"><?= e(ucfirst($priority)) ?></span>
-                            <?php if ($serial): ?>
-                                <span class="badge badge-gray">SN: <?= e($serial) ?></span>
-                            <?php endif; ?>
-                            <?php if ($companyName): ?>
-                                <span class="badge" style="background:#f5f3ff;color:#6d28d9;"><?= e($companyName) ?></span>
-                            <?php endif; ?>
-                            <?php if ($deviceTypeVal): ?>
-                                <span class="badge badge-blue"><?= e($deviceTypeVal) ?></span>
-                            <?php endif; ?>
-                        </div>
-                        <h3 style="font-size:15px;font-weight:700;color:#111827;margin-bottom:4px;line-height:1.4;"><?= e($title) ?></h3>
-                        <?php if ($taskText): ?>
-                            <div style="font-size:12px;color:#475569;margin-bottom:6px;display:flex;gap:6px;align-items:flex-start;">
-                                <i data-lucide="clipboard-check" style="width:13px;height:13px;color:#94a3b8;vertical-align:-2px;flex-shrink:0;margin-top:2px;"></i>
-                                <span><strong style="color:#64748b;">Task:</strong> <?= e($taskText) ?></span>
-                            </div>
-                        <?php endif; ?>
-                        <?php if ($ticketNote): ?>
-                            <div style="font-size:12px;color:#475569;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin-bottom:8px;display:flex;gap:6px;align-items:flex-start;">
-                                <i data-lucide="sticky-note" style="width:13px;height:13px;color:#d97706;vertical-align:-2px;flex-shrink:0;margin-top:2px;"></i>
-                                <span><?= e($ticketNote) ?></span>
-                            </div>
-                        <?php endif; ?>
-                        <div style="display:flex;gap:14px;font-size:12px;color:#64748b;flex-wrap:wrap;">
-                            <?php if ($deviceLine): ?>
-                                <span><i data-lucide="cpu" style="width:13px;height:13px;color:#94a3b8;vertical-align:-2px;"></i> <?= e($deviceLine) ?></span>
-                            <?php endif; ?>
-                            <?php if ($department): ?>
-                                <span><i data-lucide="building" style="width:13px;height:13px;color:#94a3b8;vertical-align:-2px;"></i> <?= e($department) ?></span>
-                            <?php endif; ?>
-                            <?php if ($location): ?>
-                                <span><i data-lucide="map-pin" style="width:13px;height:13px;color:#94a3b8;vertical-align:-2px;"></i> <?= e($location) ?></span>
-                            <?php endif; ?>
-                            <span><i data-lucide="user" style="width:13px;height:13px;color:#94a3b8;vertical-align:-2px;"></i> <?= e($assignee) ?></span>
-                            <?php if ($startTime): ?>
-                                <span><i data-lucide="clock" style="width:13px;height:13px;color:#94a3b8;vertical-align:-2px;"></i> In: <?= date('m/d g:iA', strtotime($startTime)) ?></span>
-                            <?php endif; ?>
-                            <?php if ($hasEndTime): ?>
-                                <span><i data-lucide="clock" style="width:13px;height:13px;color:#94a3b8;vertical-align:-2px;"></i> Out: <?= date('m/d g:iA', strtotime($endTime)) ?></span>
-                            <?php endif; ?>
-                            <?php if ($timeSpent): ?>
-                                <span><i data-lucide="timer" style="width:13px;height:13px;color:#94a3b8;vertical-align:-2px;"></i> <?= $timeSpent ?> min</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <div style="text-align:right;flex-shrink:0;">
-                        <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;"><?= $timeAgo ?></div>
-                        <?php if ($status === 'solved'): ?>
-                            <span style="color:#16a34a;font-size:13px;font-weight:600;">&#10004; Resolved</span>
-                        <?php elseif ($status === 'escalated'): ?>
-                            <span style="color:#dc2626;font-size:12px;font-weight:600;">&#9888; Escalated</span>
-                        <?php elseif ($status === 'in_progress'): ?>
-                            <span style="color:#2563eb;font-size:12px;font-weight:600;">&#9679; In Progress</span>
-                        <?php else: ?>
-                            <button onclick="ticketTroubleshoot(<?= $ticketId ?>, '<?= e($t['issue_slug'] ?? 'no-display') ?>')" class="btn btn-primary btn-sm" style="font-size:12px;padding:5px 10px;"><i data-lucide="stethoscope" style="width:13px;height:13px;"></i> Troubleshoot</button>
-                        <?php endif; ?>
-                    </div>
+    <?php
+    // ---- Derived card values (sections are rendered ONLY when the data exists) ----
+    $createdTs  = $createdAt ? strtotime($createdAt) : 0;
+    $updatedTs  = max($createdTs, $endTime ? strtotime($endTime) : 0);
+    $deviceName = trim(trim((string)$manufacturer) . ' ' . trim((string)$model));
+    $issueText  = $problem ?: ($taskText ?: $title);
+    $stepsCount = 0; $stepsList = [];
+    if ($notes && is_string($notes)) {
+        $decodedSteps = json_decode($notes, true);
+        if (is_array($decodedSteps)) { $stepsList = $decodedSteps; $stepsCount = count($decodedSteps); }
+        elseif (is_string($decodedSteps) && $decodedSteps !== '') { $stepsList = [$decodedSteps]; $stepsCount = 1; }
+    }
+    $issueLong  = mb_strlen($issueText) > 110;
+    $searchBlob = mb_strtolower($ticketNum . ' ' . $companyName . ' ' . $customerName . ' ' . $serial . ' ' . $deviceName . ' ' . $deviceTypeVal . ' ' . $issueText . ' ' . $taskText);
+    // Full ticket data for the drawer (real DB fields only — nothing invented)
+    $reportData = [
+        'id'                  => (int)$ticketId,
+        'issue_id'            => (int)($t['issue_id'] ?? 0),
+        'ticket_number'       => $ticketNum,
+        'company_name'        => $companyName,
+        'customer_name'       => $customerName,
+        'serial_number'       => $serial,
+        'device_type'         => $deviceTypeVal,
+        'model'               => $model,
+        'manufacturer'        => $manufacturer,
+        'problem_description' => $problem,
+        'task'                => $taskText,
+        'title'               => $title,
+        'started_at'          => $startTime,
+        'created_at'          => $createdAt,
+        'ended_at'            => $endTime,
+        'resolution'          => $resolution,
+        'status'              => $status,
+        'priority'            => $priority,
+        'location'            => $location,
+        'address'             => $address,
+        'steps'               => $stepsList,
+        'parts_replaced'      => $partsReplaced,
+        'tools_used'          => $toolsUsed,
+        'time_spent_minutes'  => $timeSpent,
+    ];
+    ?>
+    <script>window.ttTicketData = window.ttTicketData || {}; window.ttTicketData[<?= (int)$ticketId ?>] = <?= json_encode($reportData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;</script>
+    <article class="card ft-ticket-card" data-id="<?= (int)$ticketId ?>" data-status="<?= e($status) ?>" data-created="<?= $createdTs ?>" data-updated="<?= $updatedTs ?>" data-search="<?= e($searchBlob) ?>">
+        <!-- Header: company + ticket # | status -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;min-width:0;">
+                <div class="ft-co-ico"><i data-lucide="building-2"></i></div>
+                <div style="min-width:0;">
+                    <div class="ft-company"><?= $companyName !== '' ? e($companyName) : 'Company not specified' ?></div>
+                    <div class="ft-tnum">Ticket #<?= e($ticketNum) ?></div>
                 </div>
+            </div>
+            <span class="badge" style="background:<?= $statusBg ?>;color:<?= $statusColor ?>;flex-shrink:0;"><?= e(ucwords(str_replace('_',' ',$status))) ?></span>
+        </div>
+        <!-- Device information (only fields that actually exist) -->
+        <?php if ($deviceName || $serial || $deviceTypeVal): ?>
+        <div class="ft-section">
+            <?php if ($deviceName): ?>
+                <div class="ft-label">Device</div>
+                <div class="ft-value"><?= e($deviceName) ?></div>
+            <?php endif; ?>
+            <?php if ($deviceTypeVal): ?>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;"><?= e($deviceTypeVal) ?></div>
+            <?php endif; ?>
+            <?php if ($serial): ?>
+                <div class="ft-label" style="margin-top:10px;">Serial Number</div>
+                <div class="ft-value"><?= e($serial) ?></div>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+        <div class="ft-divider"></div>
+        <!-- Issue / Task -->
+        <div class="ft-section" style="margin-top:0;">
+            <div class="ft-label">Issue / Task</div>
+            <div class="ft-value ft-issue<?= $issueLong ? ' ft-clamped' : '' ?>" id="issue-<?= (int)$ticketId ?>"><?= e($issueText) ?></div>
+            <?php if ($issueLong): ?>
+                <button type="button" class="ft-more" onclick="ticketToggleIssue(<?= (int)$ticketId ?>, this)">View more</button>
+            <?php endif; ?>
+        </div>
+        <?php if ($status === 'in_progress' && $stepsCount > 0): ?>
+            <div class="ft-progress"><i data-lucide="list-checks"></i> <?= (int)$stepsCount ?> troubleshooting step<?= $stepsCount > 1 ? 's' : '' ?> logged</div>
+        <?php endif; ?>
+        <?php if ($status === 'solved' && $resolution): ?>
+            <div class="ft-section" style="margin-top:12px;">
+                <div class="ft-label">Resolution</div>
+                <div class="ft-value ft-clamp2"><?= e($resolution) ?></div>
+            </div>
+        <?php endif; ?>
+        <div class="ft-spacer"></div>
+        <!-- Footer: created date + next action -->
+        <div class="ft-footer">
+            <div>
+                <div class="ft-label">Created</div>
+                <div class="ft-value"><?= $createdAt ? date('m/d/Y', $createdTs) : '—' ?></div>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="openTicketDrawer(<?= (int)$ticketId ?>)">
+                <?php
+                if ($status === 'new') { echo 'Open Ticket'; }
+                elseif ($status === 'in_progress') { echo 'Continue Troubleshooting'; }
+                elseif ($status === 'solved') { echo 'View Report'; }
+                else { echo 'View Ticket'; }
+                ?>
+            </button>
+        </div>
 
-                <!-- Action cards row: Time Out + Report -->
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;">
-
-                    <!-- TIME OUT CARD (only when session is open) -->
-                    <?php if ($isOpenSession): ?>
-                    <div class="action-card timeout-card" style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 14px;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                            <div style="width:30px;height:30px;border-radius:8px;background:#fff7ed;display:flex;align-items:center;justify-content:center;"><i data-lucide="timer-off" style="width:15px;height:15px;color:#d97706;"></i></div>
-                            <div style="font-size:13px;font-weight:700;color:#92400e;">Time Out</div>
-                        </div>
-                        <p style="font-size:11.5px;color:#78350f;line-height:1.5;margin:0 0 10px;">You started this ticket. Log the finish details below.</p>
-                        <div style="display:flex;flex-direction:column;gap:6px;">
-                            <div><input id="to-<?= $ticketId ?>-time" type="time" value="<?= date('H:i') ?>" style="border:1px solid #fde68a;border-radius:6px;padding:6px 8px;font-size:12px;width:100%;background:#fff;"></div>
-                            <div><input id="to-<?= $ticketId ?>-resolution" placeholder="Result, e.g. Replaced camera & mic. All passed." class="form-input dark-input" style="border:1px solid #fde68a;border-radius:6px;padding:6px 8px;font-size:12px;resize:vertical;background:#fff;" rows="2"></div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                                <div><input id="to-<?= $ticketId ?>-parts" placeholder="Parts (e.g. Camera, Mic)" class="form-input dark-input" style="border:1px solid #fde68a;border-radius:6px;padding:6px 8px;font-size:12px;background:#fff;"></div>
-                                <div><input id="to-<?= $ticketId ?>-tools" placeholder="Tools used" class="form-input dark-input" style="border:1px solid #fde68a;border-radius:6px;padding:6px 8px;font-size:12px;background:#fff;"></div>
-                            </div>
-                            <div><input id="to-<?= $ticketId ?>-addr" placeholder="Destination address (for routing)" class="form-input dark-input" style="border:1px solid #fde68a;border-radius:6px;padding:6px 8px;font-size:12px;background:#fff;"></div>
-                        </div>
-                        <div style="display:flex;gap:6px;margin-top:10px;">
-                            <button onclick="ticketTimeOut(<?= $ticketId ?>)" class="btn btn-warning btn-sm" style="font-size:11.5px;padding:6px 10px;flex:1;"><i data-lucide="timer-off" style="width:12px;height:12px;"></i> Time Out &amp; Save</button>
-                            <button onclick="ticketCloseWithoutSave(<?= $ticketId ?>)" class="btn btn-sm btn-secondary" style="font-size:11.5px;padding:6px 10px;">Cancel</button>
-                        </div>
-                        <div id="to-<?= $ticketId ?>-msg" style="font-size:11px;margin-top:6px;min-height:16px;"></div>
-                    </div>
-                    <?php endif; ?>
-
-                    <!-- ROUTE CARD (shown after a time-out so the tech can drive to the next job) -->
-                    <?php if ($endTime && $status === 'solved'): ?>
-                    <div class="action-card route-card" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 14px;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                            <div style="width:30px;height:30px;border-radius:8px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;"><i data-lucide="map" style="width:15px;height:15px;color:#16a34a;"></i></div>
-                            <div style="font-size:13px;font-weight:700;color:#166534;">Next Stop</div>
-                        </div>
-                        <div id="route-<?= $ticketId ?>" style="font-size:12px;color:#15803d;line-height:1.5;">
-                            <?php if (!empty($t['last_route_end_addr'])): ?>
-                                <div style="color:#475569;font-size:11px;margin-bottom:4px;">From: <?= e($t['last_route_end_addr']) ?></div>
-                            <?php endif; ?>
-                            <?php if (!empty($t['next_route_addr'])): ?>
-                                <div style="font-weight:600;margin-bottom:2px;">Go to: <?= e($nextRouteAddr) ?></div>
-                                <div style="color:#475569;font-size:11px;">Ticket <?= e($nextRouteTicket) ?></div>
-                            <?php else: ?>
-                                <div style="color:#475569;">Routing will appear once you log your next time-out and set its destination.</div>
-                            <?php endif; ?>
-                        </div>
-                        <div style="margin-top:8px;">
-                            <button onclick="ticketRouteToNext(<?= $ticketId ?>)" class="btn btn-sm btn-success" style="font-size:11.5px;padding:6px 10px;flex:1;"><i data-lucide="navigation" style="width:12px;height:12px;"></i> Open Route Map</button>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-
-                    <!-- REPORT CARD (always visible, even on open sessions for in-progress copy) -->
-                    <div class="action-card report-card" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                            <div style="width:30px;height:30px;border-radius:8px;background:#eff6ff;display:flex;align-items:center;justify-content:center;"><i data-lucide="file-text" style="width:15px;height:15px;color:#2563eb;"></i></div>
-                            <div style="font-size:13px;font-weight:700;color:#1e40af;">Report</div>
-                        </div>
-                        <div id="report-<?= $ticketId ?>" style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:11.5px;color:#374151;line-height:1.6;white-space:pre-wrap;max-height:120px;overflow-y:auto;word-break:break-word;"></div>
-                        <div style="display:flex;gap:6px;margin-top:8px;">
-                            <button onclick="ticketCopyReport(<?= $ticketId ?>)" class="btn btn-sm btn-secondary" style="font-size:11.5px;padding:5px 10px;flex:1;"><i data-lucide="copy" style="width:12px;height:12px;"></i> Copy</button>
-                            <button onclick="ticketRegenReport(<?= $ticketId ?>)" class="btn btn-sm btn-ghost" style="font-size:11.5px;padding:5px 10px;color:#94a3b8;">&#8635; Refresh</button>
-                        </div>
-</div>
+    <!-- Ticket card: on-site checklist + quick field-guide access (only when this ticket has an issue) -->
+    <?php if (!empty($issueId)): ?>
+    <?php
+        // Pull the real guide bits for this issue (tools, videos, tips) server-side so the
+        // card can show them immediately without a separate JS fetch.
+        $cardGuide = ['tools'=>[], 'videos'=>[], 'tips'=>[], 'step_count'=>0, 'estimated_time'=>''];
+        if (!empty($issueId)) {
+            try {
+                $issueRow = Database::fetch(
+                    "SELECT i.tools_needed, i.safety_warnings, i.estimated_time
+                     FROM troubleshooting_issues i WHERE i.id = ?",
+                    [$issueId]
+                );
+                if ($issueRow) {
+                    $cardGuide['estimated_time'] = (string)($issueRow['estimated_time'] ?? '');
+                    $t = json_decode((string)($issueRow['tools_needed'] ?? ''), true);
+                    if (is_array($t)) { foreach ($t as $x) { $x = trim((string)$x); if ($x !== '') $cardGuide['tools'][] = $x; } }
+                    elseif (trim((string)($issueRow['tools_needed'] ?? '')) !== '') {
+                        foreach (preg_split('/[,;\r\n]+/', (string)$issueRow['tools_needed']) as $x) {
+                            $x = trim($x); if ($x !== '') $cardGuide['tools'][] = $x;
+                        }
+                    }
+                    $w = json_decode((string)($issueRow['safety_warnings'] ?? ''), true);
+                    if (is_array($w)) { foreach ($w as $x) { $x = trim((string)$x); if ($x !== '' && stripos($x,'none') !== 0) $cardGuide['tips'][] = $x; } }
+                }
+                $stepRows = Database::fetchAll(
+                    "SELECT step_number, title, risk_level, media_url FROM troubleshooting_steps WHERE issue_id = ? ORDER BY step_number ASC",
+                    [$issueId]
+                ) ?: [];
+                foreach ($stepRows as $sr) {
+                    $cardGuide['step_count'] = (int)$cardGuide['step_count'] + 1;
+                    $cardGuide['videos'][] = [
+                        'label' => 'Step ' . $sr['step_number'] . ' — ' . (string)$sr['title'],
+                        'url'   => (string)($sr['media_url'] ?? ''),
+                    ];
+                }
+            } catch (Exception $e) {}
+        }
+        // Merge model-level service manual + known tools into the same list.
+        if (!empty($modelName) && !empty($manufacturer)) {
+            try {
+                $dm = Database::fetch(
+                    "SELECT dm.service_manual_url, dm.required_tools, dm.known_issues
+                     FROM device_models dm
+                     LEFT JOIN manufacturers m ON dm.manufacturer_id = m.id
+                     WHERE dm.name = ? AND m.name = ?
+                     LIMIT 1",
+                    [$modelName, $manufacturer]
+                );
+                if ($dm) {
+                    if (!empty($dm['service_manual_url'])) {
+                        $cardGuide['videos'][] = ['label' => 'Service manual — ' . $modelName, 'url' => (string)$dm['service_manual_url']];
+                    }
+                    $rawTools = (string)($dm['required_tools'] ?? '');
+                    $t = json_decode($rawTools, true);
+                    if (!is_array($t) && trim($rawTools) !== '') { $t = preg_split('/[,;\r\n]+/', $rawTools); }
+                    if (is_array($t)) { foreach ($t as $x) { $x = trim((string)$x); if ($x !== '' && !in_array($x, $cardGuide['tools'], true)) $cardGuide['tools'][] = $x; } }
+                    foreach (preg_split('/\\r?\\n/', (string)($dm['known_issues'] ?? '')) as $k) {
+                        $k = trim($k);
+                        if ($k !== '' && !in_array($k, $cardGuide['tips'], true)) $cardGuide['tips'][] = $k;
+                    }
+                }
+            } catch (Exception $e) {}
+        }
+        $cardGuideJson = json_encode($cardGuide);
+    ?>
+    <div class="ft-card-guide" id="fcg-<?= (int)$ticketId ?>">
+        <!-- Collapsible on-site checklist -->
+        <div class="ft-card-guide-section">
+            <button type="button" class="ft-card-guide-toggle" id="fcgt-<?= (int)$ticketId ?>" onclick="ttCardGuideToggle(<?= (int)$ticketId ?>, this)">
+                <i data-lucide="check-square" class="ft-card-guide-toggle-icon" style="width:13px;height:13px;"></i>
+                <span class="ft-card-guide-toggle-label">Steps done</span>
+                <span class="ft-card-guide-toggle-count" id="ftgc-<?= (int)$ticketId ?>">0</span>
+                <i data-lucide="chevron-down" class="ft-card-guide-toggle-chevron" style="width:12px;height:12px;"></i>
+            </button>
+            <div class="ft-card-guide-body" id="fcgb-<?= (int)$ticketId ?>" style="display:none;">
+                <div class="ft-card-guide-suggest" id="fcgs-<?= (int)$ticketId ?>"></div>
+                <div class="ft-card-guide-done" id="fcgd-<?= (int)$ticketId ?>"></div>
+                <div class="ft-card-guide-add">
+                    <input id="fcga-<?= (int)$ticketId ?>" class="form-input" placeholder="Add what you did on site..." style="font-size:12px;padding:6px 9px;border-radius:8px;">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="ttCardGuideAdd(<?= (int)$ticketId ?>)" style="padding:4px 10px;font-size:11px;">Add</button>
                 </div>
             </div>
         </div>
+        <!-- Quick access: tools, manual, videos, tips -->
+        <?php if (!empty($cardGuide['tools']) || !empty($cardGuide['videos']) || !empty($cardGuide['tips'])): ?>
+        <button type="button" class="ft-card-guide-quick" id="fcgq-<?= (int)$ticketId ?>" onclick="ttCardGuideQuickOpen(<?= (int)$ticketId ?>, <?= $cardGuideJson ?>, this)">
+            <i data-lucide="book-open" style="width:12px;height:12px;"></i>
+            Guides &amp; Tools
+        </button>
+        <?php endif; ?>
     </div>
+    <?php endif; ?>
+    </article>
     <?php endforeach; ?>
+    </div><!-- /.tickets-grid -->
+    <?php if (empty($tickets)): ?>
+    <div class="card" style="text-align:center;padding:48px 24px;border-radius:16px;">
+        <div style="width:56px;height:56px;border-radius:14px;background:#eff6ff;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;"><i data-lucide="inbox" style="width:24px;height:24px;color:#2563eb;"></i></div>
+        <div style="font-size:16px;font-weight:700;color:#111827;">No tickets yet</div>
+        <p style="font-size:13px;color:#64748b;margin:6px 0 16px;">Create your first Field IT ticket to start tracking your service requests.</p>
+        <button onclick="openNewTicketModal()" class="btn btn-primary"><i data-lucide="plus" style="width:14px;height:14px;"></i> New Ticket</button>
+    </div>
+    <?php endif; ?>
 </div>
+
+<!-- Ticket drawer (View Ticket) — sections appear only when the data exists -->
+<div id="ticket-drawer-overlay" onclick="closeTicketDrawer()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:90;"></div>
+<aside id="ticket-drawer" style="display:none;position:fixed;top:0;right:0;bottom:0;width:min(1000px,96vw);background:#fff;z-index:95;box-shadow:-16px 0 48px rgba(15,23,42,.18);overflow-y:auto;">
+    <div id="ticket-drawer-body" style="padding:22px 26px;"></div>
+</aside>
+
+<style>
+/* ===== My Tickets: summary stats ===== */
+.ft-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+.ft-stat-ico { width:30px; height:30px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; margin-bottom:6px; }
+.ft-stat-ico svg { width:15px; height:15px; }
+.ft-stat-num { font-size:24px; font-weight:800; line-height:1.2; }
+.ft-stat-lbl { font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+.ft-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-top:6px; }
+
+/* ===== Ticket cards ===== */
+.tickets-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:16px; align-items:stretch; }
+@media (max-width:760px) { .tickets-grid { grid-template-columns:1fr; } }
+.ft-ticket-card { display:flex; flex-direction:column; border-radius:16px; padding:22px 24px; border:1px solid #e5e7eb; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.ft-ticket-card:hover { transform:translateY(-3px); box-shadow:0 10px 28px rgba(15,23,42,.10); border-color:#cbd5e1; }
+.dark .ft-ticket-card { background:#0f172a; border-color:#1e293b; }
+.ft-co-ico { width:38px; height:38px; border-radius:10px; background:#eff6ff; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ft-co-ico svg { width:18px; height:18px; color:#2563eb; }
+.dark .ft-co-ico { background:#1e293b; }
+.dark .ft-co-ico svg { color:#60a5fa; }
+.ft-company { font-size:16px; font-weight:700; color:#111827; line-height:1.3; }
+.dark .ft-company { color:#f1f5f9; }
+.ft-tnum { font-size:12px; color:#64748b; font-weight:600; margin-top:2px; }
+.ft-label { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.6px; }
+.ft-value { font-size:13px; font-weight:600; color:#111827; line-height:1.5; word-break:break-word; margin-top:2px; }
+.dark .ft-value { color:#e2e8f0; }
+.ft-section { margin-top:14px; }
+.ft-divider { height:1px; background:#e5e7eb; margin:16px 0; }
+.dark .ft-divider { background:#1e293b; }
+.ft-issue { font-size:13.5px; }
+.ft-clamped { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.ft-clamp2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.ft-more { background:none; border:none; color:#2563eb; font-size:12px; font-weight:600; cursor:pointer; padding:4px 0 0; text-align:left; }
+.ft-progress { display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:11.5px; font-weight:600; color:#2563eb; background:#eff6ff; border-radius:999px; padding:5px 10px; align-self:flex-start; }
+.ft-progress svg { width:12px; height:12px; }
+.dark .ft-progress { background:#1e293b; }
+.ft-spacer { flex:1 1 auto; min-height:16px; }
+.ft-footer { display:flex; justify-content:space-between; align-items:flex-end; gap:10px; }
+.ft-search-ico { position:absolute; left:10px; top:50%; transform:translateY(-50%); width:14px; height:14px; color:#94a3b8; pointer-events:none; }
+
+/* ===== Drawer ===== */
+.ftd-section { margin-top:16px; }
+.ftd-title { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px; }
+.ftd-row { display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-size:12.5px; }
+.ftd-lbl { color:#64748b; font-weight:600; flex-shrink:0; }
+.ftd-val { color:#111827; font-weight:600; text-align:right; word-break:break-word; }
+.dark #ticket-drawer { background:#0f172a; }
+.dark .ftd-val { color:#e2e8f0; }
+.dark .ftd-row { border-color:#1e293b; }
+
+/* ===== Drawer: service-report layout ===== */
+.ftd-grid { display:grid; grid-template-columns:1fr 1.15fr; gap:0 24px; align-items:start; margin-top:6px; }
+@media (max-width:900px) { .ftd-grid { grid-template-columns:1fr; } }
+.ftd-timebox { background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; }
+.dark .ftd-timebox { background:#0f172a; border-color:#1e293b; }
+.ftd-time { font-size:18px; font-weight:800; color:#111827; margin-top:2px; }
+.dark .ftd-time { color:#f1f5f9; }
+.ftd-zero { color:#cbd5e1; }
+.ftd-subdate { font-size:11px; color:#94a3b8; margin-top:2px; min-height:15px; }
+.ftd-field { margin-top:10px; }
+.ftd-field .ftd-lbl { margin-bottom:4px; display:block; }
+.ftd-steps { font-size:12.5px; color:#374151; line-height:1.6; }
+.dark .ftd-steps { color:#cbd5e1; }
+
+/* ===== Troubleshooting checklist (mobile-friendly 44px tap rows) ===== */
+.ft-chk-row { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; margin-bottom:6px; background:#fff; cursor:pointer; min-height:44px; transition:border-color .15s ease, background .15s ease; }
+.ft-chk-row:hover { border-color:#93c5fd; }
+.ft-chk-row.done { border-color:#bbf7d0; background:#f0fdf4; }
+.ft-chk-box { width:20px; height:20px; border-radius:6px; border:2px solid #cbd5e1; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; margin-top:1px; }
+.ft-chk-row.done .ft-chk-box { background:#16a34a; border-color:#16a34a; }
+.ft-chk-txt { font-size:12.5px; font-weight:600; color:#111827; line-height:1.45; word-break:break-word; }
+.ft-tool-chip { display:inline-flex; align-items:center; gap:5px; background:#eff6ff; color:#1d4ed8; border-radius:999px; padding:5px 11px; font-size:11.5px; font-weight:600; margin:0 6px 6px 0; }
+.ft-video-link { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:9px 12px; font-size:12.5px; font-weight:600; color:#2563eb; text-decoration:none; margin-bottom:6px; }
+.ft-video-link:hover { border-color:#93c5fd; background:#eff6ff; }
+.ft-tip { display:flex; gap:8px; font-size:12px; font-weight:600; color:#7c2d12; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:8px 10px; margin-bottom:6px; line-height:1.45; }
+.dark .ft-chk-row { background:#0f172a; border-color:#1e293b; }
+.dark .ft-chk-row.done { background:#052e16; border-color:#14532d; }
+.dark .ft-chk-txt { color:#e2e8f0; }
+.dark .ft-tool-chip { background:#1e293b; color:#93c5fd; }
+.dark .ft-video-link { background:#0f172a; border-color:#1e293b; }
+.dark .ft-tip { background:#2a1508; border-color:#7c2d12; color:#fdba74; }
+</style>
 
 <!-- Route mini-map container (one per solved ticket; opened on demand) -->
 <div id="route-map-root"></div>
