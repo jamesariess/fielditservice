@@ -10,12 +10,34 @@ if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(__DIR__))); }
 require_once APP_ROOT . '/config/app.php';
 require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
-if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Database.php'; }
+if (!defined('DEMO_MODE') || !DEMO_MODE) {
+    require_once APP_ROOT . '/includes/Database.php';
+    require_once APP_ROOT . '/includes/TicketFieldMemory.php';
+}
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
 Auth::requireLogin();
 
 header('Content-Type: application/json');
+
+function ensureTicketReportColumns(): void {
+    static $done = false;
+    if ($done || (defined('DEMO_MODE') && DEMO_MODE)) { return; }
+    $existing = [];
+    foreach (Database::fetchAll("SHOW COLUMNS FROM troubleshooting_sessions") as $col) {
+        $existing[$col['Field']] = true;
+    }
+    $adds = [];
+    if (!isset($existing['result_of_checking'])) { $adds[] = "ADD COLUMN result_of_checking TEXT NULL AFTER resolution"; }
+    if (!isset($existing['recommendation'])) { $adds[] = "ADD COLUMN recommendation TEXT NULL AFTER result_of_checking"; }
+    if (!isset($existing['confirmed_by'])) { $adds[] = "ADD COLUMN confirmed_by VARCHAR(150) NULL AFTER recommendation"; }
+    if ($adds) {
+        Database::query("ALTER TABLE troubleshooting_sessions " . implode(', ', $adds));
+    }
+    $done = true;
+}
+
+ensureTicketReportColumns();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { json_response(['error' => 'POST required'], 405); exit; }
 
@@ -43,6 +65,9 @@ $resolutionType = trim($input['resolution_type'] ?? '');
 $partsReplaced  = trim($input['parts_replaced'] ?? '');
 $toolsUsed      = trim($input['tools_used'] ?? '');
 $notes          = trim($input['notes'] ?? '');
+$resultOfChecking = trim($input['result_of_checking'] ?? '');
+$recommendation   = trim($input['recommendation'] ?? '');
+$confirmedBy      = trim($input['confirmed_by'] ?? '');
 
 // steps_performed column requires valid JSON (CHECK constraint). Store notes as JSON array.
 $notesJson = '[]';
@@ -52,7 +77,8 @@ if ($notes) {
     if (count($parts)) { $notesJson = json_encode($parts); }
 }
 
-$actionTaken    = trim($input['action_taken'] ?? '');
+$actionTaken    = trim($input['action_taken'] ?? $input['action_taken_manual'] ?? '');
+$testResults    = '';
 $status         = trim($input['status'] ?? 'solved');     // solved | partial | escalated
 $latitude       = trim($input['latitude'] ?? '');
 $longitude      = trim($input['longitude'] ?? '');
@@ -181,6 +207,9 @@ try {
     $updates = [
         'ended_at'         => $endedAt,
         'resolution'       => $resolution,
+        'result_of_checking' => $resultOfChecking,
+        'recommendation'   => $recommendation,
+        'confirmed_by'     => $confirmedBy,
         'resolution_type'  => $resolutionType,
         'parts_replaced'   => $partsReplaced,
         'tools_used'       => $toolsUsed,
@@ -207,6 +236,13 @@ try {
         "UPDATE troubleshooting_sessions SET " . implode(', ', $sets) . " WHERE id = ?",
         $vals
     );
+
+    if (!defined('DEMO_MODE') || !DEMO_MODE) {
+        $issueId = (int)($session['issue_id'] ?? 0);
+        TicketFieldMemory::rememberIssue($issueId, 'result', $resultOfChecking, Auth::userId());
+        TicketFieldMemory::rememberIssue($issueId, 'recommendation', $recommendation, Auth::userId());
+        TicketFieldMemory::rememberConfirmedBy((string)($session['company_name'] ?? ''), $confirmedBy, Auth::userId());
+    }
 
     // After time-out, always return the full session so the report card can rebuild
     $session = Database::fetch("SELECT * FROM troubleshooting_sessions WHERE id = ?", [$ticketId]);

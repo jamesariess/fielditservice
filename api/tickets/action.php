@@ -11,6 +11,7 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
 }
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
+Auth::requireLogin();
 
 header('Content-Type: application/json');
 
@@ -30,21 +31,29 @@ $demo = !defined('DEMO_MODE') || DEMO_MODE;
 
 if (!$demo) {
     try {
-        $db = Database::getInstance();
+        $now = date('Y-m-d H:i:s');
+        $ticket = Database::fetch(
+            "SELECT id FROM troubleshooting_sessions WHERE id = ? AND user_id = ?",
+            [$ticketId, Auth::userId()]
+        );
+        if (!$ticket) {
+            json_response(['error' => 'Ticket not found or not owned by you'], 404);
+        }
+
         $updates = [];
         switch ($action) {
             case 'resolve':
-                $updates = ['status' => 'solved', 'resolved_at' => date('Y-m-d H:i:s')];
+                $updates = ['status' => 'solved', 'resolved_at' => $now];
                 break;
             case 'escalate':
-                $updates = ['status' => 'escalated', 'escalated_at' => date('Y-m-d H:i:s')];
+                $updates = ['status' => 'escalated', 'escalated_at' => $now];
                 break;
             case 'start':
                 $updates = ['status' => 'in_progress'];
                 break;
             case 'timein':
                 // Time In: stamp started_at with today's date + the current time.
-                $updates = ['started_at' => date('Y-m-d H:i:s'), 'status' => 'in_progress'];
+                $updates = ['started_at' => $now, 'status' => 'in_progress'];
                 break;
             default:
                 json_response(['error' => 'Invalid action'], 400);
@@ -57,10 +66,25 @@ if (!$demo) {
                 $vals[] = $v;
             }
             $vals[] = $ticketId;
-            $db->execute("UPDATE troubleshooting_sessions SET " . implode(', ', $sets) . " WHERE id = ?", $vals);
+            $vals[] = Auth::userId();
+            Database::query(
+                "UPDATE troubleshooting_sessions SET " . implode(', ', $sets) . " WHERE id = ? AND user_id = ?",
+                $vals
+            );
         }
-        json_response(['success' => true, 'action' => $action, 'ticket_id' => $ticketId, 'time_in' => date('g:i A'), 'started_at' => date('Y-m-d H:i:s')]);
-    } catch (Exception $e) {
+        $session = Database::fetch(
+            "SELECT * FROM troubleshooting_sessions WHERE id = ? AND user_id = ?",
+            [$ticketId, Auth::userId()]
+        );
+        json_response([
+            'success' => true,
+            'action' => $action,
+            'ticket_id' => $ticketId,
+            'time_in' => date('g:i A', strtotime($now)),
+            'started_at' => $session['started_at'] ?? $now,
+            'session' => $session ?: [],
+        ]);
+    } catch (Throwable $e) {
         json_response(['error' => 'Database error: ' . $e->getMessage()], 500);
     }
 } else {

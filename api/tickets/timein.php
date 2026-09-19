@@ -8,7 +8,11 @@ if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(__DIR__))); }
 require_once APP_ROOT . '/config/app.php';
 require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
-if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Database.php'; }
+if (!defined('DEMO_MODE') || !DEMO_MODE) {
+    require_once APP_ROOT . '/includes/Database.php';
+    require_once APP_ROOT . '/includes/TicketSuggestions.php';
+    require_once APP_ROOT . '/includes/TicketFieldMemory.php';
+}
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
 Auth::requireLogin();
@@ -23,6 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (!defined('DEMO_MODE') || !DEMO_MODE) {
         $row = Database::fetch("SELECT * FROM troubleshooting_sessions WHERE id = ? AND user_id = ?", [$tid, Auth::userId()]);
         if (!$row) { json_response(['error' => 'Not found'], 404); exit; }
+        if (!empty($row['ticket_number']) && preg_match('/^(?:SD|TK-)?(\d+)$/i', (string)$row['ticket_number'], $numberMatch)) {
+            $row['ticket_number'] = 'SD' . $numberMatch[1];
+        }
     }
     json_response(['session' => $row ?: []]);
     exit;
@@ -43,6 +50,7 @@ $priority    = trim($input['priority'] ?? 'medium');
 $department  = trim($input['department'] ?? '');
 $location    = trim($input['location'] ?? '');
 $companyName = trim($input['company_name'] ?? '');
+$companyIsNew = !empty($input['company_is_new']);
 $ticketNumInput = trim($input['ticket_number'] ?? ''); // manually typed on the form
 $customerName= trim($input['customer_name'] ?? Auth::userName() ?? ' ');
 $deviceLabel = trim($input['device'] ?? '');          // free-text override
@@ -57,11 +65,35 @@ $latitude    = trim($input['latitude'] ?? '');
 $longitude   = trim($input['longitude'] ?? '');
 $address     = trim($input['address'] ?? '');
 $timeInInput = trim($input['time_in'] ?? '');
+$taskIsNew   = !empty($input['task_is_new']);
 
 // Minimal validation
 if (!$title) { json_response(['error' => 'Title is required'], 400); exit; }
+if (!preg_match('/^(?:SD)?(\d+)$/i', $ticketNumInput, $ticketNumberMatch)) {
+    json_response(['error' => 'Ticket number must contain numbers only. The SD prefix is added automatically.'], 400); exit;
+}
+$ticketDigits = $ticketNumberMatch[1];
+$ticketNumInput = 'SD' . $ticketDigits;
 
 try {
+    if (!defined('DEMO_MODE') || !DEMO_MODE) { TicketFieldMemory::ensure(); }
+    $companySuggestion = ['status' => 'ignored'];
+    $taskSuggestion = ['status' => 'ignored'];
+    if (!defined('DEMO_MODE') || !DEMO_MODE) {
+        if ($companyName !== '') {
+            $companySuggestion = TicketSuggestions::submit('company', $companyName, Auth::userId());
+            if ($companySuggestion['status'] === 'already_approved' && !empty($companySuggestion['value'])) {
+                $companyName = $companySuggestion['value'];
+            }
+        }
+        if ($task !== '') {
+            $taskSuggestion = TicketSuggestions::submit('task', $task, Auth::userId());
+            if ($taskSuggestion['status'] === 'already_approved' && !empty($taskSuggestion['value'])) {
+                $task = $taskSuggestion['value'];
+            }
+        }
+    }
+
     // ---- carry over equipment details from device_models when selected ----
     $manufacturer = '';
     $model = '';
@@ -130,25 +162,16 @@ try {
         }
     }
 
-    // ---- ticket number: use the manually typed value; fall back to auto TK-#### ----
-    // Keeps uniqueness: if the typed number already exists, append -2, -3, ...
-    $ticketNum = $ticketNumInput !== '' ? $ticketNumInput : '';
-    if ($ticketNum === '' && (!defined('DEMO_MODE') || !DEMO_MODE)) {
-        $nextNum = 1006;
-        $maxRow = Database::fetch("SELECT MAX(CAST(SUBSTRING_INDEX(ticket_number, '-', -1) AS UNSIGNED)) AS mx FROM troubleshooting_sessions WHERE ticket_number LIKE 'TK-%'");
-        if ($maxRow && ($maxRow['mx'] ?? 0) > 0) {
-            $nextNum = (int)$maxRow['mx'] + 1;
-        }
-        $ticketNum = 'TK-' . $nextNum;
-    } elseif ($ticketNum === '') {
-        $ticketNum = 'TK-1006';
-    }
+    // Users type digits only; SD is the canonical stored prefix.
+    $ticketNum = $ticketNumInput;
     if (!defined('DEMO_MODE') || !DEMO_MODE) {
-        $baseNum = $ticketNum;
-        $suffix = 2;
-        while (Database::fetch("SELECT id FROM troubleshooting_sessions WHERE ticket_number = ? LIMIT 1", [$ticketNum])) {
-            $ticketNum = $baseNum . '-' . $suffix;
-            $suffix++;
+        $duplicate = Database::fetch(
+            "SELECT id FROM troubleshooting_sessions
+             WHERE UPPER(REPLACE(ticket_number, 'TK-', 'SD')) = ? OR ticket_number = ? LIMIT 1",
+            [strtoupper($ticketNum), $ticketDigits]
+        );
+        if ($duplicate) {
+            json_response(['error' => 'Ticket number ' . $ticketNum . ' already exists.'], 409); exit;
         }
     }
     $now       = date('Y-m-d H:i:s');
@@ -218,6 +241,25 @@ try {
     // organization (a company may have several locations).
     try {
         if ($companyName !== '' && (!defined('DEMO_MODE') || !DEMO_MODE)) {
+            if ($companyIsNew && $companySuggestion['status'] !== 'already_approved') {
+                json_response([
+                    'success'        => true,
+                    'ticket_id'      => $sessionId,
+                    'ticket_number'  => $ticketNum,
+                    'time_in'        => $startedAt,
+                    'company_name'   => $companyName,
+                    'task'           => $task,
+                    'manufacturer'   => $manufacturer,
+                    'model'          => $model,
+                    'device_type'    => $deviceType,
+                    'serial_number'  => $serial,
+                    'service_manual_url' => $serviceManualUrl,
+                    'known_issues'   => $knownIssues,
+                    'required_tools' => $requiredTools,
+                    'model_specs'    => $modelSpecs,
+                    'suggestion_notice' => 'New company/task suggestions were submitted for manager approval.',
+                ]);
+            }
             $org = Database::fetch("SELECT id FROM organizations WHERE LOWER(name) = LOWER(?) LIMIT 1", [$companyName]);
             if ($org) {
                 $orgId = (int)$org['id'];
@@ -234,7 +276,11 @@ try {
                         'organization_id' => $orgId,
                         'name'   => mb_substr($address, 0, 100),
                         'address' => $address,
+                        'latitude' => $latitude !== '' ? $latitude : null,
+                        'longitude' => $longitude !== '' ? $longitude : null,
                     ]);
+                } elseif ($latitude !== '' && $longitude !== '') {
+                    Database::query("UPDATE locations SET latitude = ?, longitude = ? WHERE id = ?", [$latitude, $longitude, $loc['id']]);
                 }
             }
         }
@@ -257,6 +303,7 @@ try {
         'known_issues'   => $knownIssues,
         'required_tools' => $requiredTools,
         'model_specs'    => $modelSpecs,
+        'suggestion_notice' => ($taskIsNew && $taskSuggestion['status'] !== 'already_approved' ? 'New task suggestion submitted for manager approval.' : ''),
     ]);
 } catch (Exception $e) {
     json_response(['error' => 'Failed to record time-in: ' . $e->getMessage()], 500);

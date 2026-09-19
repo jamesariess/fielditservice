@@ -90,9 +90,9 @@ function swalConfirm(title, text, onConfirm) {
         text: text,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#ef4444',
+        confirmButtonColor: '#2563eb',
         cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Yes, delete it!',
+        confirmButtonText: 'Confirm',
         cancelButtonText: 'Cancel',
         reverseButtons: true
     }).then(function(result) {
@@ -521,11 +521,11 @@ function ticketApplyFilters() {
     var grid     = document.getElementById('tickets-grid');
     if (!grid) return;
     var q = searchEl ? searchEl.value.toLowerCase().trim() : '';
-    var filter = window.ticketActiveFilter || 'all';
+    var filter = window.ticketActiveFilter || ticketDefaultFilter();
     var sort = sortEl ? sortEl.value : 'newest';
     var cards = Array.prototype.slice.call(grid.querySelectorAll('.ft-ticket-card'));
     cards.forEach(function(card) {
-        var okFilter = filter === 'all' || card.dataset.status === filter;
+        var okFilter = card.dataset.status === filter;
         var okSearch = !q || (card.dataset.search || '').indexOf(q) !== -1;
         card.style.display = (okFilter && okSearch) ? '' : 'none';
     });
@@ -534,11 +534,170 @@ function ticketApplyFilters() {
         var cb = parseInt(b.dataset.created || '0', 10);
         var ua = parseInt(a.dataset.updated || '0', 10);
         var ub = parseInt(b.dataset.updated || '0', 10);
+        if (sort === 'nearest') {
+            var da = parseFloat(a.dataset.distanceMeters || 'Infinity');
+            var db = parseFloat(b.dataset.distanceMeters || 'Infinity');
+            return da - db;
+        }
         if (sort === 'oldest') return ca - cb;
         if (sort === 'updated') return ub - ua;
         return cb - ca; // newest
     });
     cards.forEach(function(card) { grid.appendChild(card); });
+    if (window.ticketTravelLoaded) ticketMarkFirstStop();
+}
+
+function ticketDefaultFilter() {
+    var grid = document.getElementById('tickets-grid');
+    if (!grid) return 'new';
+    if (grid.querySelector('.ft-ticket-card[data-status="new"]')) return 'new';
+    if (grid.querySelector('.ft-ticket-card[data-status="in_progress"]')) return 'in_progress';
+    if (grid.querySelector('.ft-ticket-card[data-status="escalated"]')) return 'escalated';
+    return 'new';
+}
+
+function ticketInitDefaultFilter() {
+    var filter = ticketDefaultFilter();
+    window.ticketActiveFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    ticketApplyFilters();
+    ticketInitTravelEstimates();
+}
+
+function ticketTravelFormatDuration(seconds) {
+    var mins = Math.max(1, Math.round(Number(seconds || 0) / 60));
+    if (mins < 60) return mins + ' min';
+    var hours = Math.floor(mins / 60);
+    var rest = mins % 60;
+    return hours + ' hr' + (rest ? ' ' + rest + ' min' : '');
+}
+
+function ticketTravelFallback(origin, destination) {
+    var rad = Math.PI / 180;
+    var dLat = (destination.lat - origin.lat) * rad;
+    var dLng = (destination.lng - origin.lng) * rad;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(origin.lat * rad) * Math.cos(destination.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    var straightKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    var roadKm = straightKm * 1.28;
+    return { distance: roadKm * 1000, duration: (roadKm / 32) * 3600, approximate: true };
+}
+
+function ticketRenderTravel(card, route) {
+    if (!card || !route) return;
+    card.dataset.distanceMeters = String(route.distance);
+    var box = document.getElementById('ticket-travel-' + card.dataset.id);
+    if (!box) return;
+    var distance = box.querySelector('.ft-travel-distance');
+    var eta = box.querySelector('.ft-travel-eta');
+    var km = Number(route.distance || 0) / 1000;
+    if (distance) distance.textContent = (route.approximate ? '~' : '') + (km < 10 ? km.toFixed(1) : Math.round(km)) + ' km away';
+    if (eta) {
+        var arrival = new Date(Date.now() + (Number(route.duration || 0) * 1000));
+        eta.textContent = 'Arrive ' + arrival.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' · ' + ticketTravelFormatDuration(route.duration);
+    }
+}
+
+function ticketMarkFirstStop() {
+    document.querySelectorAll('.ft-ticket-card').forEach(function(card) { delete card.dataset.routeRank; });
+    var visible = Array.prototype.slice.call(document.querySelectorAll('.ft-ticket-card')).filter(function(card) {
+        return card.dataset.status === (window.ticketActiveFilter || ticketDefaultFilter()) && isFinite(parseFloat(card.dataset.distanceMeters));
+    }).sort(function(a, b) { return parseFloat(a.dataset.distanceMeters) - parseFloat(b.dataset.distanceMeters); });
+    if (visible[0]) visible[0].dataset.routeRank = '1';
+}
+
+function ticketInitTravelEstimates() {
+    if (window.ticketTravelLoading || window.ticketTravelLoaded) return;
+    var origin = { lat: parseFloat((window.ttProfileTicketDefault || {}).lat), lng: parseFloat((window.ttProfileTicketDefault || {}).lng) };
+    if (!isFinite(origin.lat) || !isFinite(origin.lng)) return;
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.ft-ticket-card')).filter(function(card) {
+        return isFinite(parseFloat(card.dataset.lat)) && isFinite(parseFloat(card.dataset.lng));
+    });
+    if (!cards.length) return;
+    window.ticketTravelLoading = true;
+    var batches = [];
+    for (var i = 0; i < cards.length; i += 40) batches.push(cards.slice(i, i + 40));
+    Promise.all(batches.map(function(batch) {
+        var coords = [origin.lng + ',' + origin.lat].concat(batch.map(function(card) { return card.dataset.lng + ',' + card.dataset.lat; }));
+        var destinations = batch.map(function(_, index) { return index + 1; }).join(';');
+        var url = 'https://router.project-osrm.org/table/v1/driving/' + coords.join(';') + '?sources=0&destinations=' + destinations + '&annotations=distance,duration';
+        return fetch(url).then(function(response) {
+            if (!response.ok) throw new Error('Routing unavailable');
+            return response.json();
+        }).then(function(data) {
+            batch.forEach(function(card, index) {
+                var distance = data.distances && data.distances[0] ? data.distances[0][index] : null;
+                var duration = data.durations && data.durations[0] ? data.durations[0][index] : null;
+                if (distance != null && duration != null) ticketRenderTravel(card, { distance: distance, duration: duration });
+                else ticketRenderTravel(card, ticketTravelFallback(origin, { lat: parseFloat(card.dataset.lat), lng: parseFloat(card.dataset.lng) }));
+            });
+        }).catch(function() {
+            batch.forEach(function(card) {
+                ticketRenderTravel(card, ticketTravelFallback(origin, { lat: parseFloat(card.dataset.lat), lng: parseFloat(card.dataset.lng) }));
+            });
+        });
+    })).then(function() {
+        window.ticketTravelLoading = false;
+        window.ticketTravelLoaded = true;
+        ticketApplyFilters();
+        ticketMarkFirstStop();
+    });
+}
+
+function ticketSuggestionBulk(action) {
+    var checked = Array.prototype.slice.call(document.querySelectorAll('#ticket-suggestions-list input[type="checkbox"]:checked'));
+    var ids = checked.map(function(cb) { return parseInt(cb.value, 10); }).filter(Boolean);
+    if (!ids.length) { showToast('Select at least one suggestion first.', 'warning'); return; }
+    api('/api/tickets/suggestions', { method: 'POST', body: { action: action, ids: ids } })
+        .then(function(res) {
+            if (!res.success) { showToast(res.error || 'Suggestion update failed.', 'error'); return; }
+            showToast(action === 'approve' ? 'Suggestion approved.' : 'Suggestions deleted.', 'success');
+            setTimeout(function() { window.location.reload(); }, 500);
+        })
+        .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+}
+
+function ticketApprovalTab(kind, button) {
+    document.querySelectorAll('.tt-approval-tab').forEach(function(tab) { tab.classList.toggle('active', tab === button); });
+    document.querySelectorAll('.tt-approval-pane').forEach(function(pane) {
+        pane.classList.toggle('active', pane.dataset.approvalPane === kind);
+    });
+}
+
+function ticketApprovalBulk(kind, action) {
+    var list = document.getElementById('ticket-approval-list-' + kind);
+    if (!list) return;
+    var ids = Array.prototype.slice.call(list.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(function(cb) { return parseInt(cb.value, 10); }).filter(Boolean);
+    if (!ids.length) { showToast('Select at least one item first.', 'warning'); return; }
+    api('/api/tickets/approvals', { method: 'POST', body: { kind: kind, action: action, ids: ids } })
+        .then(function(res) {
+            if (!res.success) { showToast(res.error || 'Approval update failed.', 'error'); return; }
+            showToast(action === 'approve' ? 'Selected entries approved.' : 'Selected entries deleted.', 'success');
+            setTimeout(function() { window.location.reload(); }, 500);
+        })
+        .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+}
+
+function ticketStepReview(id, action, problemSelectId) {
+    var issueId = 0;
+    if (problemSelectId) {
+        var problemSelect = document.getElementById(problemSelectId);
+        issueId = problemSelect ? parseInt(problemSelect.value || '0', 10) : 0;
+        if (!issueId) { showToast('Select the correct problem first.', 'warning'); return; }
+    }
+    api('/api/tickets/approvals', { method: 'POST', body: { kind: 'checklist', action: action, ids: [id], issue_id: issueId } })
+        .then(function(res) {
+            if (!res.success) { showToast(res.error || 'Checklist review failed.', 'error'); return; }
+            if (res.duplicate) {
+                showToast(res.message || 'That step already exists for this problem.', 'warning');
+            } else {
+                showToast(action === 'approve' ? 'Step approved and added to this problem.' : 'Step removed from the approval queue.', 'success');
+            }
+            setTimeout(function() { window.location.reload(); }, 500);
+        })
+        .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
 }
 
 // ==================== Command Filters ====================
@@ -582,7 +741,22 @@ function cmdCopy(text) {
 }
 
 // ==================== New Ticket Modal ====================
-function openNewTicketModal() { openModal('new-ticket-modal'); }
+function openNewTicketModal() {
+    if (typeof wireNewTicketModal === 'function') {
+        wireNewTicketModal();
+    }
+    var stepDevice = document.getElementById('step-device');
+    var stepProblem = document.getElementById('step-problem-loc');
+    var next1 = document.getElementById('tt-next-1');
+    if (stepDevice) stepDevice.style.display = '';
+    if (stepProblem) stepProblem.style.display = 'none';
+    if (next1) {
+        next1.disabled = false;
+        next1.textContent = 'Next: Problem & Location';
+    }
+    ttApplyProfileDefaults();
+    openModal('new-ticket-modal');
+}
 function createTicket(e) {
     e.preventDefault();
     var form = e.target;
@@ -754,6 +928,10 @@ function ticketResolve(ticketId) {
 var ttEqData = [];          // equipment rows injected by the page
 var ttIssueData = [];       // troubleshooting issues injected by the page
 var ttCompanyData = [];     // past tickets: {company, address, lat, lng} rows injected by the page
+var ttTaskData = [];        // previously used task text injected by the page
+var ttProfileTicketDefault = {};
+var ttIssueFieldOptions = {};
+var ttCompanyContacts = {};
 var ttSelectedEquipmentId = 0;
 var ttSelectedDeviceType = '';
 var ttSelectedMfrName = '';
@@ -779,9 +957,9 @@ function ticketStepBack() {
 function ticketGoToStep2() {
     var ticketNo = (document.getElementById('tt-ticket-no').value || '').trim();
     var company = ttCompanyValue();
-    var task = (document.getElementById('tt-task').value || '').trim();
+    var task = ttTaskValue();
     var device = (ttSelectedDeviceType || '').trim();
-    if (!ticketNo) { showToast('Please type the ticket number.', 'warning'); return; }
+    if (!/^\d+$/.test(ticketNo)) { showToast('Type the numeric ticket number. SD is added automatically.', 'warning'); return; }
     if (!company) { showToast('Please type the company name.', 'warning'); return; }
     if (!task) { showToast('Please fill in the task.', 'warning'); return; }
     if (!device) { showToast('Please select a device first.', 'warning'); return; }
@@ -803,8 +981,125 @@ function ticketGoToStep2() {
 
 // The ticket number + company are typed by hand (datalist suggests known companies).
 function ttCompanyValue() {
-    var input = document.getElementById('tt-company');
-    return input ? (input.value || '').trim() : '';
+    var sel = document.getElementById('tt-company');
+    if (!sel) return '';
+    if (sel.value === '__OTHER__') {
+        var other = document.getElementById('tt-company-other');
+        return other ? (other.value || '').trim() : '';
+    }
+    return (sel.value || '').trim();
+}
+
+function ttTaskValue() {
+    var sel = document.getElementById('tt-task');
+    if (!sel) return '';
+    if (sel.value === '__OTHER__') {
+        var other = document.getElementById('tt-task-other');
+        return other ? (other.value || '').trim() : '';
+    }
+    return (sel.value || '').trim();
+}
+
+function ttApprovedSelectValues(id) {
+    var sel = document.getElementById(id);
+    var values = [];
+    if (!sel) return values;
+    Array.prototype.forEach.call(sel.options, function(opt) {
+        if (opt.value && opt.value !== '__OTHER__') values.push(opt.value);
+    });
+    return values;
+}
+
+function ttFindApprovedValue(id, value) {
+    var wanted = ttNormalizeName(value);
+    if (!wanted) return '';
+    var values = ttApprovedSelectValues(id);
+    for (var i = 0; i < values.length; i++) {
+        if (ttNormalizeName(values[i]) === wanted) return values[i];
+    }
+    return '';
+}
+
+function ttSuggestionChanged(kind) {
+    var isCompany = kind === 'company';
+    var selectId = isCompany ? 'tt-company' : 'tt-task';
+    var otherId = isCompany ? 'tt-company-other' : 'tt-task-other';
+    var hintId = isCompany ? 'tt-company-hint' : 'tt-task-hint';
+    var sel = document.getElementById(selectId);
+    var other = document.getElementById(otherId);
+    var hint = document.getElementById(hintId);
+    if (!sel || !other) return;
+    var isOther = sel.value === '__OTHER__';
+    other.style.display = isOther ? '' : 'none';
+    if (isOther) {
+        other.focus();
+        if (hint) {
+            hint.textContent = 'New ' + (isCompany ? 'company' : 'task') + ' names are saved as pending until a manager/admin approves them.';
+            hint.style.display = '';
+        }
+    } else if (hint) {
+        hint.style.display = 'none';
+        hint.textContent = '';
+    }
+    if (isCompany) {
+        ttRenderAddressDatalist();
+        ttApplyCompanyDefaultLocation();
+    }
+}
+
+function ttApplyProfileDefaults() {
+    var d = ttProfileTicketDefault || {};
+    var company = document.getElementById('tt-company');
+    var companyOther = document.getElementById('tt-company-other');
+    if (company && d.company && !ttCompanyValue()) {
+        var match = ttFindApprovedValue('tt-company', d.company);
+        company.value = match || '__OTHER__';
+        if (!match && companyOther) { companyOther.value = d.company; companyOther.style.display = ''; }
+    }
+    var location = document.getElementById('tt-location');
+    var address = document.getElementById('tt-address');
+    var lat = document.getElementById('tt-lat');
+    var lng = document.getElementById('tt-lng');
+    if (location && !location.value && d.location) location.value = d.location;
+    if (address && !address.value && d.address) address.value = d.address;
+    if (lat && !lat.value && d.lat) lat.value = d.lat;
+    if (lng && !lng.value && d.lng) lng.value = d.lng;
+}
+
+function ttApplyCompanyDefaultLocation() {
+    var company = ttNormalizeName(ttCompanyValue());
+    if (!company) return;
+    var row = null;
+    for (var i = 0; i < ttCompanyData.length; i++) {
+        if (ttNormalizeName(ttCompanyData[i].company) === company && ttCompanyData[i].address) { row = ttCompanyData[i]; break; }
+    }
+    if (!row) return;
+    var address = document.getElementById('tt-address');
+    var lat = document.getElementById('tt-lat');
+    var lng = document.getElementById('tt-lng');
+    if (address) address.value = row.address || '';
+    if (lat) lat.value = row.lat || '';
+    if (lng) lng.value = row.lng || '';
+    if (row.lat && row.lng) ttPlaceMapMarkerEnd(row.lat, row.lng);
+}
+
+function ttOtherSuggestionTyped(kind) {
+    var isCompany = kind === 'company';
+    var selectId = isCompany ? 'tt-company' : 'tt-task';
+    var otherId = isCompany ? 'tt-company-other' : 'tt-task-other';
+    var hintId = isCompany ? 'tt-company-hint' : 'tt-task-hint';
+    var other = document.getElementById(otherId);
+    var hint = document.getElementById(hintId);
+    var match = ttFindApprovedValue(selectId, other ? other.value : '');
+    if (hint) {
+        if (match) {
+            hint.textContent = '"' + match + '" is already approved. Use the dropdown item instead.';
+            hint.style.display = '';
+        } else if (other && other.value.trim()) {
+            hint.textContent = 'This will be pending approval after ticket creation.';
+            hint.style.display = '';
+        }
+    }
 }
 
 // ---------- saved companies + addresses (from past tickets) ----------
@@ -922,6 +1217,7 @@ function ttRenderEquipResults() {
     if (!box) return;
     var searchEl = document.getElementById('tt-equip-search');
     var q = searchEl ? (searchEl.value || '').trim().toLowerCase() : '';
+    var selectedDevice = (ttSelectedDeviceType || '').trim();
 
     if (!ttEqData.length) {
         box.innerHTML = '<div style="padding:14px;font-size:12px;color:#94a3b8;">No equipment records available — type the model manually below.</div>';
@@ -932,6 +1228,7 @@ function ttRenderEquipResults() {
     var rows = [];
     for (var i = 0; i < ttEqData.length; i++) {
         var e = ttEqData[i];
+        if (selectedDevice && !ttSameDeviceType(selectedDevice, e.device_type || '')) continue;
         if (q) {
             var hay = ((e.manufacturer || '') + ' ' + (e.model_name || '') + ' ' + (e.serial_number || '') + ' ' + (e.asset_tag || '') + ' ' + (e.location || '')).toLowerCase();
             if (hay.indexOf(q) === -1) continue;
@@ -941,12 +1238,12 @@ function ttRenderEquipResults() {
     }
 
     if (!rows.length) {
-        box.innerHTML = '<div style="padding:14px;font-size:12px;color:#94a3b8;">Nothing matches that type/search — type the model manually below.</div>';
+        box.innerHTML = '<div style="padding:14px;font-size:12px;color:#94a3b8;">No ' + escHtml(selectedDevice || 'equipment') + ' matches yet — search again or type the model manually below.</div>';
         box.style.display = 'block';
         return;
     }
 
-    var html = '<div style="padding:6px 8px;font-size:11px;color:#94a3b8;border-bottom:1px solid #f1f5f9;">' + rows.length + ' equipment match' + (rows.length === 1 ? '' : 'es') + ' — click to select</div>';
+    var html = '<div style="padding:6px 8px;font-size:11px;color:#94a3b8;border-bottom:1px solid #f1f5f9;">' + rows.length + (selectedDevice ? ' ' + escHtml(selectedDevice) : '') + ' equipment match' + (rows.length === 1 ? '' : 'es') + ' — click to select</div>';
     for (var j = 0; j < rows.length; j++) {
         var r = rows[j];
         html += '<div class="tt-equip-item" data-id="' + r.id + '" style="padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f8fafc;">';
@@ -1016,6 +1313,18 @@ function ttSelectEquipment(id) {
     if (box) box.style.display = 'none';
 }
 
+function ttSameDeviceType(selected, candidate) {
+    var a = String(selected || '').trim().toLowerCase();
+    var b = String(candidate || '').trim().toLowerCase();
+    if (!a) return true;
+    if (!b) return false;
+    if (a === b) return true;
+    var normA = a.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+    var normB = b.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (normA === normB) return true;
+    return normA.replace(/s$/, '') === normB.replace(/s$/, '');
+}
+
 function ticketClearEquipSelection() {
     ttSelectedEquipmentId = 0;
     ttSelectedMfrName = '';
@@ -1074,7 +1383,7 @@ function ttDeviceMatchesTags(device, tags) {
     var d = String(device || '').trim().toLowerCase();
     var t = String(tags || '').trim().toLowerCase();
     if (!d) return true;      // no device chosen -> show everything
-    if (!t) return true;      // issue has no device tags -> show for every device
+    if (!t) return false;     // device chosen -> hide untagged items to avoid unrelated problems
     if (t.indexOf(d) !== -1 || d.indexOf(t) !== -1) return true;
     var singD = d.replace(/s$/, '');
     var singT = t.replace(/s$/, '');
@@ -1125,6 +1434,7 @@ function ttIssueChanged() {
     var isOther = (sel.value === '__OTHER__' || sel.value === '');
     custom.style.display = isOther ? '' : 'none';
     if (sel.value === '__OTHER__') custom.focus();
+    ttRenderProblemInsight(sel.value);
     // The ticket title follows the troubleshooting problem (e.g. "No Power");
     // fall back to the equipment name, then the task, when nothing is picked.
     var titleEl = document.getElementById('tt-title');
@@ -1133,7 +1443,7 @@ function ttIssueChanged() {
         if (problem) {
             titleEl.value = problem;
         } else if (isOther) {
-            var task = (document.getElementById('tt-task').value || '').trim();
+            var task = ttTaskValue();
             titleEl.value = ttSelectedModelName ? ((ttSelectedMfrName + ' ' + ttSelectedModelName).trim()) : task;
         }
     }
@@ -1187,6 +1497,7 @@ function ttDeviceChanged() {
     var sel = document.getElementById('tt-device');
     var other = document.getElementById('tt-device-other');
     if (!sel) return;
+    var previousEquipmentType = ttSelectedEquipmentId ? ttSelectedDeviceType : '';
     if (sel.value === '__OTHER__') {
         if (other) { other.style.display = ''; other.focus(); }
         ttSelectedDeviceType = other ? (other.value || '').trim() : '';
@@ -1196,8 +1507,52 @@ function ttDeviceChanged() {
     }
     var hidden = document.getElementById('tt-device-type');
     if (hidden) hidden.value = ttSelectedDeviceType;
+    if (ttSelectedEquipmentId && previousEquipmentType && ttSelectedDeviceType && !ttSameDeviceType(ttSelectedDeviceType, previousEquipmentType)) {
+        var chosenDevice = ttSelectedDeviceType;
+        var isOtherDevice = sel.value === '__OTHER__';
+        ticketClearEquipSelection();
+        ttSelectedDeviceType = chosenDevice;
+        if (sel) sel.value = isOtherDevice ? '__OTHER__' : chosenDevice;
+        if (other) {
+            other.style.display = isOtherDevice ? '' : 'none';
+            if (isOtherDevice) other.value = chosenDevice;
+        }
+        if (hidden) hidden.value = ttSelectedDeviceType;
+    }
     // Keep the equipment search in sync with the chosen device.
     ttRenderEquipResults();
+}
+
+function ttRenderProblemInsight(issueId) {
+    var panel = document.getElementById('tt-problem-insight');
+    var symptomsEl = document.getElementById('tt-insight-symptoms');
+    var causeEl = document.getElementById('tt-insight-cause');
+    var linkEl = document.getElementById('tt-insight-kb-link');
+    if (!panel || !symptomsEl || !causeEl || !linkEl) return;
+    var issue = null;
+    for (var i = 0; i < ttIssueData.length; i++) {
+        if (String(ttIssueData[i].id) === String(issueId)) { issue = ttIssueData[i]; break; }
+    }
+    if (!issue) {
+        panel.style.display = 'none';
+        symptomsEl.innerHTML = '';
+        causeEl.textContent = '';
+        return;
+    }
+    var symptoms = Array.isArray(issue.symptom_list) ? issue.symptom_list : [];
+    symptomsEl.innerHTML = symptoms.length
+        ? symptoms.map(function(symptom) { return '<span>' + ttEsc(symptom) + '</span>'; }).join('')
+        : '<small>No symptoms documented for this problem yet.</small>';
+    causeEl.textContent = issue.root_cause || 'No common cause has been linked from the Knowledge Base yet.';
+    if (issue.knowledge_id) {
+        linkEl.href = APP_BASE + 'knowledge/view?id=' + encodeURIComponent(issue.knowledge_id);
+        linkEl.style.display = '';
+    } else {
+        linkEl.style.display = 'none';
+        linkEl.removeAttribute('href');
+    }
+    panel.style.display = '';
+    if (window.lucide) lucide.createIcons();
 }
 
 function ttDeviceOtherTyped(v) {
@@ -1336,7 +1691,7 @@ function ticketSubmitTimeIn() {
     var ticketNo = (document.getElementById('tt-ticket-no').value || '').trim();
     var title = (document.getElementById('tt-title').value || '').trim();
     var desc  = (document.getElementById('tt-description').value || '').trim();
-    var task  = (document.getElementById('tt-task').value || '').trim();
+    var task  = ttTaskValue();
     var pri   = (document.getElementById('tt-priority') && document.getElementById('tt-priority').value) || 'medium';
     var cust  = (document.getElementById('tt-customer') ? (document.getElementById('tt-customer').value || '').trim() : '');
     var loc   = (document.getElementById('tt-location') ? (document.getElementById('tt-location').value || '').trim() : '');
@@ -1364,9 +1719,15 @@ function ticketSubmitTimeIn() {
         }
     }
 
-    if (!ticketNo) { showToast('Please type the ticket number.', 'warning'); return; }
+    if (!/^\d+$/.test(ticketNo)) { showToast('Type the numeric ticket number. SD is added automatically.', 'warning'); return; }
     if (!company) { showToast('Please type the company name.', 'warning'); return; }
     if (!task)    { showToast('Please fill in the task.', 'warning'); return; }
+    var companyIsNew = (document.getElementById('tt-company') || {}).value === '__OTHER__';
+    var taskIsNew = (document.getElementById('tt-task') || {}).value === '__OTHER__';
+    var approvedCompanyMatch = companyIsNew ? ttFindApprovedValue('tt-company', company) : '';
+    var approvedTaskMatch = taskIsNew ? ttFindApprovedValue('tt-task', task) : '';
+    if (approvedCompanyMatch) { showToast('Company already exists as "' + approvedCompanyMatch + '". Select it from the dropdown.', 'warning'); return; }
+    if (approvedTaskMatch) { showToast('Task already exists as "' + approvedTaskMatch + '". Select it from the dropdown.', 'warning'); return; }
     if (!problemText) { showToast('Please select a problem or type one in.', 'warning'); return; }
     if (!pri) pri = 'medium';
 
@@ -1394,10 +1755,12 @@ function ticketSubmitTimeIn() {
         title: title,
         description: desc,
         task: task,
+        task_is_new: taskIsNew ? 1 : 0,
         problem: problemText,
         issue_id: issueId || undefined,
         priority: pri,
         company_name: company,
+        company_is_new: companyIsNew ? 1 : 0,
         customer_name: cust || undefined,
         location: loc || undefined,
         device: ttSelectedModelName ? ((ttSelectedMfrName + ' ' + ttSelectedModelName).trim()) : undefined,
@@ -1494,7 +1857,7 @@ function ttDurationStr(S) {
 function ttCacheReport(ticketId) {
     var cache = window._ttReportCache = window._ttReportCache || {};
     var c = cache[ticketId] = {};
-    ['action', 'result', 'reco', 'confirm'].forEach(function(k) {
+    ['result', 'reco', 'confirm'].forEach(function(k) {
         var el = document.getElementById('rep-' + ticketId + '-' + k);
         if (el) { c[k] = el.value; }
     });
@@ -1510,15 +1873,15 @@ function openTicketDrawer(ticketId) {
     var timeOut = S.ended_at ? ttFmtTime(S.ended_at) : '00';
 
     // ---- Header: company, ticket #, SN, device, location | status ----
-    var h = '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:16px;border-bottom:1px solid #e5e7eb;">';
+    var h = '<div class="ftd-modal-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #e5e7eb;">';
     h += '<div style="display:flex;gap:12px;min-width:0;">';
     h += '<div class="ft-co-ico"><i data-lucide="building-2"></i></div>';
     h += '<div style="min-width:0;">';
-    h += '<div style="font-size:17px;font-weight:800;color:#111827;word-break:break-word;">' + ttEsc(S.company_name || 'Company not specified') + '</div>';
+    h += '<div id="ticket-drawer-title" style="font-size:17px;font-weight:800;color:#111827;word-break:break-word;">' + ttEsc(S.company_name || 'Company not specified') + '</div>';
     h += '<div style="font-size:12px;color:#64748b;font-weight:600;margin-top:3px;">Ticket #' + ttEsc(S.ticket_number || '') + (S.serial_number ? '<span style="margin-left:10px;">SN: ' + ttEsc(S.serial_number) + '</span>' : '') + '</div>';
     h += '</div></div>';
     h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + ttStatusBadge(status)
-       + '<button onclick="closeTicketDrawer()" class="btn btn-sm btn-ghost" style="color:#64748b;">&#10005;</button></div>';
+       + '<button onclick="closeTicketDrawer()" class="btn btn-sm btn-ghost ftd-close-btn" aria-label="Close ticket details" title="Close" style="color:#64748b;">&#10005;</button></div>';
     h += '</div>';
 
     h += '<div class="ftd-grid">';
@@ -1529,8 +1892,12 @@ function openTicketDrawer(ticketId) {
         ['Ticket #', S.ticket_number],
         ['Status', ttStatusLabel(status)],
         ['Created', S.created_at ? ttFmtDate(S.created_at) : (S.started_at ? ttFmtDate(S.started_at) : '')],
-        ['Priority', S.priority]
+        ['Priority', S.priority],
+        ['Address', S.address]
     ]);
+    if ((S.latitude && S.longitude) || S.address || S.location) {
+        h += '<div class="ftd-section"><div class="ftd-title">Ticket Location</div><div id="ticket-location-map-' + ticketId + '" class="ftd-ticket-map"></div></div>';
+    }
     h += ttDrawerSection('Device', [
         ['Device', device],
         ['Serial Number', S.serial_number]
@@ -1590,15 +1957,24 @@ function openTicketDrawer(ticketId) {
     // Live report preview (updates instantly as times/fields change)
     h += '<div id="report-' + ticketId + '" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:6px 14px 4px;margin-bottom:12px;"></div>';
 
-    // Technician inputs — textareas, several sentences are expected
-    h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-action">Action Taken</label>
-       + '<textarea id="rep-' + ticketId + '-action" class="form-input" rows="3" placeholder="Manual action notes (used only if no checklist steps were checked)..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;"></textarea></div>';
+    // Technician report inputs — saved on Time Out and mirrored in the report.
+    var issueMemory = ttIssueFieldOptions[String(parseInt(S.issue_id || 0, 10))] || { result: [], recommendation: [] };
+    var companyMemory = ttCompanyContacts[ttNormalizeName(S.company_name || '')] || [];
+    function memorySelect(key, values, current, label) {
+        if (!values || !values.length) return '';
+        var html = '<select class="form-input tt-memory-select" onchange="ttApplyMemoryChoice(' + ticketId + ',\'' + key + '\',this.value)"><option value="">Saved ' + label + '…</option>';
+        values.forEach(function(value) { html += '<option value="' + ttEsc(value) + '">' + ttEsc(value) + '</option>'; });
+        return html + '</select>';
+    }
     h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-result">Result of Checking</label>'
-       + '<textarea id="rep-' + ticketId + '-result" class="form-input" rows="3" placeholder="Enter what you found..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;"></textarea></div>';
+       + memorySelect('result', issueMemory.result, S.result_of_checking || '', 'results for this problem')
+       + '<textarea id="rep-' + ticketId + '-result" class="form-input" rows="3" placeholder="Enter what you found..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;">' + ttEsc(S.result_of_checking || '') + '</textarea></div>';
     h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-reco">Recommendation</label>'
-       + '<textarea id="rep-' + ticketId + '-reco" class="form-input" rows="2" placeholder="Enter your recommendation..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;"></textarea></div>';
+       + memorySelect('reco', issueMemory.recommendation, S.recommendation || '', 'recommendations for this problem')
+       + '<textarea id="rep-' + ticketId + '-reco" class="form-input" rows="2" placeholder="Enter your recommendation..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;">' + ttEsc(S.recommendation || '') + '</textarea></div>';
     h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-confirm">Confirmed By</label>'
-       + '<input id="rep-' + ticketId + '-confirm" class="form-input" placeholder="e.g. System Admin" style="width:100%;font-size:12.5px;padding:8px 10px;"></div>';
+       + memorySelect('confirm', companyMemory, S.confirmed_by || '', 'contacts for this company')
+       + '<input id="rep-' + ticketId + '-confirm" class="form-input" value="' + ttEsc(S.confirmed_by || (companyMemory[0] || '')) + '" placeholder="e.g. System Admin" style="width:100%;font-size:12.5px;padding:8px 10px;"></div>';
 
     // Steps done — live mirror of the checklist (auto-saved with every change)
     h += '<div class="ftd-section"><div class="ftd-title">Steps Done</div><div id="logged-' + ticketId + '" class="ftd-steps"></div></div>';
@@ -1607,13 +1983,22 @@ function openTicketDrawer(ticketId) {
 
     h += '</div>'; // /ftd-grid
 
+    var drawer = document.getElementById('ticket-drawer');
+    var overlay = document.getElementById('ticket-drawer-overlay');
+    if (overlay && overlay.parentElement !== document.body) {
+        document.body.appendChild(overlay);
+    }
+    if (drawer && drawer.parentElement !== document.body) {
+        document.body.appendChild(drawer);
+    }
+
     var body = document.getElementById('ticket-drawer-body');
     if (!body) return;
     body.innerHTML = h;
     // Restore unsaved report input values after a re-render (time in/out/done)
     var cache = (window._ttReportCache || {})[ticketId];
     if (cache) {
-        ['action', 'result', 'reco', 'confirm'].forEach(function(k) {
+        ['result', 'reco', 'confirm'].forEach(function(k) {
             var el = document.getElementById('rep-' + ticketId + '-' + k);
             if (el && cache[k]) { el.value = cache[k]; }
         });
@@ -1621,14 +2006,17 @@ function openTicketDrawer(ticketId) {
     if (typeof lucide !== 'undefined') { lucide.createIcons(); }
     var addInput = document.getElementById('chk-add-' + ticketId);
     if (addInput) { addInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); ttAddStep(ticketId); } }); }
-    var drawer = document.getElementById('ticket-drawer');
-    var overlay = document.getElementById('ticket-drawer-overlay');
-    if (drawer) drawer.style.display = 'block';
+    if (drawer) {
+        drawer.style.display = 'block';
+        drawer.scrollTop = 0;
+    }
     if (overlay) overlay.style.display = 'block';
+    document.body.style.overflow = 'hidden';
     ticketRenderReport(ticketId);
     ttRenderLoggedSteps(ticketId);
     ttLoadGuide(ticketId);
-    ['action', 'result', 'reco', 'confirm'].forEach(function(k) {
+    ttInitTicketLocationMap(ticketId, S);
+    ['result', 'reco', 'confirm'].forEach(function(k) {
         var el = document.getElementById('rep-' + ticketId + '-' + k);
         if (el && !el.dataset.reportWired) {
             el.dataset.reportWired = '1';
@@ -1642,6 +2030,37 @@ function closeTicketDrawer() {
     var o = document.getElementById('ticket-drawer-overlay');
     if (d) d.style.display = 'none';
     if (o) o.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+function ttApplyMemoryChoice(ticketId, key, value) {
+    if (!value) return;
+    var el = document.getElementById('rep-' + ticketId + '-' + key);
+    if (el) { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); }
+}
+
+function ttInitTicketLocationMap(ticketId, S) {
+    var el = document.getElementById('ticket-location-map-' + ticketId);
+    if (!el || !window.L) return;
+    if (!S.latitude || !S.longitude) {
+        var address = S.address || S.location || '';
+        if (!address) return;
+        el.innerHTML = '<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;">Locating saved address…</div>';
+        fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(address), { headers:{'Accept-Language':'en'} })
+            .then(function(r){ return r.json(); })
+            .then(function(rows){
+                if (!rows || !rows.length) { el.innerHTML = '<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;">Map coordinates are not available for this address.</div>'; return; }
+                S.latitude = rows[0].lat; S.longitude = rows[0].lon;
+                ttInitTicketLocationMap(ticketId, S);
+            }).catch(function(){ el.innerHTML = '<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;">Map is unavailable right now.</div>'; });
+        return;
+    }
+    var point = [parseFloat(S.latitude), parseFloat(S.longitude)];
+    el.innerHTML = '';
+    var map = L.map(el, { zoomControl:true, attributionControl:false, dragging:true }).setView(point, 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+    L.marker(point).addTo(map).bindPopup('<b>' + ttEsc(S.company_name || 'Ticket location') + '</b><br>' + ttEsc(S.address || S.location || '')).openPopup();
+    setTimeout(function(){ map.invalidateSize(); }, 100);
 }
 
 // ---- Troubleshooting checklist + field guide (real DB data, auto-saved) ----
@@ -1663,6 +2082,23 @@ function ttLoadGuide(ticketId) {
     });
 }
 
+function ttNormalizeSteps(value) {
+    if (Array.isArray(value)) {
+        return value.map(function(s) { return String(s || '').trim(); }).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+        var trimmed = value.trim();
+        if (!trimmed || trimmed === '[]') return [];
+        try {
+            var decoded = JSON.parse(trimmed);
+            if (Array.isArray(decoded)) return ttNormalizeSteps(decoded);
+            if (typeof decoded === 'string') return ttNormalizeSteps(decoded);
+        } catch (e) {}
+        return trimmed.split(/\r?\n|\r/).map(function(s) { return s.trim(); }).filter(Boolean);
+    }
+    return [];
+}
+
 // Renders the checkable rows: suggested steps + custom typed steps + add-row.
 function ttRenderChecklist(ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
@@ -1670,7 +2106,8 @@ function ttRenderChecklist(ticketId) {
     if (!box || !S) { return; }
     var guide = S._guide || {};
     var suggestions = guide.steps || [];
-    var done = S.steps || [];
+    var done = ttNormalizeSteps(S.steps || S.steps_performed || []);
+    S.steps = done;
     var doneLower = done.map(function(s) { return String(s).toLowerCase().trim(); });
     var sugLower = suggestions.map(function(st) { return String(st.title || '').toLowerCase().trim(); });
     var html = '';
@@ -1708,7 +2145,7 @@ function ttToggleStepEl(rowEl, ticketId) {
     if (!S || !rowEl) { return; }
     var text = rowEl.dataset.step || '';
     if (!text) { return; }
-    var done = S.steps || [];
+    var done = ttNormalizeSteps(S.steps || S.steps_performed || []);
     var lower = done.map(function(s) { return String(s).toLowerCase().trim(); });
     var idx = lower.indexOf(text.toLowerCase().trim());
     if (idx !== -1) {
@@ -1723,6 +2160,7 @@ function ttToggleStepEl(rowEl, ticketId) {
     S.steps = done;
     ttSaveSteps(ticketId);
     ttRenderLoggedSteps(ticketId);
+    ticketRenderReport(ticketId);
     var countEl = document.getElementById('chk-count-' + ticketId);
     if (countEl) {
         var total = ((S._guide && S._guide.steps) || []).length;
@@ -1735,10 +2173,11 @@ function ttRemoveStepEl(rowEl, ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
     if (!S || !rowEl) { return; }
     var text = rowEl.dataset.step || '';
-    S.steps = (S.steps || []).filter(function(s) { return String(s).toLowerCase().trim() !== text.toLowerCase().trim(); });
+    S.steps = ttNormalizeSteps(S.steps || S.steps_performed || []).filter(function(s) { return String(s).toLowerCase().trim() !== text.toLowerCase().trim(); });
     ttSaveSteps(ticketId);
     ttRenderChecklist(ticketId);
     ttRenderLoggedSteps(ticketId);
+    ticketRenderReport(ticketId);
 }
 
 // Add a manually typed step (as many as needed).
@@ -1748,12 +2187,21 @@ function ttAddStep(ticketId) {
     if (!S || !input) { return; }
     var text = input.value.trim();
     if (!text) { showToast('Type what you did first.', 'warning'); return; }
-    S.steps = S.steps || [];
+    S.steps = ttNormalizeSteps(S.steps || S.steps_performed || []);
+    var existing = S.steps.map(function(s) { return String(s).toLowerCase().trim(); });
+    if (existing.indexOf(text.toLowerCase().trim()) !== -1) {
+        showToast('That checklist item is already selected.', 'info');
+        input.value = '';
+        return;
+    }
     S.steps.push(text);
+    S._learnedSteps = S._learnedSteps || [];
+    S._learnedSteps.push(text);
     input.value = '';
     ttSaveSteps(ticketId);
     ttRenderChecklist(ticketId);
     ttRenderLoggedSteps(ticketId);
+    ticketRenderReport(ticketId);
 }
 
 // Persist the checklist to the DB (steps_performed JSON) after every change.
@@ -1761,12 +2209,16 @@ function ttSaveSteps(ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
     if (!S) { return; }
     var msgEl = document.getElementById('chk-msg-' + ticketId);
-    api('/api/tickets/steps', { method: 'POST', body: { ticket_id: ticketId, steps: S.steps || [] } })
+    S.steps = ttNormalizeSteps(S.steps || S.steps_performed || []);
+    S.steps_performed = JSON.stringify(S.steps);
+    api('/api/tickets/steps', { method: 'POST', body: { ticket_id: ticketId, steps: S.steps, learned_steps: S._learnedSteps || [] } })
         .then(function(res) {
+            S._learnedSteps = [];
             if (msgEl) {
                 msgEl.textContent = res.success ? 'Saved ✓' : 'Save failed';
                 setTimeout(function() { msgEl.textContent = ''; }, 2000);
             }
+            ttLoadGuide(ticketId);
         }).catch(function(err) {
             if (msgEl) { msgEl.textContent = 'Save failed'; }
             showToast('Checklist save failed: ' + err.message, 'error');
@@ -1805,7 +2257,8 @@ function ttRenderLoggedSteps(ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
     var box = document.getElementById('logged-' + ticketId);
     if (!box || !S) { return; }
-    var steps = S.steps || [];
+    var steps = ttNormalizeSteps(S.steps || S.steps_performed || []);
+    S.steps = steps;
     if (!steps.length) {
         box.innerHTML = '<div style="font-size:12px;color:#cbd5e1;">No steps logged yet — check items in the checklist.</div>';
         return;
@@ -1839,7 +2292,8 @@ function ttRenderCardSuggest(ticketId) {
     if (!box) return;
     var guide = S ? (S._guide || {}) : (window._ttCardGuide && window._ttCardGuide[ticketId]);
     var steps = (guide && guide.steps) || [];
-    var done  = (S && S.steps) ? S.steps.slice() : [];
+    var done  = S ? ttNormalizeSteps(S.steps || S.steps_performed || []) : [];
+    if (S) S.steps = done;
     var lower = done.map(function(s){ return String(s).toLowerCase().trim(); });
     var list  = steps.filter(function(s){ return s && lower.indexOf(String(s).toLowerCase().trim()) === -1; });
     if (!list.length) { box.innerHTML = ''; return; }
@@ -1856,7 +2310,7 @@ function ttCardGuideCheck(ticketId, rowEl) {
     if (!S || !rowEl) return;
     var text = rowEl.getAttribute('data-step') || '';
     if (!text) return;
-    var done = S.steps || [];
+    var done = ttNormalizeSteps(S.steps || S.steps_performed || []);
     var lower = done.map(function(s){ return String(s).toLowerCase().trim(); });
     var idx = lower.indexOf(text.toLowerCase().trim());
     if (idx !== -1) {
@@ -1872,13 +2326,15 @@ function ttCardGuideCheck(ticketId, rowEl) {
     ttSaveSteps(ticketId);
     ttRenderCardDone(ticketId);
     ttRenderCardCount(ticketId);
+    ticketRenderReport(ticketId);
 }
 
 function ttRenderCardDone(ticketId) {
     var S   = window.ttTicketData && window.ttTicketData[ticketId];
     var box = document.getElementById('fcgd-' + ticketId);
     if (!box) return;
-    var steps = (S && S.steps) ? S.steps.slice() : [];
+    var steps = S ? ttNormalizeSteps(S.steps || S.steps_performed || []) : [];
+    if (S) S.steps = steps;
     if (!steps.length) { box.innerHTML = '<div style="font-size:11.5px;color:#cbd5e1;padding:4px 2px;">No steps logged yet.</div>'; return; }
     var html = '';
     steps.forEach(function(s){
@@ -1894,7 +2350,7 @@ function ttRenderCardCount(ticketId) {
     if (!el) return;
     var S  = window.ttTicketData && window.ttTicketData[ticketId];
     var total = ((S && S._guide && S._guide.steps) || []).length;
-    var done  = ((S && S.steps) || []).length;
+    var done  = (S ? ttNormalizeSteps(S.steps || S.steps_performed || []) : []).length;
     el.textContent = done + (total ? ' / ' + total : '');
 }
 
@@ -1904,12 +2360,21 @@ function ttCardGuideAdd(ticketId) {
     if (!S || !inp) return;
     var text = inp.value.trim();
     if (!text) { showToast('Type what you did first.', 'warning'); return; }
-    S.steps = S.steps || [];
+    S.steps = ttNormalizeSteps(S.steps || S.steps_performed || []);
+    var existing = S.steps.map(function(s) { return String(s).toLowerCase().trim(); });
+    if (existing.indexOf(text.toLowerCase().trim()) !== -1) {
+        showToast('That checklist item is already selected.', 'info');
+        inp.value = '';
+        return;
+    }
     S.steps.push(text);
+    S._learnedSteps = S._learnedSteps || [];
+    S._learnedSteps.push(text);
     inp.value = '';
     ttSaveSteps(ticketId);
     ttRenderCardDone(ticketId);
     ttRenderCardCount(ticketId);
+    ticketRenderReport(ticketId);
 }
 
 function ttCardGuideRemove(ticketId, btn) {
@@ -1917,10 +2382,11 @@ function ttCardGuideRemove(ticketId, btn) {
     var row = btn && btn.closest && btn.closest('.ft-chk-row');
     if (!S || !row) return;
     var text = row.getAttribute('data-step') || '';
-    S.steps = (S.steps || []).filter(function(s){ return String(s).toLowerCase().trim() !== text.toLowerCase().trim(); });
+    S.steps = ttNormalizeSteps(S.steps || S.steps_performed || []).filter(function(s){ return String(s).toLowerCase().trim() !== text.toLowerCase().trim(); });
     ttSaveSteps(ticketId);
     ttRenderCardDone(ticketId);
     ttRenderCardCount(ticketId);
+    ticketRenderReport(ticketId);
 }
 
 // "Guides & Tools" quick button on the card → stash the guide + open the drawer.
@@ -1950,6 +2416,11 @@ function ticketTimeIn(ticketId) {
             if (res.success) {
                 var S = window.ttTicketData && window.ttTicketData[ticketId];
                 if (S) {
+                    if (res.session) {
+                        Object.keys(res.session).forEach(function(k) {
+                            if (res.session[k] !== undefined && res.session[k] !== null) { S[k] = res.session[k]; }
+                        });
+                    }
                     S.started_at = res.started_at || S.started_at;
                     if (S.status === 'new') { S.status = 'in_progress'; }
                 }
@@ -1963,52 +2434,70 @@ function ticketTimeIn(ticketId) {
 }
 
 // ---- Time Out: stamps the EXACT current server date + time (timeout.php) ----
-// Sends the checklist steps as the source of "Action Taken". On save, the
-// checklist enters an "approval pending" state until a supervisor approves it.
+// Saves report fields and checked troubleshooting steps on Time Out. Checklist
+// items remain approval-pending until a supervisor approves them.
 function ticketTimeOut(ticketId) {
-    swalConfirm('Time Out?', "Time Out will be recorded with the exact current server date and time. The checked troubleshooting steps will be saved as Action Taken and will require approval before being visible to others.", function() {
-        ttCacheReport(ticketId);
-        var msgEl    = document.getElementById('to-' + ticketId + '-msg');
-        var resultEl = document.getElementById('rep-' + ticketId + '-result');
-        var recoEl   = document.getElementById('rep-' + ticketId + '-reco');
-        var result      = resultEl ? resultEl.value.trim() : '';
-        var reco        = recoEl ? recoEl.value.trim() : '';
-        // Action Taken = the checked checklist steps (the checklist IS the action log)
-        var S = window.ttTicketData && window.ttTicketData[ticketId];
-        var checkedSteps = (S && S.steps) ? S.steps.slice() : [];
-        var notesParts = [result, reco].filter(function(p) { return p; });
-        if (msgEl) msgEl.textContent = 'Saving…';
-        api('/api/tickets/timeout', { method: 'POST', body: {
-            ticket_id: ticketId,
-            resolution: checkedSteps.join('\n'),
-            resolution_type: 'completed',
-            notes: notesParts.join('\n'),
-            status: 'solved',
-            steps_performed: checkedSteps,
-            action_taken_manual: ttRepInput(ticketId, 'action') || ''
-        }}).then(function(res) {
-            if (msgEl) msgEl.textContent = '';
-            if (res.success) {
-                var S2 = window.ttTicketData && window.ttTicketData[ticketId];
-                if (S2) {
-                    var sess = res.session || {};
-                    S2.ended_at = res.ended_at || sess.ended_at || S2.ended_at;
-                    if (sess.time_spent_minutes !== undefined && sess.time_spent_minutes !== null) { S2.time_spent_minutes = sess.time_spent_minutes; }
-                    if (sess.resolution) { S2.resolution = sess.resolution; }
-                    if (sess.status) { S2.status = sess.status; }
-                    if (sess.steps_performed !== undefined) { S2.steps = sess.steps_performed || []; }
-                    S2.steps_approved = sess.steps_approved ? true : false;
-                    S2.steps_approved_by = sess.steps_approved_by || '';
+    ttCacheReport(ticketId);
+    var msgEl    = document.getElementById('to-' + ticketId + '-msg');
+    var resultEl = document.getElementById('rep-' + ticketId + '-result');
+    var recoEl   = document.getElementById('rep-' + ticketId + '-reco');
+    var result      = resultEl ? resultEl.value.trim() : '';
+    var reco        = recoEl ? recoEl.value.trim() : '';
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    var checkedSteps = S ? ttNormalizeSteps(S.steps || S.steps_performed || []) : [];
+    if (S) { S.steps = checkedSteps; }
+    var notesParts = [result, reco].filter(function(p) { return p; });
+    if (msgEl) msgEl.textContent = 'Saving Time Out…';
+    api('/api/tickets/timeout', { method: 'POST', body: {
+        ticket_id: ticketId,
+        resolution: checkedSteps.join('\n'),
+        resolution_type: 'completed',
+        notes: notesParts.join('\n'),
+        result_of_checking: result,
+        recommendation: reco,
+        confirmed_by: ttRepInput(ticketId, 'confirm') || '',
+        status: 'solved',
+        steps_performed: checkedSteps
+    }}).then(function(res) {
+        if (msgEl) msgEl.textContent = '';
+        if (res.success) {
+            var S2 = window.ttTicketData && window.ttTicketData[ticketId];
+            if (S2) {
+                var sess = res.session || {};
+                S2.ended_at = res.ended_at || sess.ended_at || S2.ended_at;
+                if (sess.time_spent_minutes !== undefined && sess.time_spent_minutes !== null) { S2.time_spent_minutes = sess.time_spent_minutes; }
+                if (sess.resolution) { S2.resolution = sess.resolution; }
+                if (sess.result_of_checking !== undefined) { S2.result_of_checking = sess.result_of_checking || ''; }
+                if (sess.recommendation !== undefined) { S2.recommendation = sess.recommendation || ''; }
+                if (sess.confirmed_by !== undefined) { S2.confirmed_by = sess.confirmed_by || ''; }
+                if (sess.status) { S2.status = sess.status; }
+                if (sess.steps_performed !== undefined) {
+                    S2.steps_performed = sess.steps_performed || '[]';
+                    S2.steps = ttNormalizeSteps(sess.steps_performed);
                 }
-                showToast('Time Out recorded — checklist saved (pending approval).', 'success');
-                openTicketDrawer(ticketId);
-            } else {
-                showToast('Time Out failed: ' + (res.error || 'unknown'), 'error');
+                S2.steps_approved = sess.steps_approved ? true : false;
+                S2.steps_approved_by = sess.steps_approved_by || '';
+                var issueKey = String(parseInt(S2.issue_id || 0, 10));
+                if (issueKey !== '0') {
+                    ttIssueFieldOptions[issueKey] = ttIssueFieldOptions[issueKey] || { result: [], recommendation: [] };
+                    if (result && ttIssueFieldOptions[issueKey].result.indexOf(result) === -1) ttIssueFieldOptions[issueKey].result.unshift(result);
+                    if (reco && ttIssueFieldOptions[issueKey].recommendation.indexOf(reco) === -1) ttIssueFieldOptions[issueKey].recommendation.unshift(reco);
+                }
+                var companyKey = ttNormalizeName(S2.company_name || '');
+                var confirmed = sess.confirmed_by || '';
+                if (companyKey && confirmed) {
+                    ttCompanyContacts[companyKey] = ttCompanyContacts[companyKey] || [];
+                    if (ttCompanyContacts[companyKey].indexOf(confirmed) === -1) ttCompanyContacts[companyKey].unshift(confirmed);
+                }
             }
-        }).catch(function(err) {
-            if (msgEl) msgEl.textContent = '';
-            showToast('Error: ' + err.message, 'error');
-        });
+            showToast('Time Out recorded.', 'success');
+            openTicketDrawer(ticketId);
+        } else {
+            showToast('Time Out failed: ' + (res.error || 'unknown'), 'error');
+        }
+    }).catch(function(err) {
+        if (msgEl) msgEl.textContent = '';
+        showToast('Error: ' + err.message, 'error');
     });
 }
 
@@ -2057,55 +2546,66 @@ function ttFmtTime(dstr) {
 // Shared report rows: single source of truth for the preview AND the copy text.
 // NULL Time In / Time Out render as "00" (visual placeholder for "not started").
 function ttReportRows(ticketId, S) {
-    // ACTION TAKEN = the checked troubleshooting steps (the checklist IS the action log).
-    // The manual textarea is only a fallback if no steps were checked.
-    var checkedSteps = (S.steps && S.steps.length) ? S.steps.slice() : [];
-    var manualAction = ttRepInput(ticketId, 'action') || '';
-    var action = '';
-    if (checkedSteps.length) {
-        action = checkedSteps.join('\n');
-    } else {
-        action = manualAction || S.resolution || '';
-    }
-    var result    = ttRepInput(ticketId, 'result');
-    var reco      = ttRepInput(ticketId, 'reco');
-    var confirmed = ttRepInput(ticketId, 'confirm') || S.customer_name || '';
-    var problem   = S.problem_description || S.task || S.title || '';
+    var result    = ttRepInput(ticketId, 'result') || S.result_of_checking || '';
+    var reco      = ttRepInput(ticketId, 'reco') || S.recommendation || '';
+    var confirmed = ttRepInput(ticketId, 'confirm') || S.confirmed_by || S.customer_name || '';
+    var problem   = ttReportProblem(S);
+    var actionTaken = ttReportActionTaken(S);
     return [
         ['Company Name',       S.company_name || ''],
         ['Ticket#',            S.ticket_number || ('TK-' + (S.id || ticketId))],
-        ['SN',                 S.serial_number || ''],
+        ['Serial Number',      S.serial_number || ''],
         ['Date',               ttFmtDate(S.created_at || S.started_at)],
         ['Time In',            S.started_at ? ttFmtTime(S.started_at) : '00'],
         ['Time Out',           S.ended_at ? ttFmtTime(S.ended_at) : '00'],
         ['Problem/Task',       problem],
-        ['Action Taken',       action],
+        ['Action Taken',       actionTaken],
         ['Result of Checking', result],
         ['Recommendation',     reco],
         ['Confirmed By',       confirmed]
     ];
 }
 
+function ttReportActionTaken(S) {
+    return ttNormalizeSteps(S.steps || S.steps_performed || []).join('\n');
+}
+
+function ttReportProblem(S) {
+    if (S.task) { return S.task; }
+    if (S.issue_title) { return S.issue_title; }
+    var problem = S.problem_description || S.task || S.title || '';
+    var task = S.task || '';
+    if (task && problem.indexOf(task + '\n') === 0) {
+        problem = problem.slice(task.length + 1).trim();
+    }
+    return problem;
+}
+
 function ticketBuildReport(ticketId, session) {
-    var S = (window.ttTicketData && window.ttTicketData[ticketId]) || session || {};
-    return ttReportRows(ticketId, S).map(function(r) { return r[0] + ': ' + r[1]; }).join('\n');
+    var S = (window.ttTicketData && window.ttTicketData[ticketId]) || {};
+    if (session) { S = Object.assign({}, S, session); }
+    return ttReportRows(ticketId, S).map(function(r) {
+        var value = String(r[1] == null || r[1] === '' ? '—' : r[1]);
+        return r[0] + ': ' + value;
+    }).join('\n');
 }
 
 function ticketRenderReport(ticketId, session) {
     var reportEl = document.getElementById('report-' + ticketId);
     if (!reportEl) return;
-    var S = (window.ttTicketData && window.ttTicketData[ticketId]) || session || {};
+    var S = (window.ttTicketData && window.ttTicketData[ticketId]) || {};
+    if (session) { S = Object.assign({}, S, session); }
     var html = '';
     ttReportRows(ticketId, S).forEach(function(r) {
         var label = r[0];
         var value = String(r[1] == null ? '' : r[1]);
         var muted = (value === '' || value === '00');
-        html += '<div style="display:flex;justify-content:space-between;gap:14px;padding:5px 0;border-bottom:1px solid #eef2f7;">'
-              + '<span style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;flex-shrink:0;padding-top:2px;">' + ttEsc(label) + '</span>'
-              + '<span style="font-size:12.5px;font-weight:600;color:' + (muted ? '#cbd5e1' : '#111827') + ';text-align:right;word-break:break-word;white-space:pre-wrap;">'
+        html += '<div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding:6px 0;border-bottom:1px solid #eef2f7;align-items:start;">'
+              + '<span style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;padding-top:2px;">' + ttEsc(label) + '</span>'
+              + '<span style="font-size:12.5px;font-weight:600;color:' + (muted ? '#cbd5e1' : '#111827') + ';text-align:left;word-break:break-word;white-space:pre-wrap;line-height:1.45;">'
               + ttEsc(value === '' ? '—' : value) + '</span></div>';
     });
-    // Approval-pending indicator beneath Action Taken (checklist saved but not yet approved by a supervisor)
+    // Approval-pending indicator for checklist steps saved but not yet approved by a supervisor.
     var steps = (S.steps && S.steps.length) ? S.steps : [];
     if (steps.length && S.ended_at && !S.steps_approved) {
         html += '<div style="margin-top:8px;padding:6px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:10.5px;color:#92400e;font-weight:600;text-align:center;">⏳ Checklist pending approval — visible to you; awaiting supervisor approval before visible to others.</div>';
@@ -2116,30 +2616,35 @@ function ticketRenderReport(ticketId, session) {
 function ticketCopyReport(ticketId) {
     var reportEl = document.getElementById('report-' + ticketId);
     if (!reportEl) { showToast('Report not ready.', 'warning'); return; }
-    var text = reportEl.textContent;
-    if (!text) { showToast('Nothing to copy.', 'warning'); return; }
-    // Also update the report from the latest DB state on copy (best-effort)
-    if (typeof ticketRefreshReportFromDb === 'function') {
-        ticketRefreshReportFromDb(ticketId).then(function(s) { ticketRenderReport(ticketId, s); });
+    function copyText(text) {
+        if (!text) { showToast('Nothing to copy.', 'warning'); return; }
+        if (!navigator.clipboard) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); showToast('✓ Report copied!', 'success'); }
+            catch(e) { showToast('Copy failed — select and copy manually.', 'warning'); }
+            document.body.removeChild(ta);
+            return;
+        }
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('✓ Report copied!', 'success');
+        }).catch(function() {
+            showToast('Clipboard blocked — select and copy manually.', 'warning');
+        });
     }
-    text = document.getElementById('report-' + ticketId).textContent;
-    if (!navigator.clipboard) {
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); showToast('✓ Report copied!', 'success'); }
-        catch(e) { showToast('Copy failed — select and copy manually.', 'warning'); }
-        document.body.removeChild(ta);
+    function buildAndCopy(session) {
+        if (session) { ticketRenderReport(ticketId, session); }
+        copyText(ticketBuildReport(ticketId, session));
+    }
+    if (typeof ticketRefreshReportFromDb === 'function') {
+        ticketRefreshReportFromDb(ticketId).then(buildAndCopy);
         return;
     }
-    navigator.clipboard.writeText(text).then(function() {
-        showToast('✓ Report copied!', 'success');
-    }).catch(function() {
-        showToast('Clipboard blocked — select and copy manually.', 'warning');
-    });
+    buildAndCopy(null);
 }
 
 function ticketRegenReport(ticketId) {
@@ -2158,7 +2663,14 @@ function ticketRegenReport(ticketId) {
 function ticketRefreshReportFromDb(ticketId) {
     // Fetch the latest session row so the report reflects the most recent time-out.
     return api('/api/tickets/timein?ticket_id=' + ticketId).then(function(data) {
-        return data.session || null;
+        var session = data.session || null;
+        var S = window.ttTicketData && window.ttTicketData[ticketId];
+        if (session && S) {
+            Object.keys(session).forEach(function(k) {
+                if (session[k] !== undefined && session[k] !== null) { S[k] = session[k]; }
+            });
+        }
+        return session;
     }).catch(function() { return null; });
 }
 
@@ -2212,16 +2724,25 @@ function wireNewTicketModal() {
     // Step 2 — address suggestions follow the company typed in Step 1.
     var companyInput = document.getElementById('tt-company');
     if (companyInput) {
-        companyInput.addEventListener('input', function() {
+        companyInput.onchange = function() {
+            ttSuggestionChanged('company');
             ttRenderAddressDatalist();
             // Drop stale coordinates when the company changes mid-form.
             var latInput = document.getElementById('tt-lat');
             var lngInput = document.getElementById('tt-lng');
             if (latInput) latInput.value = '';
             if (lngInput) lngInput.value = '';
-        });
-        companyInput.addEventListener('change', ttApplySavedAddress);
+            ttApplySavedAddress();
+        };
     }
+    var companyOther = document.getElementById('tt-company-other');
+    if (companyOther) companyOther.oninput = function() { ttOtherSuggestionTyped('company'); ttRenderAddressDatalist(); };
+
+    var taskInput = document.getElementById('tt-task');
+    if (taskInput) taskInput.onchange = function() { ttSuggestionChanged('task'); ttIssueChanged(); };
+    var taskOther = document.getElementById('tt-task-other');
+    if (taskOther) taskOther.oninput = function() { ttOtherSuggestionTyped('task'); ttIssueChanged(); };
+
     var addrInput = document.getElementById('tt-address');
     if (addrInput) {
         addrInput.addEventListener('change', ttApplySavedAddress);

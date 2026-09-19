@@ -25,6 +25,9 @@ if (!$ticketId) { json_response(['error' => 'ticket_id required'], 400); exit; }
 $rawSteps = $input['steps'] ?? [];
 if (!is_array($rawSteps)) { $rawSteps = []; }
 
+$rawLearnedSteps = $input['learned_steps'] ?? [];
+if (!is_array($rawLearnedSteps)) { $rawLearnedSteps = []; }
+
 // Sanitize: trim, drop empties, keep order, remove duplicates (case-insensitive)
 $steps = [];
 $seen = [];
@@ -37,10 +40,21 @@ foreach ($rawSteps as $s) {
     $steps[] = $s;
 }
 
+$learnedSteps = [];
+$learnedSeen = [];
+foreach ($rawLearnedSteps as $s) {
+    $s = trim((string)$s);
+    if ($s === '') { continue; }
+    $key = mb_strtolower($s);
+    if (isset($learnedSeen[$key])) { continue; }
+    $learnedSeen[$key] = true;
+    $learnedSteps[] = $s;
+}
+
 if (!defined('DEMO_MODE') || !DEMO_MODE) {
     try {
         $owned = Database::fetch(
-            "SELECT id FROM troubleshooting_sessions WHERE id = ? AND user_id = ?",
+            "SELECT id, issue_id FROM troubleshooting_sessions WHERE id = ? AND user_id = ?",
             [$ticketId, Auth::userId()]
         );
         if (!$owned) { json_response(['error' => 'Ticket not found or not owned by you'], 404); exit; }
@@ -50,10 +64,13 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
             "UPDATE troubleshooting_sessions SET steps_performed = ? WHERE id = ?",
             [json_encode($steps), $ticketId]
         );
+
+        // Custom steps remain on this ticket immediately, but only become reusable
+        // troubleshooting steps after an admin approves the completed session.
     } catch (Exception $e) {
         json_response(['error' => 'Failed to save checklist: ' . $e->getMessage()], 500);
         exit;
     }
 }
 
-json_response(['success' => true, 'ticket_id' => $ticketId, 'steps' => $steps]);
+json_response(['success' => true, 'ticket_id' => $ticketId, 'steps' => $steps, 'learned_steps' => $learnedSteps]);

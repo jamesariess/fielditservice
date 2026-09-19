@@ -138,7 +138,7 @@ function layout_footer() {
         .bottom-nav a i { width:20px; height:20px; }
         @media (max-width:767px) {
             .bottom-nav { display:flex; }
-            .app-main { margin-left:0 !important; padding-bottom:72px; }
+            .app-main { margin-left:0 !important; width:100% !important; padding-bottom:72px; }
             .hide-mobile-nav { display:none !important; }
         }
         .sidebar-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:40; opacity:0; pointer-events:none; transition:opacity 0.25s; }
@@ -146,11 +146,11 @@ function layout_footer() {
         @media (min-width:768px) and (max-width:1023px) {
             .sidebar { transform:translateX(-100%); z-index:50; }
             .sidebar.open { transform:translateX(0); box-shadow:0 0 40px rgba(0,0,0,0.2); }
-            .app-main { margin-left:0 !important; }
+            .app-main { margin-left:0 !important; width:100% !important; }
         }
         @media (min-width:1024px) {
             .sidebar { transform:translateX(0); }
-            .app-main { margin-left:var(--sidebar-width); }
+            .app-main { margin-left:var(--sidebar-width); width:calc(100% - var(--sidebar-width)); }
         }
     </style>
 </head>
