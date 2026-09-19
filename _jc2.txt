@@ -1,0 +1,12 @@
+﻿=== HEAD version (known good) ===
+brace balance OK
+=== current version ===
+UNBALANCED ')' near line 83
+=== app.js line 80-86 ===
+        if (c === '\'') return '&#39;';
+        if (c === '"') return '&quot;';
+        return c;
+    });
+}
+
+// ==================== SweetAlert2 Helpers ====================

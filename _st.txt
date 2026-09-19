@@ -1,0 +1,19 @@
+﻿=== status ===
+ M public/assets/js/app.js
+ M public/pages/tickets.php
+?? .freebuff/cookies.txt
+?? .freebuff/preview.err
+?? api/tickets/timein.php
+?? api/tickets/timeout.php
+?? database/migrations/2026-09-19-ticket-form-fields.sql
+?? public/assets/lib/
+?? scripts/debug_tickets_tokens.php
+?? scripts/debug_tickets_tokens2.php
+?? scripts/find_pw.php
+?? scripts/fix_tickets_trailing.php
+?? scripts/patch_tickets_trailing.php
+?? scripts/patch_tickets_trailing2.php
+?? scripts/patch_tickets_trailing3.php
+?? scripts/seed_ticket_demo.php
+?? scripts/test_tickets_query.php
+?? scripts/verify_tickets_page.py
