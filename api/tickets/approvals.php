@@ -28,18 +28,37 @@ if (!$ids) { json_response(['error' => 'Select at least one item'], 400); }
 
 try {
     if ($kind === 'checklist') {
-        if (!in_array($action, ['approve', 'reject'], true) || count($ids) !== 1) {
-            json_response(['error' => 'Review one checklist step at a time'], 400);
+        if (!in_array($action, ['approve', 'reject'], true)) {
+            json_response(['error' => 'Invalid checklist review action'], 400);
         }
         $selectedIssueId = (int)($input['issue_id'] ?? 0);
-        $result = TicketStepSuggestions::review($ids[0], $action, Auth::userId(), (string)($_SESSION['user_name'] ?? 'Admin'), $selectedIssueId);
-        if ($result['status'] === 'problem_required') {
-            json_response(['error' => 'Select the correct problem before reviewing this step.'], 422);
+        $updated = 0;
+        $removedIds = [];
+        $duplicateIds = [];
+        $problemRequiredIds = [];
+        foreach ($ids as $id) {
+            $result = TicketStepSuggestions::review($id, $action, Auth::userId(), (string)($_SESSION['user_name'] ?? 'Admin'), $selectedIssueId);
+            if ($result['status'] === 'problem_required') { $problemRequiredIds[] = $id; continue; }
+            if ($result['status'] === 'duplicate') { $duplicateIds[] = $id; continue; }
+            if (in_array($result['status'], ['approved', 'rejected', 'missing'], true)) {
+                $removedIds[] = $id;
+                $updated += (int)$result['updated'];
+            }
         }
-        if ($result['status'] === 'duplicate') {
-            json_response(['success' => true, 'updated' => 0, 'duplicate' => true, 'message' => 'This step already exists for the selected problem.']);
+        if (count($ids) === 1 && $problemRequiredIds) {
+            json_response(['error' => 'This legacy ticket has no saved problem and cannot be approved as reusable.'], 422);
         }
-        json_response(['success' => true, 'updated' => $result['updated'], 'status' => $result['status']]);
+        json_response([
+            'success' => true,
+            'updated' => $updated,
+            'removed_ids' => $removedIds,
+            'duplicate_ids' => $duplicateIds,
+            'problem_required_ids' => $problemRequiredIds,
+            'duplicate' => count($ids) === 1 && !empty($duplicateIds),
+            'message' => $duplicateIds
+                ? $updated . ' step(s) approved; ' . count($duplicateIds) . ' already exist and were not added again.'
+                : '',
+        ]);
     }
 
     if (!in_array($kind, ['result', 'recommendation', 'confirmed_by'], true)) {

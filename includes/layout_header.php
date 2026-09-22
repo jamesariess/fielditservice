@@ -7,6 +7,7 @@ $currentUser = [
     'name' => Auth::userName() ?? 'Guest',
     'role' => $_SESSION['role_name'] ?? 'User',
 ];
+$ticketNavLabel = Auth::canViewAllTickets() ? 'Team Tickets' : 'My Tickets';
 
 $mainNav = [
     ['id' => 'dashboard', 'label' => 'Home', 'icon' => 'layout-dashboard', 'url' => '/'],
@@ -28,13 +29,13 @@ $sidebarItems = [
     ['id' => 'tools', 'label' => 'Tools', 'icon' => 'wrench', 'url' => '/tools'],
     ['id' => 'submit-steps', 'label' => 'Submit Steps', 'icon' => 'file-plus', 'url' => '/troubleshoot/submit'],
     ['section' => 'Work'],
-    ['id' => 'tickets', 'label' => 'My Tickets', 'icon' => 'ticket', 'url' => '/tickets', 'badge' => '5'],
+    ['id' => 'admin-ticket-approvals', 'label' => 'Ticket Approvals', 'icon' => 'clipboard-check', 'url' => '/admin/ticket-approvals', 'perm' => 'system.settings'],
+    ['id' => 'tickets', 'label' => $ticketNavLabel, 'icon' => 'ticket', 'url' => '/tickets'],
+    ['id' => 'profile', 'label' => 'My Profile', 'icon' => 'user-round', 'url' => '/profile'],
     ['id' => 'documentation', 'label' => 'Documentation', 'icon' => 'file-text', 'url' => '/documentation'],
     ['id' => 'chat', 'label' => 'Team Chat', 'icon' => 'messages-square', 'url' => '/chat', 'badge' => '3'],
     ['section' => 'Administration', 'perm' => 'users.manage'],
-    ['id' => 'admin-users', 'label' => 'Users', 'icon' => 'users', 'url' => '/admin/users', 'perm' => 'users.manage'],
-    ['id' => 'admin-roles', 'label' => 'Roles & Permissions', 'icon' => 'shield', 'url' => '/admin/roles', 'perm' => 'roles.manage'],
-    ['id' => 'admin-departments', 'label' => 'Departments', 'icon' => 'building-2', 'url' => '/admin/departments', 'perm' => 'departments.manage'],
+    ['id' => 'admin-users-access', 'label' => 'Users & Access', 'icon' => 'users-round', 'url' => '/admin/users', 'perm' => 'users.manage'],
     ['id' => 'admin-kb', 'label' => 'KB Management', 'icon' => 'file-check', 'url' => '/admin/knowledge', 'perm' => 'knowledge.manage'],
     ['id' => 'admin-equipment', 'label' => 'Equipment Mgmt', 'icon' => 'settings', 'url' => '/admin/equipment', 'perm' => 'equipment.manage'],
     ['id' => 'admin-statistics', 'label' => 'Statistics', 'icon' => 'bar-chart-3', 'url' => '/admin/statistics', 'perm' => 'audit.view'],
@@ -45,6 +46,13 @@ $sidebarItems = [
 ];
 
 $initials = '';
+// Keep the navigation available to the same manager roles as the approval API.
+if (in_array(strtolower((string)($_SESSION['role_name'] ?? '')), ['admin','super admin','super_admin','manager'], true)) {
+    foreach ($sidebarItems as &$approvalNavItem) {
+        if (($approvalNavItem['id'] ?? '') === 'admin-ticket-approvals') { unset($approvalNavItem['perm']); }
+    }
+    unset($approvalNavItem);
+}
 foreach (explode(' ', $currentUser['name']) as $p) { $initials .= strtoupper(substr($p, 0, 1)); if (strlen($initials) >= 2) break; }
 
 // App base path — centralised so clean URLs (/fielditservice/login), the legacy
@@ -147,11 +155,11 @@ foreach ($sidebarItems as $item) {
             <?php endforeach; ?>
         </nav>
         <div class="sidebar-user">
-            <div class="sidebar-user-avatar"><?= $initials ?></div>
-            <div class="sidebar-user-info">
+            <a href="<?= $urlBase ?>profile" class="sidebar-user-avatar" aria-label="Open my profile" data-tooltip="My Profile" style="text-decoration:none;"><?= $initials ?></a>
+            <a href="<?= $urlBase ?>profile" class="sidebar-user-info" style="text-decoration:none;" aria-label="Open my profile">
                 <div class="sidebar-user-name"><?= e($currentUser['name']) ?></div>
                 <div class="sidebar-user-role"><?= e($currentUser['role']) ?></div>
-            </div>
+            </a>
             <a href="<?= $urlBase ?>logout" class="header-btn" data-tooltip="Logout"><i data-lucide="log-out" style="width:16px;height:16px;"></i></a>
         </div>
     </aside>

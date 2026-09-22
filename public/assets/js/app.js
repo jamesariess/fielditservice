@@ -269,6 +269,14 @@ function showToast(message, type) {
 function api(endpoint, options) {
     if (endpoint.charAt(0) === '/') endpoint = APP_BASE + endpoint.substring(1);
     options = options || {};
+    var timeoutMs = Number(options.timeoutMs || 0);
+    delete options.timeoutMs;
+    var timeoutId = null;
+    if (timeoutMs > 0 && typeof AbortController !== 'undefined' && !options.signal) {
+        var controller = new AbortController();
+        options.signal = controller.signal;
+        timeoutId = setTimeout(function() { controller.abort(); }, timeoutMs);
+    }
     var csrfToken = '';
     var metaCsrf = document.querySelector('meta[name="csrf-token"]');
     if (metaCsrf) csrfToken = metaCsrf.content;
@@ -291,8 +299,11 @@ function api(endpoint, options) {
             return data;
         });
     }).catch(function(err) {
+        if (err && err.name === 'AbortError') throw new Error('The request took too long. Please try again.');
         if (err.message === 'Failed to fetch') showToast('Network error. You may be offline.', 'warning');
         throw err;
+    }).finally(function() {
+        if (timeoutId) clearTimeout(timeoutId);
     });
 }
 
@@ -652,17 +663,112 @@ function ticketSuggestionBulk(action) {
     api('/api/tickets/suggestions', { method: 'POST', body: { action: action, ids: ids } })
         .then(function(res) {
             if (!res.success) { showToast(res.error || 'Suggestion update failed.', 'error'); return; }
+            ticketApprovalRemoveRows('suggestions', ids);
             showToast(action === 'approve' ? 'Suggestion approved.' : 'Suggestions deleted.', 'success');
-            setTimeout(function() { window.location.reload(); }, 500);
         })
         .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
 }
 
 function ticketApprovalTab(kind, button) {
+    if (document.getElementById('tickets-grid')) {
+        window.location.href = APP_BASE + 'admin/ticket-approvals?category=' + encodeURIComponent(kind);
+        return;
+    }
     document.querySelectorAll('.tt-approval-tab').forEach(function(tab) { tab.classList.toggle('active', tab === button); });
     document.querySelectorAll('.tt-approval-pane').forEach(function(pane) {
         pane.classList.toggle('active', pane.dataset.approvalPane === kind);
     });
+    try { sessionStorage.setItem('ticketApprovalTab', kind); } catch (e) {}
+}
+
+function ticketRestoreApprovalTab() {
+    if (document.getElementById('tickets-grid')) return;
+    var kind = '';
+    try { kind = sessionStorage.getItem('ticketApprovalTab') || ''; } catch (e) {}
+    if (!kind) return;
+    var button = document.querySelector('.tt-approval-tab[data-approval-tab="' + kind + '"]');
+    if (button) ticketApprovalTab(kind, button);
+}
+
+function ticketRememberPageState() {
+    var sort = document.getElementById('ticket-sort');
+    var state = {
+        scrollY: window.scrollY || 0,
+        filter: window.ticketActiveFilter || '',
+        sort: sort ? sort.value : ''
+    };
+    try { sessionStorage.setItem('ticketPageState', JSON.stringify(state)); } catch (e) {}
+}
+
+function ticketReloadPreservingState(delay) {
+    ticketRememberPageState();
+    setTimeout(function() { window.location.reload(); }, delay || 0);
+}
+
+function ticketRestorePageState() {
+    var state = null;
+    try {
+        state = JSON.parse(sessionStorage.getItem('ticketPageState') || 'null');
+        sessionStorage.removeItem('ticketPageState');
+    } catch (e) { state = null; }
+    if (!state) return;
+    var sort = document.getElementById('ticket-sort');
+    if (sort && state.sort) sort.value = state.sort;
+    if (state.filter) {
+        window.ticketActiveFilter = state.filter;
+        document.querySelectorAll('.filter-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.filter === state.filter);
+        });
+    }
+    ticketApplyFilters();
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() { window.scrollTo(0, Number(state.scrollY || 0)); });
+    });
+}
+
+function ticketApprovalList(kind) {
+    return kind === 'suggestions'
+        ? document.getElementById('ticket-suggestions-list')
+        : document.getElementById('ticket-approval-list-' + kind);
+}
+
+function ticketApprovalEmptyText(kind) {
+    var labels = {
+        suggestions: 'No pending company or task suggestions.',
+        checklist: 'No pending checklist entries.',
+        result: 'No pending results of checking.',
+        recommendation: 'No pending recommendations.',
+        confirmed_by: 'No pending confirmed by entries.'
+    };
+    return labels[kind] || 'No pending entries.';
+}
+
+function ticketApprovalRefreshCounts() {
+    var total = 0;
+    document.querySelectorAll('.tt-approval-tab[data-approval-tab]').forEach(function(tab) {
+        var kind = tab.dataset.approvalTab;
+        var list = ticketApprovalList(kind);
+        var count = list ? list.querySelectorAll('.tt-approval-row').length : 0;
+        var badge = tab.querySelector('span');
+        if (badge) badge.textContent = String(count);
+        total += count;
+    });
+    var totalBadge = document.getElementById('ticket-approval-total');
+    if (totalBadge) totalBadge.textContent = String(total);
+}
+
+function ticketApprovalRemoveRows(kind, ids) {
+    var list = ticketApprovalList(kind);
+    if (!list) return;
+    ids.forEach(function(id) {
+        var row = list.querySelector('.tt-approval-row[data-id="' + id + '"]');
+        if (row) row.remove();
+    });
+    if (!list.querySelector('.tt-approval-row')) {
+        list.innerHTML = '<div class="tt-approval-empty"><i data-lucide="check-circle-2"></i><span>' + ticketApprovalEmptyText(kind) + '</span></div>';
+        if (window.lucide) lucide.createIcons();
+    }
+    ticketApprovalRefreshCounts();
 }
 
 function ticketApprovalBulk(kind, action) {
@@ -674,8 +780,8 @@ function ticketApprovalBulk(kind, action) {
     api('/api/tickets/approvals', { method: 'POST', body: { kind: kind, action: action, ids: ids } })
         .then(function(res) {
             if (!res.success) { showToast(res.error || 'Approval update failed.', 'error'); return; }
+            ticketApprovalRemoveRows(kind, ids);
             showToast(action === 'approve' ? 'Selected entries approved.' : 'Selected entries deleted.', 'success');
-            setTimeout(function() { window.location.reload(); }, 500);
         })
         .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
 }
@@ -692,10 +798,43 @@ function ticketStepReview(id, action, problemSelectId) {
             if (!res.success) { showToast(res.error || 'Checklist review failed.', 'error'); return; }
             if (res.duplicate) {
                 showToast(res.message || 'That step already exists for this problem.', 'warning');
+                var row = document.querySelector('#ticket-approval-list-checklist .tt-approval-row[data-id="' + id + '"]');
+                if (row) {
+                    row.classList.add('is-duplicate');
+                    var actions = row.querySelector('.tt-step-actions');
+                    if (actions) actions.innerHTML = '<span class="tt-duplicate-badge">Already exists</span><button type="button" class="btn btn-sm btn-secondary" onclick="ticketStepReview(' + id + ',\'reject\')">Dismiss</button>';
+                }
             } else {
+                ticketApprovalRemoveRows('checklist', [id]);
                 showToast(action === 'approve' ? 'Step approved and added to this problem.' : 'Step removed from the approval queue.', 'success');
             }
-            setTimeout(function() { window.location.reload(); }, 500);
+        })
+        .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+}
+
+function ticketChecklistSelectAll(checked) {
+    document.querySelectorAll('#ticket-approval-list-checklist .tt-step-select').forEach(function(box) {
+        box.checked = checked;
+    });
+}
+
+function ticketChecklistBulk(action) {
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('#ticket-approval-list-checklist .tt-step-select:checked'));
+    var ids = boxes.map(function(box) { return parseInt(box.value, 10); }).filter(Boolean);
+    if (!ids.length) { showToast('Select at least one checklist step first.', 'warning'); return; }
+    api('/api/tickets/approvals', { method: 'POST', body: { kind: 'checklist', action: action, ids: ids } })
+        .then(function(res) {
+            if (!res.success) { showToast(res.error || 'Checklist review failed.', 'error'); return; }
+            ticketApprovalRemoveRows('checklist', res.removed_ids || []);
+            (res.duplicate_ids || []).forEach(function(id) {
+                var row = document.querySelector('#ticket-approval-list-checklist .tt-approval-row[data-id="' + id + '"]');
+                var box = row && row.querySelector('.tt-step-select');
+                if (box) box.checked = false;
+            });
+            if (res.message) showToast(res.message, 'warning');
+            else showToast(action === 'approve' ? 'Selected steps approved.' : 'Selected steps rejected.', 'success');
+            var selectAll = document.querySelector('.tt-checklist-bulkbar input[type="checkbox"]');
+            if (selectAll) selectAll.checked = false;
         })
         .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
 }
@@ -773,7 +912,7 @@ function createTicket(e) {
         showToast('Ticket ' + res.ticket_id + ' created successfully!', 'success');
         closeModal('new-ticket-modal');
         form.reset();
-        setTimeout(function() { window.location.reload(); }, 1000);
+        ticketReloadPreservingState(1000);
     }).catch(function(err) {
         showToast('Error creating ticket: ' + err.message, 'error');
     });
@@ -910,14 +1049,14 @@ function renderTerminalResult(ticketId, data) {
 function ticketResolve(ticketId) {
     api('/api/tickets/action', { method: 'POST', body: { action: 'resolve', id: ticketId } }).then(function() {
         showToast('Ticket resolved!', 'success');
-        setTimeout(function() { window.location.reload(); }, 1000);
+        ticketReloadPreservingState(1000);
     }).catch(function(err) {
         showToast('Error: ' + err.message, 'error');
     });
 }function ticketEscalate(ticketId) {
     api('/api/tickets/action', { method: 'POST', body: { action: 'escalate', id: ticketId } }).then(function() {
         showToast('Ticket escalated to supervisor!', 'warning');
-        setTimeout(function() { window.location.reload(); }, 1000);
+        ticketReloadPreservingState(1000);
     }).catch(function(err) { showToast('Error: ' + err.message, 'error'); });
 }
 
@@ -943,6 +1082,7 @@ var ttMapInstance = null;
 var ttMapMarker = null;
 var ttMapMarkerEnd = null;
 var ttUserLocation = null;
+var ttDestinationLookup = 0;
 
 // ---------- step navigation ----------
 function ticketStepBack() {
@@ -976,7 +1116,9 @@ function ticketGoToStep2() {
     ttPopulateIssues();
     ttRenderCompanyDatalist();
     ttRenderAddressDatalist();
+    ttRenderLocationSelect(true);
     initTicketMap();
+    ttApplySavedAddress();
 }
 
 // The ticket number + company are typed by hand (datalist suggests known companies).
@@ -1048,22 +1190,20 @@ function ttSuggestionChanged(kind) {
 }
 
 function ttApplyProfileDefaults() {
-    var d = ttProfileTicketDefault || {};
     var company = document.getElementById('tt-company');
     var companyOther = document.getElementById('tt-company-other');
-    if (company && d.company && !ttCompanyValue()) {
-        var match = ttFindApprovedValue('tt-company', d.company);
-        company.value = match || '__OTHER__';
-        if (!match && companyOther) { companyOther.value = d.company; companyOther.style.display = ''; }
-    }
     var location = document.getElementById('tt-location');
     var address = document.getElementById('tt-address');
     var lat = document.getElementById('tt-lat');
     var lng = document.getElementById('tt-lng');
-    if (location && !location.value && d.location) location.value = d.location;
-    if (address && !address.value && d.address) address.value = d.address;
-    if (lat && !lat.value && d.lat) lat.value = d.lat;
-    if (lng && !lng.value && d.lng) lng.value = d.lng;
+    if (company) company.value = '';
+    if (companyOther) { companyOther.value = ''; companyOther.style.display = 'none'; }
+    if (location) { location.value = ''; location.style.display = 'none'; }
+    if (address) address.value = '';
+    if (lat) lat.value = '';
+    if (lng) lng.value = '';
+    ttRenderAddressDatalist();
+    ttRenderLocationSelect(false);
 }
 
 function ttApplyCompanyDefaultLocation() {
@@ -1075,12 +1215,15 @@ function ttApplyCompanyDefaultLocation() {
     }
     if (!row) return;
     var address = document.getElementById('tt-address');
+    var location = document.getElementById('tt-location');
     var lat = document.getElementById('tt-lat');
     var lng = document.getElementById('tt-lng');
     if (address) address.value = row.address || '';
+    if (location && row.location) location.value = row.location;
     if (lat) lat.value = row.lat || '';
     if (lng) lng.value = row.lng || '';
     if (row.lat && row.lng) ttPlaceMapMarkerEnd(row.lat, row.lng);
+    ttRenderLocationSelect(true);
 }
 
 function ttOtherSuggestionTyped(kind) {
@@ -1170,6 +1313,103 @@ function ttRenderAddressDatalist() {
     return out;
 }
 
+function ttCompanyLocationNames() {
+    var company = ttNormalizeName(ttCompanyValue());
+    var seen = {}, values = [];
+    for (var i = 0; i < ttCompanyData.length; i++) {
+        var row = ttCompanyData[i];
+        if (!company || ttNormalizeName(row.company) !== company) continue;
+        var value = String(row.location || '').trim();
+        var key = ttNormalizeName(value);
+        if (key && !seen[key]) { seen[key] = true; values.push(value); }
+    }
+    return values;
+}
+
+function ttFindCompanyLocation(comp, location) {
+    var company = ttNormalizeName(comp);
+    var wanted = ttNormalizeName(location);
+    if (!company || !wanted) return null;
+    for (var i = 0; i < ttCompanyData.length; i++) {
+        var row = ttCompanyData[i];
+        if (ttNormalizeName(row.company) === company && ttNormalizeName(row.location) === wanted) {
+            return row;
+        }
+    }
+    return null;
+}
+
+function ttRenderLocationSelect(preserveCurrent) {
+    var select = document.getElementById('tt-location-select');
+    var input = document.getElementById('tt-location');
+    if (!select || !input) return;
+    var current = preserveCurrent ? String(input.value || '').trim() : '';
+    var values = ttCompanyLocationNames();
+    var html = '<option value="">Choose a saved company location…</option>';
+    values.forEach(function(value) { html += '<option value="' + ttEsc(value) + '">' + ttEsc(value) + '</option>'; });
+    html += '<option value="__OTHER__">Other — type a new location…</option>';
+    select.innerHTML = html;
+
+    var match = '';
+    for (var i = 0; i < values.length; i++) {
+        if (ttNormalizeName(values[i]) === ttNormalizeName(current)) { match = values[i]; break; }
+    }
+    if (match) {
+        select.value = match;
+        input.value = match;
+        input.style.display = 'none';
+    } else if (current) {
+        select.value = '__OTHER__';
+        input.style.display = '';
+    } else if (values.length) {
+        select.value = values[0];
+        input.value = values[0];
+        input.style.display = 'none';
+    } else {
+        select.value = '__OTHER__';
+        input.value = '';
+        input.style.display = '';
+    }
+}
+
+function ttLocationChoiceChanged() {
+    var select = document.getElementById('tt-location-select');
+    var input = document.getElementById('tt-location');
+    var address = document.getElementById('tt-address');
+    var lat = document.getElementById('tt-lat');
+    var lng = document.getElementById('tt-lng');
+    if (!select || !input) return;
+    if (select.value === '__OTHER__') {
+        input.value = '';
+        input.style.display = '';
+        if (address) address.value = '';
+        if (lat) lat.value = '';
+        if (lng) lng.value = '';
+        if (ttMapMarkerEnd && ttMapInstance) {
+            ttMapInstance.removeLayer(ttMapMarkerEnd);
+            ttMapMarkerEnd = null;
+        }
+        input.focus();
+    } else {
+        input.value = select.value || '';
+        input.style.display = 'none';
+        var row = ttFindCompanyLocation(ttCompanyValue(), select.value);
+        if (row) {
+            if (address) address.value = row.address || '';
+            if (lat) lat.value = row.lat || '';
+            if (lng) lng.value = row.lng || '';
+            if (row.lat && row.lng) {
+                ttPlaceMapMarkerEnd(row.lat, row.lng);
+            } else if (row.address) {
+                ttResolveDestinationAddress(row.address);
+            } else if (ttMapMarkerEnd && ttMapInstance) {
+                ttMapInstance.removeLayer(ttMapMarkerEnd);
+                ttMapMarkerEnd = null;
+            }
+        }
+    }
+}
+
 function ttFindSavedAddress(comp, addr) {
     var c = ttNormalizeName(comp), a = String(addr || '').trim().toLowerCase();
     if (!c || !a) return null;
@@ -1188,13 +1428,49 @@ function ttApplySavedAddress() {
     if (!addrInput) return;
     var addr = (addrInput.value || '').trim();
     var saved = ttFindSavedAddress(ttCompanyValue(), addr);
-    if (saved && saved.lat && saved.lng) {
+    if (saved) {
+        var locationInput = document.getElementById('tt-location');
+        var locationSelect = document.getElementById('tt-location-select');
+        if (saved.location && locationInput) {
+            locationInput.value = saved.location;
+            ttRenderLocationSelect(true);
+            if (locationSelect) locationSelect.value = saved.location;
+        }
         var latInput = document.getElementById('tt-lat');
         var lngInput = document.getElementById('tt-lng');
-        if (latInput) latInput.value = saved.lat;
-        if (lngInput) lngInput.value = saved.lng;
-        ttPlaceMapMarkerEnd(saved.lat, saved.lng);
+        if (latInput) latInput.value = saved.lat || '';
+        if (lngInput) lngInput.value = saved.lng || '';
+        if (saved.lat && saved.lng) {
+            ttPlaceMapMarkerEnd(saved.lat, saved.lng);
+        } else if (saved.address) {
+            ttResolveDestinationAddress(saved.address);
+        }
     }
+}
+
+// Resolve saved text-only branch addresses in the background. This prepares
+// ticket-card distance/ETA without making ticket creation wait on map services.
+function ttResolveDestinationAddress(address) {
+    address = String(address || '').trim();
+    if (!address) return;
+    var requestId = ++ttDestinationLookup;
+    api('/api/geocode?q=' + encodeURIComponent(address)).then(function(result) {
+        var addressInput = document.getElementById('tt-address');
+        if (requestId !== ttDestinationLookup || !addressInput || String(addressInput.value || '').trim() !== address) return;
+        var lat = result && result.lat;
+        var lng = result && result.lng;
+        if (lat === undefined || lng === undefined) return;
+        var latInput = document.getElementById('tt-lat');
+        var lngInput = document.getElementById('tt-lng');
+        if (latInput) latInput.value = lat;
+        if (lngInput) lngInput.value = lng;
+        var saved = ttFindSavedAddress(ttCompanyValue(), address);
+        if (saved) { saved.lat = lat; saved.lng = lng; }
+        ttPlaceMapMarkerEnd(lat, lng);
+    }).catch(function() {
+        // Broad or incomplete addresses still work: the user can set the exact
+        // destination by clicking the map without blocking ticket creation.
+    });
 }
 
 // If the map/tap set a brand-new address, keep it for the next ticket of this company.
@@ -1565,6 +1841,10 @@ function ttDeviceOtherTyped(v) {
 function initTicketMap() {
     var mapEl = document.getElementById('tt-map');
     if (!mapEl) return;
+    if (ttMapInstance) {
+        setTimeout(function() { try { ttMapInstance.invalidateSize(); } catch (e) {} }, 0);
+        return;
+    }
     if (typeof L === 'undefined') {
         mapEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px;"><div style="width:28px;height:28px;border:2px solid #2563eb;border-top-color:transparent;border-radius:50%;margin:0 auto 8px;animation:spin 0.7s linear infinite;display:inline-block;"></div>Loading map…</div>';
         // Retry a few times in case the script loads async
@@ -1580,9 +1860,13 @@ function initTicketMap() {
     var latInput = document.getElementById('tt-lat');
     var lngInput = document.getElementById('tt-lng');
     var addrInput = document.getElementById('tt-address');
-    var zoom = 14;
-    var center = [14.5995, 120.9842]; // Manila default
-    if (latInput && lngInput && latInput.value && lngInput.value) {
+    var originLat = parseFloat((ttProfileTicketDefault || {}).lat);
+    var originLng = parseFloat((ttProfileTicketDefault || {}).lng);
+    var hasOrigin = isFinite(originLat) && isFinite(originLng);
+    var hasDestination = !!(latInput && lngInput && latInput.value && lngInput.value);
+    var zoom = hasOrigin ? 15 : 14;
+    var center = hasOrigin ? [originLat, originLng] : [14.5995, 120.9842];
+    if (hasDestination) {
         center = [parseFloat(latInput.value), parseFloat(lngInput.value)];
         zoom = 16;
     }
@@ -1591,13 +1875,13 @@ function initTicketMap() {
         attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
     }).addTo(ttMapInstance);
-    // Start marker (company origin) — only if we have a stored start point
-    if (latInput && lngInput && latInput.value && lngInput.value) {
-        ttMapMarker = L.marker(center, { icon: ttBlueIcon() }).addTo(ttMapInstance);
-        ttMapMarker.bindPopup('<b>Start</b><br/>' + escHtml(addrInput ? addrInput.value : '')).openPopup();
+    // The profile location is the technician's route origin, never the ticket destination.
+    if (hasOrigin) {
+        ttMapMarker = L.marker([originLat, originLng], { icon: ttBlueIcon() }).addTo(ttMapInstance);
+        ttMapMarker.bindPopup('<b>My start location</b><br/>' + escHtml((ttProfileTicketDefault || {}).address || 'Profile location'));
     }
-    ttMapMarkerEnd = L.marker(center, { icon: ttRedIcon() }).addTo(ttMapInstance);
-    if (addrInput && addrInput.value) {
+    if (hasDestination) {
+        ttMapMarkerEnd = L.marker(center, { icon: ttRedIcon() }).addTo(ttMapInstance);
         ttMapMarkerEnd.bindPopup('<b>Destination</b><br/>' + escHtml(addrInput.value)).openPopup();
     }
     ttMapInstance.on('click', function(e) {
@@ -1643,6 +1927,15 @@ function ttPlaceMapMarkerEnd(lat, lng) {
     if (!ttMapInstance) return;
     if (ttMapMarkerEnd) ttMapInstance.removeLayer(ttMapMarkerEnd);
     ttMapMarkerEnd = L.marker([lat, lng], { icon: ttRedIcon() }).addTo(ttMapInstance);
+    var address = document.getElementById('tt-address');
+    ttMapMarkerEnd.bindPopup('<b>Client destination</b><br/>' + escHtml(address && address.value ? address.value : 'Selected service location'));
+    try {
+        if (ttMapMarker) {
+            ttMapInstance.fitBounds(L.featureGroup([ttMapMarker, ttMapMarkerEnd]).getBounds().pad(0.25));
+        } else {
+            ttMapInstance.setView([lat, lng], 16);
+        }
+    } catch (e) {}
 }
 
 function ttReverseGeocode(lat, lng, cb) {
@@ -1784,7 +2077,7 @@ function ticketSubmitTimeIn() {
         if (res.success) {
             showToast('Ticket ' + res.ticket_number + ' created — time in at ' + res.time_in, 'success');
             closeModal('new-ticket-modal');
-            setTimeout(function() { window.location.reload(); }, 1200);
+            ticketReloadPreservingState(1200);
         } else {
             showToast('Time-in failed: ' + (res.error || 'unknown'), 'error');
             if (btn) { btn.disabled = false; btn.textContent = 'Start Session (Time In)'; }
@@ -1866,6 +2159,7 @@ function ttCacheReport(ticketId) {
 function openTicketDrawer(ticketId) {
     var S = (window.ttTicketData && window.ttTicketData[ticketId]) || null;
     if (!S) { showToast('Ticket data not found.', 'error'); return; }
+    var readOnly = S.can_edit === false;
     var status = S.status || 'new';
     var device = ((S.manufacturer || '') + ' ' + (S.model || '')).trim();
     var problem = S.problem_description || S.task || S.title || '';
@@ -1879,6 +2173,7 @@ function openTicketDrawer(ticketId) {
     h += '<div style="min-width:0;">';
     h += '<div id="ticket-drawer-title" style="font-size:17px;font-weight:800;color:#111827;word-break:break-word;">' + ttEsc(S.company_name || 'Company not specified') + '</div>';
     h += '<div style="font-size:12px;color:#64748b;font-weight:600;margin-top:3px;">Ticket #' + ttEsc(S.ticket_number || '') + (S.serial_number ? '<span style="margin-left:10px;">SN: ' + ttEsc(S.serial_number) + '</span>' : '') + '</div>';
+    if (S.owner_name) h += '<div class="ftd-owner-line"><i data-lucide="user-round"></i> Assigned to ' + ttEsc(S.owner_name) + (readOnly ? '<span>View only</span>' : '') + '</div>';
     h += '</div></div>';
     h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + ttStatusBadge(status)
        + '<button onclick="closeTicketDrawer()" class="btn btn-sm btn-ghost ftd-close-btn" aria-label="Close ticket details" title="Close" style="color:#64748b;">&#10005;</button></div>';
@@ -1917,7 +2212,9 @@ function openTicketDrawer(ticketId) {
     h += '<div style="margin-top:10px;font-size:12px;color:#64748b;font-weight:600;">Duration: <span style="color:#111827;font-weight:700;">' + (dur ? ttEsc(dur) : '—') + '</span></div>';
     // Lifecycle: START TIME IN → TIME OUT → MARK AS DONE → ✓ COMPLETED
     var act = '';
-    if (!S.started_at) {
+    if (readOnly) {
+        act += '<span class="ftd-readonly"><i data-lucide="lock-keyhole"></i> Only the assigned technician can update this ticket</span>';
+    } else if (!S.started_at) {
         act += '<button onclick="ticketTimeIn(' + ticketId + ')" class="btn btn-sm btn-primary" style="flex:1;"><i data-lucide="play" style="width:13px;height:13px;"></i> Start Time In</button>';
     } else if (!S.ended_at) {
         act += '<button onclick="ticketTimeOut(' + ticketId + ')" class="btn btn-sm btn-warning" style="flex:1;"><i data-lucide="square" style="width:13px;height:13px;"></i> Time Out</button>';
@@ -1949,7 +2246,7 @@ function openTicketDrawer(ticketId) {
     // Field Guide: tools / videos / tips — loaded from the DB for this issue + device
     h += '<div class="ftd-section" id="guide-' + ticketId + '" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px;">'
        + '<div class="ftd-title">Field Guide</div>'
-       + '<div style="font-size:12px;color:#94a3b8;">Loading tools, videos & tips…</div></div>';
+       + '<div style="font-size:12px;color:#94a3b8;">Loading symptoms, cause, tools & tips…</div></div>';
     h += '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">'
        + '<div class="ftd-title" style="margin:0;color:#1e40af;">Report</div>'
        + '<button onclick="ticketCopyReport(' + ticketId + ')" class="btn btn-sm btn-primary"><i data-lucide="copy" style="width:12px;height:12px;"></i> Copy Report</button>'
@@ -1961,20 +2258,41 @@ function openTicketDrawer(ticketId) {
     var issueMemory = ttIssueFieldOptions[String(parseInt(S.issue_id || 0, 10))] || { result: [], recommendation: [] };
     var companyMemory = ttCompanyContacts[ttNormalizeName(S.company_name || '')] || [];
     function memorySelect(key, values, current, label) {
-        if (!values || !values.length) return '';
-        var html = '<select class="form-input tt-memory-select" onchange="ttApplyMemoryChoice(' + ticketId + ',\'' + key + '\',this.value)"><option value="">Saved ' + label + '…</option>';
-        values.forEach(function(value) { html += '<option value="' + ttEsc(value) + '">' + ttEsc(value) + '</option>'; });
+        if (readOnly) return '';
+        values = values || [];
+        var currentKey = ttNormalizeName(current || '');
+        var matched = false;
+        var html = '<select id="rep-' + ticketId + '-' + key + '-choice" class="form-input tt-memory-select" onchange="ttApplyMemoryChoice(' + ticketId + ',\'' + key + '\',this.value)">'
+            + '<option value="">Choose ' + label + '…</option>';
+        values.forEach(function(value) {
+            var selected = currentKey && ttNormalizeName(value) === currentKey;
+            if (selected) matched = true;
+            html += '<option value="' + ttEsc(value) + '"' + (selected ? ' selected' : '') + '>' + ttEsc(value) + '</option>';
+        });
+        html += '<option value="__OTHER__"' + (currentKey && !matched ? ' selected' : '') + '>Other — type manually…</option>';
         return html + '</select>';
     }
+    function manualDisplay(values, current) {
+        if (readOnly) return '';
+        var currentKey = ttNormalizeName(current || '');
+        if (!currentKey) return 'display:none;';
+        for (var i = 0; i < (values || []).length; i++) {
+            if (ttNormalizeName(values[i]) === currentKey) return 'display:none;';
+        }
+        return '';
+    }
+    var resultCurrent = S.result_of_checking || '';
+    var recoCurrent = S.recommendation || '';
+    var confirmCurrent = S.confirmed_by || (companyMemory[0] || '');
     h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-result">Result of Checking</label>'
-       + memorySelect('result', issueMemory.result, S.result_of_checking || '', 'results for this problem')
-       + '<textarea id="rep-' + ticketId + '-result" class="form-input" rows="3" placeholder="Enter what you found..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;">' + ttEsc(S.result_of_checking || '') + '</textarea></div>';
+       + memorySelect('result', issueMemory.result, resultCurrent, 'a saved result for this problem')
+       + '<textarea id="rep-' + ticketId + '-result" class="form-input tt-memory-manual" rows="3" placeholder="Type another result..." ' + (readOnly ? 'readonly ' : '') + 'style="' + manualDisplay(issueMemory.result, resultCurrent) + 'width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;">' + ttEsc(resultCurrent) + '</textarea></div>';
     h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-reco">Recommendation</label>'
-       + memorySelect('reco', issueMemory.recommendation, S.recommendation || '', 'recommendations for this problem')
-       + '<textarea id="rep-' + ticketId + '-reco" class="form-input" rows="2" placeholder="Enter your recommendation..." style="width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;">' + ttEsc(S.recommendation || '') + '</textarea></div>';
+       + memorySelect('reco', issueMemory.recommendation, recoCurrent, 'a saved recommendation for this problem')
+       + '<textarea id="rep-' + ticketId + '-reco" class="form-input tt-memory-manual" rows="2" placeholder="Type another recommendation..." ' + (readOnly ? 'readonly ' : '') + 'style="' + manualDisplay(issueMemory.recommendation, recoCurrent) + 'width:100%;font-size:12.5px;padding:8px 10px;resize:vertical;">' + ttEsc(recoCurrent) + '</textarea></div>';
     h += '<div class="ftd-field"><label class="ftd-lbl" for="rep-' + ticketId + '-confirm">Confirmed By</label>'
-       + memorySelect('confirm', companyMemory, S.confirmed_by || '', 'contacts for this company')
-       + '<input id="rep-' + ticketId + '-confirm" class="form-input" value="' + ttEsc(S.confirmed_by || (companyMemory[0] || '')) + '" placeholder="e.g. System Admin" style="width:100%;font-size:12.5px;padding:8px 10px;"></div>';
+       + memorySelect('confirm', companyMemory, confirmCurrent, 'a contact for this company')
+       + '<input id="rep-' + ticketId + '-confirm" class="form-input tt-memory-manual" value="' + ttEsc(confirmCurrent) + '" placeholder="Type another contact name..." ' + (readOnly ? 'readonly ' : '') + 'style="' + manualDisplay(companyMemory, confirmCurrent) + 'width:100%;font-size:12.5px;padding:8px 10px;"></div>';
 
     // Steps done — live mirror of the checklist (auto-saved with every change)
     h += '<div class="ftd-section"><div class="ftd-title">Steps Done</div><div id="logged-' + ticketId + '" class="ftd-steps"></div></div>';
@@ -2034,9 +2352,19 @@ function closeTicketDrawer() {
 }
 
 function ttApplyMemoryChoice(ticketId, key, value) {
-    if (!value) return;
+    var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S && S.can_edit === false) return;
     var el = document.getElementById('rep-' + ticketId + '-' + key);
-    if (el) { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); }
+    if (!el) return;
+    if (value === '__OTHER__') {
+        el.value = '';
+        el.style.display = '';
+        el.focus();
+    } else {
+        el.value = value || '';
+        el.style.display = 'none';
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function ttInitTicketLocationMap(ticketId, S) {
@@ -2046,11 +2374,9 @@ function ttInitTicketLocationMap(ticketId, S) {
         var address = S.address || S.location || '';
         if (!address) return;
         el.innerHTML = '<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;">Locating saved address…</div>';
-        fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(address), { headers:{'Accept-Language':'en'} })
-            .then(function(r){ return r.json(); })
-            .then(function(rows){
-                if (!rows || !rows.length) { el.innerHTML = '<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;">Map coordinates are not available for this address.</div>'; return; }
-                S.latitude = rows[0].lat; S.longitude = rows[0].lon;
+        api('/api/geocode?q=' + encodeURIComponent(address))
+            .then(function(result){
+                S.latitude = result.lat; S.longitude = result.lng;
                 ttInitTicketLocationMap(ticketId, S);
             }).catch(function(){ el.innerHTML = '<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;">Map is unavailable right now.</div>'; });
         return;
@@ -2111,25 +2437,26 @@ function ttRenderChecklist(ticketId) {
     var doneLower = done.map(function(s) { return String(s).toLowerCase().trim(); });
     var sugLower = suggestions.map(function(st) { return String(st.title || '').toLowerCase().trim(); });
     var html = '';
+    var readOnly = S.can_edit === false;
     // Suggested steps for this issue (from the troubleshooting guide)
     suggestions.forEach(function(st) {
         var text = String(st.title || ('Step ' + st.n));
         var checked = doneLower.indexOf(text.toLowerCase().trim()) !== -1;
         var risk = st.risk === 'danger' ? ' ⚠' : (st.risk === 'caution' ? ' ⚡' : '');
-        html += '<div class="ft-chk-row' + (checked ? ' done' : '') + '" data-step="' + ttEsc(text) + '" onclick="ttToggleStepEl(this, ' + ticketId + ')">'
+        html += '<div class="ft-chk-row' + (checked ? ' done' : '') + (readOnly ? ' is-readonly' : '') + '" data-step="' + ttEsc(text) + '"' + (readOnly ? '' : ' onclick="ttToggleStepEl(this, ' + ticketId + ')"') + '>'
               + '<span class="ft-chk-box">' + (checked ? '✓' : '') + '</span>'
               + '<span class="ft-chk-txt">' + ttEsc(text) + risk + '</span></div>';
     });
     // Custom steps the technician typed on site (removable)
     done.forEach(function(text) {
         if (sugLower.indexOf(String(text).toLowerCase().trim()) !== -1) { return; }
-        html += '<div class="ft-chk-row done" data-step="' + ttEsc(text) + '">'
+        html += '<div class="ft-chk-row done' + (readOnly ? ' is-readonly' : '') + '" data-step="' + ttEsc(text) + '">'
               + '<span class="ft-chk-box">✓</span>'
-              + '<span class="ft-chk-txt" onclick="ttToggleStepEl(this.parentElement, ' + ticketId + ')">' + ttEsc(text) + '</span>'
-              + '<button type="button" onclick="event.stopPropagation(); ttRemoveStepEl(this.closest(&quot;.ft-chk-row&quot;), ' + ticketId + ')" style="margin-left:auto;background:none;border:none;color:#dc2626;cursor:pointer;font-size:13px;padding:0 2px;flex-shrink:0;">✕</button></div>';
+              + '<span class="ft-chk-txt"' + (readOnly ? '' : ' onclick="ttToggleStepEl(this.parentElement, ' + ticketId + ')"') + '>' + ttEsc(text) + '</span>'
+              + (readOnly ? '' : '<button type="button" onclick="event.stopPropagation(); ttRemoveStepEl(this.closest(&quot;.ft-chk-row&quot;), ' + ticketId + ')" style="margin-left:auto;background:none;border:none;color:#dc2626;cursor:pointer;font-size:13px;padding:0 2px;flex-shrink:0;">✕</button>') + '</div>';
     });
     // Add-row: type anything extra you did (as many rows as needed)
-    html += '<div style="display:flex;gap:6px;margin-top:8px;">'
+    if (!readOnly) html += '<div style="display:flex;gap:6px;margin-top:8px;">'
           + '<input id="chk-add-' + ticketId + '" class="form-input" placeholder="Add what you did on site..." style="flex:1;min-width:0;font-size:12.5px;padding:8px 10px;">'
           + '<button type="button" onclick="ttAddStep(' + ticketId + ')" class="btn btn-sm btn-secondary" style="flex-shrink:0;">Add</button></div>';
     box.innerHTML = html;
@@ -2142,6 +2469,7 @@ function ttRenderChecklist(ticketId) {
 // Check / uncheck a step; auto-saves immediately.
 function ttToggleStepEl(rowEl, ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S && S.can_edit === false) { showToast('This ticket is view only.', 'info'); return; }
     if (!S || !rowEl) { return; }
     var text = rowEl.dataset.step || '';
     if (!text) { return; }
@@ -2171,6 +2499,7 @@ function ttToggleStepEl(rowEl, ticketId) {
 // Remove a custom step row.
 function ttRemoveStepEl(rowEl, ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S && S.can_edit === false) { showToast('This ticket is view only.', 'info'); return; }
     if (!S || !rowEl) { return; }
     var text = rowEl.dataset.step || '';
     S.steps = ttNormalizeSteps(S.steps || S.steps_performed || []).filter(function(s) { return String(s).toLowerCase().trim() !== text.toLowerCase().trim(); });
@@ -2183,6 +2512,7 @@ function ttRemoveStepEl(rowEl, ticketId) {
 // Add a manually typed step (as many as needed).
 function ttAddStep(ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S && S.can_edit === false) { showToast('This ticket is view only.', 'info'); return; }
     var input = document.getElementById('chk-add-' + ticketId);
     if (!S || !input) { return; }
     var text = input.value.trim();
@@ -2207,6 +2537,7 @@ function ttAddStep(ticketId) {
 // Persist the checklist to the DB (steps_performed JSON) after every change.
 function ttSaveSteps(ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S && S.can_edit === false) return;
     if (!S) { return; }
     var msgEl = document.getElementById('chk-msg-' + ticketId);
     S.steps = ttNormalizeSteps(S.steps || S.steps_performed || []);
@@ -2225,13 +2556,26 @@ function ttSaveSteps(ticketId) {
         });
 }
 
-// Field Guide panel: tools / videos / tips (only real DB data).
+// Field Guide panel: Knowledge Base symptoms/cause + issue tools/videos/tips.
 function ttRenderGuide(ticketId) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
     var box = document.getElementById('guide-' + ticketId);
     if (!box || !S) { return; }
     var g = S._guide || {};
     var html = '';
+    if ((g.symptoms || []).length) {
+        html += '<div class="ftd-title">Common Symptoms</div><div class="ft-guide-symptoms">';
+        g.symptoms.forEach(function(symptom) { html += '<span>' + ttEsc(symptom) + '</span>'; });
+        html += '</div>';
+    }
+    if (g.common_cause) {
+        html += '<div class="ftd-title">Common Cause</div><div class="ft-guide-cause">' + ttEsc(g.common_cause) + '</div>';
+    } else {
+        html += '<div class="ftd-title">Common Cause</div><div class="ft-guide-cause">No common cause documented in a linked published Knowledge Base guide yet.</div>';
+    }
+    if (g.knowledge_id) {
+        html += '<a class="ft-guide-kb-link" href="' + APP_BASE + 'knowledge/view?id=' + encodeURIComponent(g.knowledge_id) + '" target="_blank" rel="noopener"><i data-lucide="book-open"></i> Open ' + ttEsc(g.knowledge_title || 'Knowledge guide') + '</a>';
+    }
     if ((g.tools || []).length) {
         html += '<div class="ftd-title">Tools Needed</div><div style="margin-bottom:10px;">';
         g.tools.forEach(function(t) { html += '<span class="ft-tool-chip">🛠 ' + ttEsc(t) + '</span>'; });
@@ -2250,6 +2594,7 @@ function ttRenderGuide(ticketId) {
     }
     if (g.estimated_time) { html += '<div style="font-size:11.5px;color:#64748b;font-weight:600;">Estimated time: ' + ttEsc(g.estimated_time) + '</div>'; }
     box.innerHTML = html || '<div class="ftd-title">Field Guide</div><div style="font-size:12px;color:#94a3b8;">No guide data for this issue yet.</div>';
+    if (window.lucide) lucide.createIcons();
 }
 
 // Right-column mirror of the checked steps.
@@ -2307,6 +2652,7 @@ function ttRenderCardSuggest(ticketId) {
 
 function ttCardGuideCheck(ticketId, rowEl) {
     var S = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S && S.can_edit === false) { showToast('This ticket is view only.', 'info'); return; }
     if (!S || !rowEl) return;
     var text = rowEl.getAttribute('data-step') || '';
     if (!text) return;
@@ -2356,6 +2702,7 @@ function ttRenderCardCount(ticketId) {
 
 function ttCardGuideAdd(ticketId) {
     var S   = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S && S.can_edit === false) { showToast('This ticket is view only.', 'info'); return; }
     var inp = document.getElementById('fcga-' + ticketId);
     if (!S || !inp) return;
     var text = inp.value.trim();
@@ -2379,6 +2726,7 @@ function ttCardGuideAdd(ticketId) {
 
 function ttCardGuideRemove(ticketId, btn) {
     var S   = window.ttTicketData && window.ttTicketData[ticketId];
+    if (S && S.can_edit === false) { showToast('This ticket is view only.', 'info'); return; }
     var row = btn && btn.closest && btn.closest('.ft-chk-row');
     if (!S || !row) return;
     var text = row.getAttribute('data-step') || '';
@@ -2411,6 +2759,8 @@ function ttCardGuideQuickOpen(ticketId, guideData, btn) {
 
 // ---- Time In: stamps the EXACT current server date + time (action.php) ----
 function ticketTimeIn(ticketId) {
+    var current = window.ttTicketData && window.ttTicketData[ticketId];
+    if (current && current.can_edit === false) { showToast('Only the assigned technician can update this ticket.', 'info'); return; }
     api('/api/tickets/action', { method: 'POST', body: { action: 'timein', id: ticketId } })
         .then(function(res) {
             if (res.success) {
@@ -2437,6 +2787,8 @@ function ticketTimeIn(ticketId) {
 // Saves report fields and checked troubleshooting steps on Time Out. Checklist
 // items remain approval-pending until a supervisor approves them.
 function ticketTimeOut(ticketId) {
+    var current = window.ttTicketData && window.ttTicketData[ticketId];
+    if (current && current.can_edit === false) { showToast('Only the assigned technician can update this ticket.', 'info'); return; }
     ttCacheReport(ticketId);
     var msgEl    = document.getElementById('to-' + ticketId + '-msg');
     var resultEl = document.getElementById('rep-' + ticketId + '-result');
@@ -2503,6 +2855,8 @@ function ticketTimeOut(ticketId) {
 
 // ---- Done: finalizes the ticket (after Time Out) ----
 function ticketDone(ticketId) {
+    var current = window.ttTicketData && window.ttTicketData[ticketId];
+    if (current && current.can_edit === false) { showToast('Only the assigned technician can update this ticket.', 'info'); return; }
     swalConfirm('Mark as Done?', 'This ticket will be marked as solved and completed.', function() {
         ttCacheReport(ticketId);
         api('/api/tickets/action', { method: 'POST', body: { action: 'resolve', id: ticketId } })
@@ -2553,7 +2907,7 @@ function ttReportRows(ticketId, S) {
     var actionTaken = ttReportActionTaken(S);
     return [
         ['Company Name',       S.company_name || ''],
-        ['Ticket#',            S.ticket_number || ('TK-' + (S.id || ticketId))],
+        ['Ticket#',            S.ticket_number || ('SD' + (S.id || ticketId))],
         ['Serial Number',      S.serial_number || ''],
         ['Date',               ttFmtDate(S.created_at || S.started_at)],
         ['Time In',            S.started_at ? ttFmtTime(S.started_at) : '00'],
@@ -2725,18 +3079,26 @@ function wireNewTicketModal() {
     var companyInput = document.getElementById('tt-company');
     if (companyInput) {
         companyInput.onchange = function() {
-            ttSuggestionChanged('company');
-            ttRenderAddressDatalist();
-            // Drop stale coordinates when the company changes mid-form.
+            // A different client company must never inherit the previous destination.
+            var addressInput = document.getElementById('tt-address');
+            var locationInput = document.getElementById('tt-location');
             var latInput = document.getElementById('tt-lat');
             var lngInput = document.getElementById('tt-lng');
+            if (addressInput) addressInput.value = '';
+            if (locationInput) locationInput.value = '';
             if (latInput) latInput.value = '';
             if (lngInput) lngInput.value = '';
+            if (ttMapMarkerEnd && ttMapInstance) { ttMapInstance.removeLayer(ttMapMarkerEnd); ttMapMarkerEnd = null; }
+            ttSuggestionChanged('company');
+            ttRenderAddressDatalist();
             ttApplySavedAddress();
         };
     }
     var companyOther = document.getElementById('tt-company-other');
-    if (companyOther) companyOther.oninput = function() { ttOtherSuggestionTyped('company'); ttRenderAddressDatalist(); };
+    if (companyOther) companyOther.oninput = function() { ttOtherSuggestionTyped('company'); ttRenderAddressDatalist(); ttRenderLocationSelect(false); };
+
+    var locationSelect = document.getElementById('tt-location-select');
+    if (locationSelect) locationSelect.onchange = ttLocationChoiceChanged;
 
     var taskInput = document.getElementById('tt-task');
     if (taskInput) taskInput.onchange = function() { ttSuggestionChanged('task'); ttIssueChanged(); };
@@ -3460,7 +3822,7 @@ document.addEventListener('submit', function(e) {
 // Auto-enhance: every <form> submit shows a spinner on its submit button (once).
 document.addEventListener('submit', function(e) {
     var form = e.target;
-    if (form.dataset.noSpinner) return;
+    if (!form || !form.hasAttribute || form.hasAttribute('data-no-spinner')) return;
     var btn = form.querySelector('button[type="submit"], .btn-submit');
     if (btn && !btn.disabled) setButtonLoading(btn, true, btn.dataset.loading || 'Saving…');
 }, true);

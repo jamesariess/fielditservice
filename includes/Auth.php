@@ -102,6 +102,10 @@ class Auth {
      * Destroy the session and redirect to the login page.
      */
     public static function logout(): void {
+        $userId = self::userId();
+        if ($userId) {
+            self::audit('LOGOUT', $userId, ['method' => 'user_action']);
+        }
         self::destroyAuth();
         if (session_status() === PHP_SESSION_ACTIVE) {
             // Also expire the session cookie (belt + suspenders).
@@ -157,6 +161,21 @@ class Auth {
     public static function hasPermission(string $permission): bool {
         $perms = $_SESSION['permissions'] ?? [];
         return in_array($permission, $perms) || in_array('*.*', $perms);
+    }
+
+    /**
+     * Team ticket visibility is intentionally role-based. Technicians and
+     * standard users see only their own work; operational leaders can inspect
+     * the complete queue without inheriting ownership of those tickets.
+     */
+    public static function canViewAllTickets(): bool {
+        $role = strtolower(trim((string)($_SESSION['role_name'] ?? '')));
+        $teamRoles = ['super admin', 'super_admin', 'admin', 'manager', 'supervisor'];
+        return in_array($role, $teamRoles, true) || self::hasPermission('users.manage');
+    }
+
+    public static function canViewTicketOwner(int $ownerId): bool {
+        return $ownerId === (int)self::userId() || self::canViewAllTickets();
     }
 
     public static function userId(): ?int {

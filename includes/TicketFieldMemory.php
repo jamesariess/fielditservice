@@ -50,7 +50,53 @@ class TicketFieldMemory
             "UPDATE ticket_field_memory SET status = 'pending'
              WHERE status = 'approved' AND approved_by IS NULL AND approved_at IS NULL AND deleted_at IS NULL"
         );
+        $memoryCount = Database::fetch("SELECT COUNT(*) AS total FROM ticket_field_memory");
+        if ((int)($memoryCount['total'] ?? 0) === 0) { self::importHistoricalSessions(); }
         self::$ready = true;
+    }
+
+    private static function importHistoricalSessions(): void
+    {
+        $rows = Database::fetchAll(
+            "SELECT issue_id, company_name, result_of_checking, recommendation, confirmed_by, user_id
+             FROM troubleshooting_sessions
+             WHERE (result_of_checking IS NOT NULL AND result_of_checking <> '')
+                OR (recommendation IS NOT NULL AND recommendation <> '')
+                OR (confirmed_by IS NOT NULL AND confirmed_by <> '')"
+        ) ?: [];
+        foreach ($rows as $row) {
+            $issueId = (int)($row['issue_id'] ?? 0);
+            $userId = !empty($row['user_id']) ? (int)$row['user_id'] : null;
+            foreach (['result' => 'result_of_checking', 'recommendation' => 'recommendation'] as $type => $column) {
+                $value = trim(preg_replace('/\s+/', ' ', (string)($row[$column] ?? '')));
+                if ($issueId < 1 || $value === '') continue;
+                $normalized = self::normalize($value);
+                $exists = Database::fetch(
+                    "SELECT id FROM ticket_field_memory WHERE memory_type = ? AND issue_id = ? AND normalized_value = ? AND deleted_at IS NULL LIMIT 1",
+                    [$type, $issueId, $normalized]
+                );
+                if (!$exists) {
+                    Database::insert('ticket_field_memory', [
+                        'memory_type' => $type, 'issue_id' => $issueId, 'company_key' => null,
+                        'value' => $value, 'normalized_value' => $normalized, 'status' => 'pending', 'created_by' => $userId,
+                    ]);
+                }
+            }
+            $companyKey = self::normalize((string)($row['company_name'] ?? ''));
+            $confirmed = trim(preg_replace('/\s+/', ' ', (string)($row['confirmed_by'] ?? '')));
+            if ($companyKey === '' || $confirmed === '') continue;
+            $normalized = self::normalize($confirmed);
+            $exists = Database::fetch(
+                "SELECT id FROM ticket_field_memory WHERE memory_type = 'confirmed_by' AND company_key = ? AND normalized_value = ? AND deleted_at IS NULL LIMIT 1",
+                [$companyKey, $normalized]
+            );
+            if (!$exists) {
+                Database::insert('ticket_field_memory', [
+                    'memory_type' => 'confirmed_by', 'issue_id' => null, 'company_key' => $companyKey,
+                    'value' => $confirmed, 'normalized_value' => $normalized, 'status' => 'pending', 'created_by' => $userId,
+                ]);
+            }
+        }
     }
 
     public static function normalize(string $value): string

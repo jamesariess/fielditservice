@@ -23,8 +23,13 @@ if ($method === 'GET') {
         json_response(['tickets' => [], 'total' => 0]);
     }
 
-    $sql = "SELECT t.*, u.full_name as user_name FROM tickets t LEFT JOIN users u ON u.id = t.user_id WHERE t.user_id = ?";
-    $params = [$userId];
+    $sql = "SELECT t.*, u.full_name as user_name FROM tickets t LEFT JOIN users u ON u.id = t.user_id WHERE 1 = 1";
+    $params = [];
+
+    if (!Auth::canViewAllTickets()) {
+        $sql .= " AND t.user_id = ?";
+        $params[] = $userId;
+    }
 
     if ($status) {
         $sql .= " AND t.status = ?";

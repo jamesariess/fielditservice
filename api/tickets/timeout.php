@@ -105,21 +105,11 @@ function companyOriginAddress() {
 
 function geocodeAddress($addr) {
     if (!$addr) { return ['lat' => null, 'lng' => null, 'addr' => null]; }
-    try {
-        $url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&q=' . urlencode($addr) . '&limit=1&addressdetails=0';
-        $ctx = stream_context_create(['http' => ['timeout' => 8, 'user_agent' => 'FieldITHub/1.0']]);
-        $resp = @file_get_contents($url, false, $ctx);
-        if ($resp === false) { return ['lat' => null, 'lng' => null, 'addr' => $addr]; }
-        $data = json_decode($resp, true);
-        if (!is_array($data) || empty($data)) { return ['lat' => null, 'lng' => null, 'addr' => $addr]; }
-        return [
-            'lat' => (double)($data[0]['lat'] ?? null),
-            'lng' => (double)($data[0]['lon'] ?? null),
-            'addr' => $data[0]['display_name'] ?? $addr,
-        ];
-    } catch (Exception $e) {
-        return ['lat' => null, 'lng' => null, 'addr' => $addr];
-    }
+    require_once APP_ROOT . '/includes/Geocoder.php';
+    $result = Geocoder::forward((string)$addr);
+    return $result
+        ? ['lat' => $result['lat'], 'lng' => $result['lng'], 'addr' => $result['address']]
+        : ['lat' => null, 'lng' => null, 'addr' => $addr];
 }
 
 // ----- Resolve where this job ended (for the route origin) -----

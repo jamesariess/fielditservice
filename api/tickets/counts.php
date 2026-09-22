@@ -13,8 +13,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 Auth::requireLogin();
 
 try {
-    $pending = Database::count('troubleshooting_sessions', "result IS NULL OR result = 'in_progress'");
-    $resolved = Database::count('troubleshooting_sessions', "result = 'solved'");
+    $scope = Auth::canViewAllTickets() ? '' : ' AND user_id = ' . (int)Auth::userId();
+    $pending = Database::count('troubleshooting_sessions', "status IN ('new', 'in_progress', 'escalated')" . $scope);
+    $resolved = Database::count('troubleshooting_sessions', "status IN ('solved', 'partial')" . $scope);
     
     json_response([
         'success' => true,

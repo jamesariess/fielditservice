@@ -2,10 +2,12 @@
 if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
 
 $page_title = 'User Management';
-$active_menu = 'admin-users';
+$active_menu = 'admin-users-access';
+$accessSection = 'users';
 $required_permission = 'users.manage';
 require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
+require APP_ROOT . '/includes/admin_access_tabs.php';
 
 $users = Database::fetchAll(
     "SELECT u.id, u.full_name, u.email, u.status, u.last_login, u.created_at,

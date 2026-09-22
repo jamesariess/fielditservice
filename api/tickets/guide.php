@@ -22,19 +22,44 @@ $issueId      = (int)($_GET['issue_id'] ?? 0);
 $modelName    = trim($_GET['model'] ?? '');
 $manufacturer = trim($_GET['manufacturer'] ?? '');
 
-$out = ['steps' => [], 'tools' => [], 'videos' => [], 'tips' => [], 'estimated_time' => '', 'description' => ''];
+$out = [
+    'steps' => [], 'tools' => [], 'videos' => [], 'tips' => [],
+    'symptoms' => [], 'common_cause' => '', 'knowledge_id' => 0, 'knowledge_title' => '',
+    'estimated_time' => '', 'description' => ''
+];
 
 if (!defined('DEMO_MODE') || !DEMO_MODE) {
     try {
         // ---- Issue: checklist steps + tools + safety tips ----
         if ($issueId > 0) {
             $issue = Database::fetch(
-                "SELECT description, estimated_time, tools_needed, safety_warnings FROM troubleshooting_issues WHERE id = ?",
+                "SELECT i.description, i.symptoms AS issue_symptoms, i.estimated_time,
+                        i.tools_needed, i.safety_warnings,
+                        ka.id AS knowledge_id, ka.title AS knowledge_title,
+                        ka.symptoms AS knowledge_symptoms, ka.root_cause
+                 FROM troubleshooting_issues i
+                 LEFT JOIN knowledge_articles ka ON ka.id = (
+                     SELECT linked.id FROM knowledge_articles linked
+                     WHERE linked.troubleshooting_issue_id = i.id
+                       AND linked.status = 'published' AND linked.deleted_at IS NULL
+                     ORDER BY linked.updated_at DESC, linked.id DESC LIMIT 1
+                 )
+                 WHERE i.id = ? LIMIT 1",
                 [$issueId]
             );
             if ($issue) {
                 $out['description']    = (string)($issue['description'] ?? '');
                 $out['estimated_time'] = (string)($issue['estimated_time'] ?? '');
+                $out['common_cause']   = trim((string)($issue['root_cause'] ?? ''));
+                $out['knowledge_id']   = (int)($issue['knowledge_id'] ?? 0);
+                $out['knowledge_title']= (string)($issue['knowledge_title'] ?? '');
+                $symptomsRaw = (string)(($issue['knowledge_symptoms'] ?? '') ?: ($issue['issue_symptoms'] ?? ''));
+                $symptoms = json_decode($symptomsRaw, true);
+                if (!is_array($symptoms)) { $symptoms = preg_split('/[,;|]+/', $symptomsRaw); }
+                foreach ($symptoms ?: [] as $symptom) {
+                    $symptom = trim((string)$symptom);
+                    if ($symptom !== '' && !in_array($symptom, $out['symptoms'], true)) { $out['symptoms'][] = $symptom; }
+                }
                 $tools = json_decode((string)($issue['tools_needed'] ?? ''), true);
                 if (is_array($tools)) {
                     foreach ($tools as $t) { $t = trim((string)$t); if ($t !== '' && !in_array($t, $out['tools'], true)) { $out['tools'][] = $t; } }

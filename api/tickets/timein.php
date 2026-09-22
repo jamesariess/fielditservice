@@ -25,8 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (!$tid) { json_response(['error' => 'ticket_id required'], 400); exit; }
     $row = null;
     if (!defined('DEMO_MODE') || !DEMO_MODE) {
-        $row = Database::fetch("SELECT * FROM troubleshooting_sessions WHERE id = ? AND user_id = ?", [$tid, Auth::userId()]);
-        if (!$row) { json_response(['error' => 'Not found'], 404); exit; }
+        $row = Database::fetch("SELECT * FROM troubleshooting_sessions WHERE id = ?", [$tid]);
+        if (!$row || !Auth::canViewTicketOwner((int)$row['user_id'])) {
+            json_response(['error' => 'Not found'], 404); exit;
+        }
         if (!empty($row['ticket_number']) && preg_match('/^(?:SD|TK-)?(\d+)$/i', (string)$row['ticket_number'], $numberMatch)) {
             $row['ticket_number'] = 'SD' . $numberMatch[1];
         }
@@ -274,13 +276,16 @@ try {
                 if (!$loc) {
                     Database::insert('locations', [
                         'organization_id' => $orgId,
-                        'name'   => mb_substr($address, 0, 100),
+                        'name'   => mb_substr($location !== '' ? $location : $address, 0, 100),
                         'address' => $address,
                         'latitude' => $latitude !== '' ? $latitude : null,
                         'longitude' => $longitude !== '' ? $longitude : null,
                     ]);
                 } elseif ($latitude !== '' && $longitude !== '') {
-                    Database::query("UPDATE locations SET latitude = ?, longitude = ? WHERE id = ?", [$latitude, $longitude, $loc['id']]);
+                    Database::query(
+                        "UPDATE locations SET name = CASE WHEN ? <> '' THEN ? ELSE name END, latitude = ?, longitude = ? WHERE id = ?",
+                        [$location, mb_substr($location, 0, 100), $latitude, $longitude, $loc['id']]
+                    );
                 }
             }
         }

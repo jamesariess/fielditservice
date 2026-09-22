@@ -2,10 +2,12 @@
 if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
 
 $page_title = 'Roles & Permissions';
-$active_menu = 'admin-roles';
+$active_menu = 'admin-users-access';
+$accessSection = 'roles';
 $required_permission = 'roles.manage';
 require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
+require APP_ROOT . '/includes/admin_access_tabs.php';
 
 ?>
 

@@ -114,6 +114,7 @@ $adminRoutes = [
  * ------------------------------------------------------------------
  */
 $routes = [
+    '/admin/ticket-approvals' => APP_ROOT . '/public/pages/admin/ticket-approvals.php',
     '/' => APP_ROOT . '/public/pages/dashboard.php',
     '/troubleshoot' => APP_ROOT . '/public/pages/troubleshoot.php',
     '/troubleshoot/wizard' => APP_ROOT . '/public/pages/troubleshoot-wizard.php',

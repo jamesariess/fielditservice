@@ -1,7 +1,8 @@
 <?php
 if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
 
-$page_title = 'My Tickets';
+$canViewAllTickets = Auth::canViewAllTickets();
+$page_title = $canViewAllTickets ? 'Team Tickets' : 'My Tickets';
 $active_menu = 'tickets';
 require APP_ROOT . '/includes/layout_header.php';
 
@@ -36,20 +37,13 @@ if ($canSearchModels) {
 // ---- approved suggestions for shared dropdowns ----
 $companyOptions = [];
 $taskOptions = [];
-$pendingSuggestions = [];
-$pendingTicketChecklists = [];
-$pendingTicketFields = ['result' => [], 'recommendation' => [], 'confirmed_by' => []];
-$checklistIssueOptions = [];
 $ticketFieldOptions = [];
 $ticketCompanyContacts = [];
 $profileTicketDefault = ['company'=>'', 'location'=>'', 'address'=>'', 'lat'=>'', 'lng'=>''];
-$roleName = strtolower((string)($_SESSION['role_name'] ?? ''));
-$canManageTicketSuggestions = Auth::hasPermission('system.settings') || in_array($roleName, ['admin', 'super admin', 'super_admin', 'manager'], true);
 if (!$demo) {
     try {
         require_once APP_ROOT . '/includes/TicketSuggestions.php';
         require_once APP_ROOT . '/includes/TicketFieldMemory.php';
-        require_once APP_ROOT . '/includes/TicketStepSuggestions.php';
         TicketSuggestions::ensure();
         TicketFieldMemory::ensure();
         $companyOptions = TicketSuggestions::approved('company');
@@ -63,16 +57,6 @@ if (!$demo) {
             [Auth::userId()]
         );
         if ($profileRow) { $profileTicketDefault = array_merge($profileTicketDefault, $profileRow); }
-        if ($canManageTicketSuggestions) {
-            $pendingSuggestions = TicketSuggestions::pending();
-            foreach (TicketFieldMemory::pending() as $memory) {
-                if (isset($pendingTicketFields[$memory['memory_type']])) {
-                    $pendingTicketFields[$memory['memory_type']][] = $memory;
-                }
-            }
-            $pendingTicketChecklists = TicketStepSuggestions::queue();
-            $checklistIssueOptions = Database::fetchAll("SELECT id, title FROM troubleshooting_issues WHERE status IN ('approved','published') OR status IS NULL ORDER BY title") ?: [];
-        }
     } catch (Exception $e) {}
 }
 if (empty($companyOptions)) {
@@ -85,20 +69,43 @@ if (empty($companyOptions)) {
 $companyLocationData = [];   // [{company, address, lat, lng}, ...] → JSON for JS
 if (!$demo) {
     try {
+        $historyScope = $canViewAllTickets ? '' : ' AND user_id = ' . (int)Auth::userId();
         $histRows = Database::fetchAll(
-            "SELECT company_name, address, latitude, longitude, MAX(started_at) AS last_used
+            "SELECT company_name, location, address, latitude, longitude, MAX(started_at) AS last_used
              FROM troubleshooting_sessions
-             WHERE company_name IS NOT NULL AND company_name <> ''
-             GROUP BY company_name, address, latitude, longitude
+             WHERE company_name IS NOT NULL AND company_name <> ''" . $historyScope . "
+             GROUP BY company_name, location, address, latitude, longitude
              ORDER BY company_name, last_used DESC
              LIMIT 500"
         ) ?: [];
         foreach ($histRows as $r) {
             $companyLocationData[] = [
                 'company' => trim((string)$r['company_name']),
+                'location' => trim((string)($r['location'] ?? '')),
                 'address' => trim((string)($r['address'] ?? '')),
                 'lat'     => trim((string)($r['latitude'] ?? '')),
                 'lng'     => trim((string)($r['longitude'] ?? '')),
+            ];
+        }
+    } catch (Exception $e) {}
+}
+
+// Shared organization locations are approved address-book entries. Load them
+// once, not once per ticket card.
+if (!$demo) {
+    try {
+        $savedLocations = Database::fetchAll(
+            "SELECT o.name AS company_name, l.name AS location_name, l.address, l.latitude, l.longitude
+             FROM locations l JOIN organizations o ON l.organization_id = o.id
+             WHERE l.address IS NOT NULL AND l.address <> '' ORDER BY o.name, l.name"
+        ) ?: [];
+        foreach ($savedLocations as $r) {
+            $companyLocationData[] = [
+                'company' => trim((string)$r['company_name']),
+                'location' => trim((string)($r['location_name'] ?? '')),
+                'address' => trim((string)$r['address']),
+                'lat' => trim((string)($r['latitude'] ?? '')),
+                'lng' => trim((string)($r['longitude'] ?? '')),
             ];
         }
     } catch (Exception $e) {}
@@ -133,8 +140,12 @@ if (!$demo) {
                     ka.symptoms AS knowledge_symptoms, ka.root_cause
              FROM troubleshooting_issues i
              LEFT JOIN troubleshooting_categories c ON i.category_id = c.id
-             LEFT JOIN knowledge_articles ka ON ka.troubleshooting_issue_id = i.id
-                  AND ka.status = 'published' AND ka.deleted_at IS NULL
+             LEFT JOIN knowledge_articles ka ON ka.id = (
+                 SELECT linked.id FROM knowledge_articles linked
+                 WHERE linked.troubleshooting_issue_id = i.id
+                   AND linked.status = 'published' AND linked.deleted_at IS NULL
+                 ORDER BY linked.updated_at DESC, linked.id DESC LIMIT 1
+             )
              WHERE i.status = 'approved' OR i.status IS NULL
              ORDER BY c.name, i.title"
         ) ?: [];
@@ -152,20 +163,23 @@ if (!$demo) {
 // ---- tickets (real data from troubleshooting_sessions) ----
 if (!$demo) {
     try {
+        $ticketScope = $canViewAllTickets ? '' : ' WHERE ts.user_id = ?';
+        $ticketParams = $canViewAllTickets ? [] : [Auth::userId()];
         $tickets = Database::fetchAll(
-            "SELECT ts.*, i.title as issue_title, i.slug as issue_slug, c.name as category_name
+            "SELECT ts.*, i.title as issue_title, i.slug as issue_slug, c.name as category_name,
+                    owner.full_name AS owner_name, owner.email AS owner_email
              FROM troubleshooting_sessions ts
              LEFT JOIN troubleshooting_issues i ON ts.issue_id = i.id
              LEFT JOIN troubleshooting_categories c ON i.category_id = c.id
-             WHERE ts.user_id = ?
+             LEFT JOIN users owner ON owner.id = ts.user_id" . $ticketScope . "
              ORDER BY ts.id DESC",
-            [Auth::userId()]
+            $ticketParams
         );
     } catch (Exception $e) {}
 }
 
 // Fallback demo data only when there are genuinely no rows (fresh install)
-if (empty($tickets)) {
+if ($demo && empty($tickets)) {
     $tickets = [
         ['id'=>1,'ticket_number'=>'TK-1001','problem_description'=>'Camera and microphone not working. Replaced camera and mic. All passed.','status'=>'solved','priority'=>'high','category_name'=>'Display','manufacturer'=>'Lenovo','model'=>'ThinkPad T14 Gen 3','serial_number'=>'PW07MWVE','department'=>'Operations','location'=>'Floor 3, Desk 42','customer_name'=>'Rica Pagulayan','started_at'=>'2026-09-18 16:30:00','ended_at'=>'2026-09-18 17:10:00','resolution'=>'Replaced camera and mic. Laptop camera and mic now working. Run LDT all passed. Test camera and mic working good. Boot to Windows.','resolution_type'=>'completed','parts_replaced'=>'Camera, Microphone','tools_used'=>'Precision screwdriver, ESD strap','steps_performed'=>'upon checking camera and mic is not working. Update drivers and Lenovo Vantage still same issue. Replaced camera and mic.','time_spent_minutes'=>40,'address'=>'1 Aviation Ground Handling Services Corporation, Pasay City','issue_slug'=>'no-display','issue_title'=>'No Display'],
         ['id'=>2,'ticket_number'=>'TK-1002','problem_description'=>'Battery life at 64%, needs replacement','status'=>'in_progress','priority'=>'medium','category_name'=>'Hardware','manufacturer'=>'Lenovo','model'=>'ThinkPad X1 Carbon Gen 9','serial_number'=>'PF4BCHJT','department'=>'Field IT','location'=>'IBM Eastwood','customer_name'=>'Glenn','started_at'=>'2026-09-18 13:15:00','ended_at'=>null,'resolution'=>null,'resolution_type'=>null,'parts_replaced'=>null,'tools_used'=>null,'steps_performed'=>null,'time_spent_minutes'=>null,'address'=>null,'issue_slug'=>'no-display','issue_title'=>'No Display'],
@@ -301,7 +315,8 @@ foreach ($tickets as $t) {
                 </div>
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Location</label>
-                    <input id="tt-location" placeholder="e.g. Floor 3, Room 301, Desk 42" class="form-input dark-input" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+                    <select id="tt-location-select" class="form-input dark-input" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;"></select>
+                    <input id="tt-location" placeholder="Type a new location, e.g. Floor 3, Room 301" class="form-input dark-input" style="display:none;width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;margin-top:7px;">
                 </div>
                 <!-- Map -->
                 <div style="margin-bottom:6px;">
@@ -334,8 +349,8 @@ foreach ($tickets as $t) {
             <div style="display:flex;align-items:center;gap:14px;">
                 <div class="page-hero-ico blue"><i data-lucide="ticket"></i></div>
                 <div>
-                    <h1 class="page-hero-title">My Tickets</h1>
-                    <p class="page-hero-sub">Manage your field IT tickets and troubleshooting requests</p>
+                    <h1 class="page-hero-title"><?= $canViewAllTickets ? 'Team Tickets' : 'My Tickets' ?></h1>
+                    <p class="page-hero-sub"><?= $canViewAllTickets ? 'Review the complete field queue; each technician keeps control of their own workflow.' : 'Create and manage only the field tickets assigned to you.' ?></p>
                 </div>
             </div>
         </div>
@@ -375,80 +390,6 @@ foreach ($tickets as $t) {
             <span class="ft-dot" style="background:#dc2626;"></span>
         </div></div>
     </div>
-    <?php if ($canManageTicketSuggestions): ?>
-    <?php $approvalTotal = count($pendingSuggestions) + count($pendingTicketChecklists) + count($pendingTicketFields['result']) + count($pendingTicketFields['recommendation']) + count($pendingTicketFields['confirmed_by']); ?>
-    <section id="ticket-suggestions-panel" class="card tt-approval-panel">
-        <div class="card-body tt-approval-body">
-            <div class="tt-approval-heading">
-                <div>
-                    <div class="tt-approval-title"><i data-lucide="clipboard-check"></i> Ticket Approval Center <span id="ticket-approval-total" class="tt-approval-count"><?= $approvalTotal ?></span></div>
-                    <div class="tt-approval-help">Approve reusable ticket entries before they appear in other users' dropdowns.</div>
-                </div>
-            </div>
-            <div class="tt-approval-tabs" role="tablist">
-                <button type="button" class="tt-approval-tab active" onclick="ticketApprovalTab('suggestions',this)">Company &amp; Task <span><?= count($pendingSuggestions) ?></span></button>
-                <button type="button" class="tt-approval-tab" onclick="ticketApprovalTab('checklist',this)">Checklist <span><?= count($pendingTicketChecklists) ?></span></button>
-                <button type="button" class="tt-approval-tab" onclick="ticketApprovalTab('result',this)">Results <span><?= count($pendingTicketFields['result']) ?></span></button>
-                <button type="button" class="tt-approval-tab" onclick="ticketApprovalTab('recommendation',this)">Recommendations <span><?= count($pendingTicketFields['recommendation']) ?></span></button>
-                <button type="button" class="tt-approval-tab" onclick="ticketApprovalTab('confirmed_by',this)">Confirmed By <span><?= count($pendingTicketFields['confirmed_by']) ?></span></button>
-            </div>
-
-            <div class="tt-approval-pane active" data-approval-pane="suggestions">
-                <div class="tt-approval-actions" id="ticket-approval-actions">
-                    <button type="button" class="btn btn-sm btn-primary" onclick="ticketSuggestionBulk('approve')">Approve Selected</button>
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="ticketSuggestionBulk('delete')">Delete Selected</button>
-                </div>
-                <div id="ticket-suggestions-list" class="tt-approval-list">
-                <?php foreach ($pendingSuggestions as $s): ?>
-                    <label class="tt-suggestion-row tt-approval-row" data-id="<?= (int)$s['id'] ?>">
-                        <input type="checkbox" value="<?= (int)$s['id'] ?>">
-                        <span><strong><?= e($s['value']) ?></strong><small><?= e(ucfirst($s['type'])) ?> · <?= e($s['created_by_name'] ?: 'Unknown user') ?></small></span>
-                    </label>
-                <?php endforeach; ?>
-                <?php if (empty($pendingSuggestions)): ?><div class="tt-approval-empty"><i data-lucide="check-circle-2"></i><span>No pending company or task suggestions.</span></div><?php endif; ?>
-                </div>
-            </div>
-
-            <div class="tt-approval-pane" data-approval-pane="checklist">
-                <div class="tt-approval-note">Each step is checked against the selected problem. Review new steps individually; matching steps are marked as already existing.</div>
-                <div id="ticket-approval-list-checklist" class="tt-approval-list">
-                <?php foreach ($pendingTicketChecklists as $item): $duplicate = $item['status'] === 'duplicate'; $needsProblem = empty($item['issue_title']); ?>
-                    <div class="tt-approval-row tt-step-review<?= $duplicate ? ' is-duplicate' : '' ?>" data-id="<?= (int)$item['id'] ?>">
-                        <span class="tt-step-state"><i data-lucide="<?= $duplicate ? 'copy-check' : 'circle-plus' ?>"></i></span>
-                        <span class="tt-step-copy"><strong><?= e($item['title']) ?></strong><small>Problem: <?= e($item['issue_title'] ?: 'Problem must be selected') ?> · Ticket #<?= e($item['ticket_number']) ?> · <?= e($item['created_by_name'] ?: 'Unknown user') ?></small><?php if ($duplicate): ?><small class="tt-existing-match">Matches approved step: <?= e($item['existing_title'] ?: $item['title']) ?></small><?php endif; ?><?php if ($needsProblem): ?><select id="step-problem-<?= (int)$item['id'] ?>" class="form-input tt-step-problem"><option value="">Select the correct problem...</option><?php foreach ($checklistIssueOptions as $issue): ?><option value="<?= (int)$issue['id'] ?>"><?= e($issue['title']) ?></option><?php endforeach; ?></select><?php endif; ?></span>
-                        <span class="tt-step-actions">
-                            <?php if ($duplicate): ?><span class="tt-duplicate-badge">Already exists</span><?php else: ?><button type="button" class="btn btn-sm btn-primary" onclick="ticketStepReview(<?= (int)$item['id'] ?>,'approve','<?= $needsProblem ? 'step-problem-' . (int)$item['id'] : '' ?>')">Approve</button><?php endif; ?>
-                            <button type="button" class="btn btn-sm btn-secondary" onclick="ticketStepReview(<?= (int)$item['id'] ?>,'reject')"><?= $duplicate ? 'Dismiss' : 'Reject' ?></button>
-                        </span>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (empty($pendingTicketChecklists)): ?><div class="tt-approval-empty"><i data-lucide="check-circle-2"></i><span>No pending checklist entries.</span></div><?php endif; ?>
-                </div>
-            </div>
-
-            <?php foreach (['result'=>'Results of Checking','recommendation'=>'Recommendations','confirmed_by'=>'Confirmed By'] as $type => $label): ?>
-            <div class="tt-approval-pane" data-approval-pane="<?= $type ?>">
-                <div class="tt-approval-actions">
-                    <button type="button" class="btn btn-sm btn-primary" onclick="ticketApprovalBulk('<?= $type ?>','approve')">Approve Selected</button>
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="ticketApprovalBulk('<?= $type ?>','delete')">Delete Selected</button>
-                </div>
-                <div id="ticket-approval-list-<?= $type ?>" class="tt-approval-list">
-                <?php foreach ($pendingTicketFields[$type] as $item): ?>
-                    <label class="tt-approval-row" data-id="<?= (int)$item['id'] ?>">
-                        <input type="checkbox" value="<?= (int)$item['id'] ?>">
-                        <span style="min-width:0;">
-                            <strong><?= e($item['value']) ?></strong>
-                            <small><?= $type === 'confirmed_by' ? 'Company: ' . e($item['company_key']) : 'Problem: ' . e($item['issue_title'] ?: 'Not specified') ?> · <?= e($item['created_by_name'] ?: 'Unknown user') ?></small>
-                        </span>
-                    </label>
-                <?php endforeach; ?>
-                <?php if (empty($pendingTicketFields[$type])): ?><div class="tt-approval-empty"><i data-lucide="check-circle-2"></i><span>No pending <?= strtolower($label) ?>.</span></div><?php endif; ?>
-                </div>
-            </div>
-            <?php endforeach; ?>
-        </div>
-    </section>
-    <?php endif; ?>
     <div class="tickets-toolbar">
         <div class="tickets-filter-row">
             <button onclick="ticketFilter('new')" class="btn btn-sm filter-btn active" data-filter="new">New (<?= $newCount ?>)</button>
@@ -470,6 +411,7 @@ foreach ($tickets as $t) {
     <div class="tickets-grid" id="tickets-grid">
     <?php foreach ($tickets as $t):
         $ticketId      = $t['id'];
+        $issueId       = (int)($t['issue_id'] ?? 0);
         $ticketNum     = $t['ticket_number'] ?? ('SD' . $t['id']);
         if (preg_match('/^(?:SD|TK-)?(\d+)$/i', (string)$ticketNum, $ticketNumberMatch)) {
             $ticketNum = 'SD' . $ticketNumberMatch[1];
@@ -478,6 +420,7 @@ foreach ($tickets as $t) {
         $priority      = $t['priority'] ?? 'medium';
         $problem       = $t['problem_description'] ?? '';
         $model         = $t['model'] ?? '';
+        $modelName     = $model;
         $manufacturer  = $t['manufacturer'] ?? '';
         $serial        = $t['serial_number'] ?? '';
         $department    = $t['department'] ?? '';
@@ -518,20 +461,6 @@ foreach ($tickets as $t) {
         } elseif (is_array($notes)) {
             $stepsList = array_values(array_filter(array_map('trim', $notes), fn($s) => $s !== ''));
         }
-        $savedLocations = Database::fetchAll(
-            "SELECT o.name AS company_name, l.address, l.latitude, l.longitude
-             FROM locations l JOIN organizations o ON l.organization_id = o.id
-             WHERE l.address IS NOT NULL AND l.address <> '' ORDER BY o.name, l.name"
-        ) ?: [];
-        foreach ($savedLocations as $r) {
-            $companyLocationData[] = [
-                'company' => trim((string)$r['company_name']),
-                'address' => trim((string)$r['address']),
-                'lat' => trim((string)($r['latitude'] ?? '')),
-                'lng' => trim((string)($r['longitude'] ?? '')),
-            ];
-        }
-
         // Human-readable title: model is the hero; fall back to the problem text
         $title = $model ? $model : (($t['issue_title'] ?? $t['issue_slug'] ?? '') . ($problem ? ' — ' . $problem : ''));
         $statusColor = $status === 'solved' ? '#16a34a' : ($status === 'escalated' ? '#dc2626' : ($status === 'in_progress' ? '#2563eb' : '#d97706'));
@@ -551,7 +480,9 @@ foreach ($tickets as $t) {
     $issueText  = $problem ?: ($taskText ?: $title);
     $stepsCount = count($stepsList);
     $issueLong  = mb_strlen($issueText) > 110;
-    $searchBlob = mb_strtolower($ticketNum . ' ' . $companyName . ' ' . $customerName . ' ' . $serial . ' ' . $deviceName . ' ' . $deviceTypeVal . ' ' . $issueText . ' ' . $taskText);
+    $ownerName = trim((string)($t['owner_name'] ?? '')) ?: 'Unknown user';
+    $isOwner = (int)($t['user_id'] ?? 0) === (int)Auth::userId();
+    $searchBlob = mb_strtolower($ticketNum . ' ' . $companyName . ' ' . $ownerName . ' ' . $customerName . ' ' . $serial . ' ' . $deviceName . ' ' . $deviceTypeVal . ' ' . $issueText . ' ' . $taskText);
     // Full ticket data for the drawer (real DB fields only — nothing invented)
     $reportData = [
         'id'                  => (int)$ticketId,
@@ -584,17 +515,20 @@ foreach ($tickets as $t) {
         'parts_replaced'      => $partsReplaced,
         'tools_used'          => $toolsUsed,
         'time_spent_minutes'  => $timeSpent,
+        'owner_name'          => $ownerName,
+        'can_edit'            => $isOwner,
     ];
     ?>
     <script>window.ttTicketData = window.ttTicketData || {}; window.ttTicketData[<?= (int)$ticketId ?>] = <?= json_encode($reportData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;</script>
-    <article class="card ft-ticket-card" data-id="<?= (int)$ticketId ?>" data-status="<?= e($status) ?>" data-created="<?= $createdTs ?>" data-updated="<?= $updatedTs ?>" data-lat="<?= e($latitude) ?>" data-lng="<?= e($longitude) ?>" data-address="<?= e($address ?: $location) ?>" data-search="<?= e($searchBlob) ?>">
+    <article class="card ft-ticket-card" data-id="<?= (int)$ticketId ?>" data-status="<?= e($status) ?>" data-owner="<?= e($ownerName) ?>" data-created="<?= $createdTs ?>" data-updated="<?= $updatedTs ?>" data-lat="<?= e($latitude) ?>" data-lng="<?= e($longitude) ?>" data-address="<?= e($address ?: $location) ?>" data-search="<?= e($searchBlob) ?>">
         <!-- Header: company + ticket # | status -->
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
             <div style="display:flex;align-items:flex-start;gap:12px;min-width:0;">
                 <div class="ft-co-ico"><i data-lucide="building-2"></i></div>
                 <div style="min-width:0;">
                     <div class="ft-company"><?= $companyName !== '' ? e($companyName) : 'Company not specified' ?></div>
-                    <div class="ft-tnum">Ticket #<?= e($ticketNum) ?></div>
+                     <div class="ft-tnum">Ticket #<?= e($ticketNum) ?></div>
+                    <?php if ($canViewAllTickets): ?><div class="ft-owner"><i data-lucide="user-round"></i><?= e($ownerName) ?><?= $isOwner ? ' (You)' : '' ?></div><?php endif; ?>
                 </div>
             </div>
             <span class="badge" style="background:<?= $statusBg ?>;color:<?= $statusColor ?>;flex-shrink:0;"><?= e(ucwords(str_replace('_',' ',$status))) ?></span>
@@ -647,9 +581,10 @@ foreach ($tickets as $t) {
                 <div class="ft-label">Created</div>
                 <div class="ft-value"><?= $createdAt ? date('m/d/Y', $createdTs) : '—' ?></div>
             </div>
-            <button class="btn btn-sm btn-primary" onclick="openTicketDrawer(<?= (int)$ticketId ?>)">
+            <button class="btn btn-sm btn-primary" onclick="openTicketDrawer(<?= (int)$ticketId ?>)"><i data-lucide="<?= $isOwner ? 'arrow-up-right' : 'eye' ?>"></i>
                 <?php
-                if ($status === 'new') { echo 'Open Ticket'; }
+                if (!$isOwner) { echo 'View Ticket'; }
+                elseif ($status === 'new') { echo 'Open Ticket'; }
                 elseif ($status === 'in_progress') { echo 'Continue Troubleshooting'; }
                 elseif ($status === 'solved') { echo 'View Report'; }
                 else { echo 'View Ticket'; }
@@ -723,8 +658,9 @@ foreach ($tickets as $t) {
         }
         $cardGuideJson = json_encode($cardGuide);
     ?>
-    <div class="ft-card-guide" id="fcg-<?= (int)$ticketId ?>">
+        <div class="ft-card-guide" id="fcg-<?= (int)$ticketId ?>">
         <!-- Collapsible on-site checklist -->
+        <?php if ($isOwner): ?>
         <div class="ft-card-guide-section">
             <button type="button" class="ft-card-guide-toggle" id="fcgt-<?= (int)$ticketId ?>" onclick="ttCardGuideToggle(<?= (int)$ticketId ?>, this)">
                 <i data-lucide="check-square" class="ft-card-guide-toggle-icon" style="width:13px;height:13px;"></i>
@@ -741,6 +677,7 @@ foreach ($tickets as $t) {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
         <!-- Quick access: tools, manual, videos, tips -->
         <?php if (!empty($cardGuide['tools']) || !empty($cardGuide['videos']) || !empty($cardGuide['tips'])): ?>
         <button type="button" class="ft-card-guide-quick" id="fcgq-<?= (int)$ticketId ?>" onclick="ttCardGuideQuickOpen(<?= (int)$ticketId ?>, <?= $cardGuideJson ?>, this)">
@@ -752,15 +689,15 @@ foreach ($tickets as $t) {
     <?php endif; ?>
     </article>
     <?php endforeach; ?>
+    <?php if (!$tickets): ?>
+        <div class="tickets-empty">
+            <span><i data-lucide="inbox"></i></span>
+            <h2>No tickets yet</h2>
+            <p><?= $canViewAllTickets ? 'The team queue is clear.' : 'Create your first ticket when work is assigned to you.' ?></p>
+            <button type="button" class="btn btn-primary" onclick="openNewTicketModal()"><i data-lucide="plus"></i> New Ticket</button>
+        </div>
+        <?php endif; ?>
     </div><!-- /.tickets-grid -->
-    <?php if (empty($tickets)): ?>
-    <div class="card" style="text-align:center;padding:48px 24px;border-radius:16px;">
-        <div style="width:56px;height:56px;border-radius:14px;background:#eff6ff;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;"><i data-lucide="inbox" style="width:24px;height:24px;color:#2563eb;"></i></div>
-        <div style="font-size:16px;font-weight:700;color:#111827;">No tickets yet</div>
-        <p style="font-size:13px;color:#64748b;margin:6px 0 16px;">Create your first Field IT ticket to start tracking your service requests.</p>
-        <button onclick="openNewTicketModal()" class="btn btn-primary"><i data-lucide="plus" style="width:14px;height:14px;"></i> New Ticket</button>
-    </div>
-    <?php endif; ?>
 </div>
 
 <!-- Ticket drawer (View Ticket) — sections appear only when the data exists -->
@@ -856,8 +793,15 @@ foreach ($tickets as $t) {
 @media (max-width:900px) { .ftd-grid { grid-template-columns:1fr; } }
 .ftd-timebox { background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; }
 .ftd-ticket-map { height:190px; overflow:hidden; border:1px solid #dbe2ea; border-radius:7px; background:#eef2f7; }
+.ft-guide-symptoms { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:12px; }
+.ft-guide-symptoms span { padding:4px 7px; border:1px solid #d8e1ec; border-radius:999px; color:#45546a; background:#fff; font-size:10.5px; }
+.ft-guide-cause { margin-bottom:10px; padding:9px 10px; border-left:3px solid #2563eb; color:#344258; background:#eef4ff; font-size:11px; line-height:1.5; }
+.ft-guide-kb-link { display:inline-flex; align-items:center; gap:6px; margin-bottom:12px; color:#2457d6; font-size:10.5px; font-weight:800; text-decoration:none; }
+.ft-guide-kb-link svg { width:13px; height:13px; }
 .tt-memory-select { width:100%; margin:0 0 6px; padding:7px 9px; font-size:12px; border-radius:7px; }
 .dark .ftd-timebox { background:#0f172a; border-color:#1e293b; }
+.dark .ft-guide-symptoms span { color:#c5d0df; background:#162234; border-color:#3c4c63; }
+.dark .ft-guide-cause { color:#c5d0df; background:#152641; }
 .ftd-time { font-size:18px; font-weight:800; color:#111827; margin-top:2px; }
 .dark .ftd-time { color:#f1f5f9; }
 .ftd-zero { color:#cbd5e1; }
@@ -929,6 +873,7 @@ foreach ($tickets as $t) {
 <div id="route-map-root"></div>
 
 <link rel="stylesheet" href="<?= e($urlBase) ?>assets/lib/leaflet.css">
+<script src="<?= e($urlBase) ?>assets/lib/leaflet.js"></script>
 <style>
 /* Ticket map icons + leaflet tweaks */
 .tt-map-icon { background: transparent !important; border: none !important; }
@@ -987,21 +932,17 @@ foreach ($tickets as $t) {
 
 .ft-stats {
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0;
-    margin: 16px 0;
+    gap: 10px;
+    margin: 18px 0;
+}
+.ft-stats .card {
     overflow: hidden;
     border: 1px solid var(--tt-line);
     border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(15,23,42,.04);
     background: var(--tt-panel);
 }
-.ft-stats .card {
-    border: 0;
-    border-right: 1px solid var(--tt-line);
-    border-radius: 0;
-    box-shadow: none;
-    background: transparent;
-}
-.ft-stats .card:last-child { border-right: 0; }
+.ft-stats .card:hover { border-color:#b9c8dc; box-shadow:0 7px 18px rgba(15,23,42,.07); }
 .ft-stats .card-body {
     display: grid;
     grid-template-columns: 34px 1fr;
@@ -1069,6 +1010,9 @@ foreach ($tickets as $t) {
 .tt-approval-pane.active { display:block; }
 .tt-approval-actions { display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px; }
 .tt-approval-note { margin-bottom:9px; padding:8px 10px; border-left:3px solid #2563eb; color:#53647a; background:#edf4ff; font-size:11px; line-height:1.45; }
+.tt-checklist-bulkbar { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+.tt-checklist-bulkbar label { display:flex; align-items:center; gap:6px; color:#53647a; font-size:11px; font-weight:700; }
+.tt-checklist-bulkbar > span { flex:1; }
 .tt-approval-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:8px; }
 .tt-approval-row { display:flex; align-items:flex-start; gap:9px; min-width:0; padding:10px; border:1px solid #dbe4f0; border-radius:7px; background:#fff; cursor:pointer; }
 .tt-approval-row:hover { border-color:#9eb9e6; }
@@ -1086,7 +1030,6 @@ foreach ($tickets as $t) {
 .tt-step-actions { display:flex; flex:0 0 auto; align-items:center; gap:6px; }
 .tt-duplicate-badge { padding:4px 6px; border-radius:5px; color:#b91c1c; background:#fee2e2; font-size:9.5px; font-weight:800; text-transform:uppercase; }
 .tt-existing-match { color:#b91c1c !important; font-weight:700; }
-.tt-step-problem { height:32px; margin-top:7px; padding:5px 8px; border-color:#f59e0b; font-size:11px; }
 .tt-approval-empty {
     display: flex;
     grid-column: 1 / -1;
@@ -1107,12 +1050,12 @@ foreach ($tickets as $t) {
     display: grid;
     grid-template-columns: auto minmax(260px, 1fr) 170px;
     gap: 10px;
-    padding: 10px;
-    margin-bottom: 16px;
+    padding: 11px;
+    margin-bottom: 18px;
     border: 1px solid var(--tt-line);
     border-radius: 8px;
     background: var(--tt-panel);
-    box-shadow: 0 1px 2px rgba(15,23,42,.03);
+    box-shadow: 0 4px 14px rgba(15,23,42,.045);
 }
 .tickets-filter-row {
     gap: 3px;
@@ -1151,33 +1094,35 @@ foreach ($tickets as $t) {
 }
 
 .tickets-grid {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
 }
 .ft-ticket-card {
     position: relative;
     overflow: hidden;
-    min-height: 286px;
-    padding: 18px;
+    min-width: 0;
+    min-height: 306px;
+    padding: 20px;
     border-color: var(--tt-line);
     border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(15,23,42,.035);
+    box-shadow: 0 4px 14px rgba(15,23,42,.045);
     background: var(--tt-panel);
 }
 .ft-ticket-card::before {
     content: '';
     position: absolute;
-    inset: 0 auto 0 0;
-    width: 3px;
+    inset: 0 0 auto;
+    width: auto;
+    height: 3px;
     background: #d4a017;
 }
 .ft-ticket-card[data-status="in_progress"]::before { background: #2563eb; }
 .ft-ticket-card[data-status="solved"]::before { background: #16a34a; }
 .ft-ticket-card[data-status="escalated"]::before { background: #dc2626; }
 .ft-ticket-card:hover {
-    transform: translateY(-1px);
-    border-color: #b9c4d2;
-    box-shadow: 0 7px 20px rgba(15,23,42,.08);
+    transform: translateY(-2px);
+    border-color: #aebfd5;
+    box-shadow: 0 12px 28px rgba(15,23,42,.09);
 }
 .ft-co-ico {
     width: 36px;
@@ -1188,9 +1133,12 @@ foreach ($tickets as $t) {
 .ft-company {
     color: var(--tt-ink);
     font-size: 15px;
-    font-weight: 750;
+    font-weight: 800;
+    line-height: 1.25;
 }
 .ft-tnum { color: #77859a; }
+.ft-owner { display:flex; align-items:center; gap:5px; margin-top:6px; color:#586a83; font-size:10.5px; font-weight:700; }
+.ft-owner svg { width:12px; height:12px; color:#2563eb; }
 .ft-ticket-card > div:first-child > .badge {
     border: 1px solid currentColor;
     border-radius: 999px;
@@ -1212,7 +1160,12 @@ foreach ($tickets as $t) {
     padding: 7px 12px;
     white-space: normal;
     text-align: center;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
 }
+.ft-footer .btn-primary svg { width:13px; height:13px; }
 .ft-card-guide {
     margin: 14px -18px -18px;
     padding: 10px 18px;
@@ -1230,6 +1183,18 @@ foreach ($tickets as $t) {
 .ft-travel-eta { flex:0 0 auto; padding:5px 7px; border-radius:5px; color:#166534; background:#eaf8ef; font-size:10.5px; font-weight:800; }
 .ft-ticket-card[data-route-rank="1"] .ft-travel { border-color:#8bb3f4; background:#eef5ff; }
 .ft-ticket-card[data-route-rank="1"] .ft-travel::before { content:'FIRST STOP'; flex:0 0 auto; color:#1d4ed8; font-size:8px; font-weight:900; }
+.tickets-empty { grid-column:1 / -1; display:flex; min-height:320px; align-items:center; justify-content:center; flex-direction:column; padding:40px; border:1px dashed #cbd7e6; border-radius:8px; color:#64748b; background:rgba(255,255,255,.6); text-align:center; }
+.tickets-empty > span { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:8px; color:#2563eb; background:#eaf1ff; }
+.tickets-empty > span svg { width:21px; height:21px; }
+.tickets-empty h2 { margin:13px 0 4px; color:var(--tt-ink); font-size:16px; }
+.tickets-empty p { margin:0 0 15px; font-size:12px; }
+.ftd-owner-line { display:flex; align-items:center; gap:5px; margin-top:7px; color:#64748b; font-size:11px; font-weight:650; }
+.ftd-owner-line svg { width:12px; height:12px; }
+.ftd-owner-line span { margin-left:3px; padding:2px 6px; border-radius:5px; color:#475569; background:#eef2f7; font-size:9px; font-weight:800; text-transform:uppercase; }
+.ftd-readonly { display:flex; flex:1; align-items:center; justify-content:center; gap:7px; min-height:36px; padding:8px 10px; border:1px solid #d7e0ec; border-radius:7px; color:#526177; background:#f5f7fa; font-size:11px; font-weight:700; text-align:center; }
+.ftd-readonly svg { width:13px; height:13px; }
+.ft-chk-row.is-readonly { cursor:default; opacity:.84; }
+#ticket-drawer .form-input[readonly], #ticket-drawer .form-input:disabled { color:#475569; background:#f3f6f9; cursor:default; }
 
 .ftd-modal-overlay { background: rgba(14,23,40,.62); backdrop-filter: blur(4px); }
 .ftd-modal {
@@ -1337,6 +1302,12 @@ foreach ($tickets as $t) {
 }
 .dark #ticket-drawer [id^="report-"] > div { border-color: #2a3748 !important; }
 .dark #ticket-drawer [id^="report-"] > div > span:last-child { color: #e5eaf1 !important; }
+.dark #ticket-drawer-title { color:#f1f5f9 !important; }
+.dark .ftd-owner-line { color:#a9b6c7; }
+.dark .ftd-owner-line span { color:#c8d3e2; background:#263449; }
+.dark .ftd-readonly { color:#c3cfde; background:#162234; border-color:#344258; }
+.dark #ticket-drawer .form-input[readonly],
+.dark #ticket-drawer .form-input:disabled { color:#cbd5e1; background:#162234; border-color:#344258; }
 .dark #ticket-drawer .form-input {
     color: #e5eaf1;
     background: #0d1726;
@@ -1349,6 +1320,8 @@ foreach ($tickets as $t) {
     .tickets-toolbar { grid-template-columns: 1fr 160px; }
     .tickets-filter-row { grid-column: 1 / -1; }
 }
+@media (max-width: 1450px) and (min-width: 1051px) { .tickets-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width: 1050px) and (min-width: 641px) { .tickets-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width: 760px) {
     .tickets-page .tickets-hero { padding-bottom: 14px; }
     .tickets-page .page-hero-actions .btn-primary { width: 40px; padding: 0; font-size: 0; }
@@ -1365,6 +1338,7 @@ foreach ($tickets as $t) {
     .tickets-filter-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; }
     .tickets-filter-row .btn { flex: 0 0 auto; }
     .tickets-grid { gap: 10px; }
+    .tickets-grid { grid-template-columns:1fr; }
     .ft-ticket-card { min-height: 0; padding: 16px; }
     .ft-card-guide { margin: 12px -16px -16px; padding: 10px 16px; }
     #ticket-drawer { width: calc(100vw - 14px) !important; border-radius: 8px; }
@@ -1398,6 +1372,8 @@ ttCompanyContacts = <?= json_encode($ticketCompanyContacts, JSON_HEX_TAG | JSON_
     function tryWire() {
         if (typeof wireNewTicketModal === 'function') wireNewTicketModal();
         if (typeof ticketInitDefaultFilter === 'function') ticketInitDefaultFilter();
+        if (typeof ticketRestoreApprovalTab === 'function') ticketRestoreApprovalTab();
+        if (typeof ticketRestorePageState === 'function') ticketRestorePageState();
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', tryWire);

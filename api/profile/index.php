@@ -7,7 +7,6 @@ require_once dirname(dirname(__DIR__)) . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
 if (!defined('DEMO_MODE') || !DEMO_MODE) {
     require_once APP_ROOT . '/includes/Database.php';
-    require_once APP_ROOT . '/includes/TicketFieldMemory.php';
 }
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
@@ -25,10 +24,17 @@ $address = trim((string)($input['address'] ?? ''));
 $latitude = trim((string)($input['latitude'] ?? ''));
 $longitude = trim((string)($input['longitude'] ?? ''));
 
+if ($company === '') { json_response(['error' => 'Company is required for ticket routing.'], 422); }
+if ($address === '') { json_response(['error' => 'Company address is required for ticket routing.'], 422); }
+if (!is_numeric($latitude) || !is_numeric($longitude) || (float)$latitude < -90 || (float)$latitude > 90 || (float)$longitude < -180 || (float)$longitude > 180) {
+    json_response(['error' => 'Set a valid company location on the map before saving.'], 422);
+}
+
 $demo = !defined('DEMO_MODE') || DEMO_MODE;
 if (!$demo) {
+    $pdo = Database::getInstance();
     try {
-        TicketFieldMemory::ensure();
+        $pdo->beginTransaction();
         $sets = [];
         $vals = [];
         if ($name) { $sets[] = "full_name = ?"; $vals[] = $name; }
@@ -61,8 +67,17 @@ if (!$demo) {
             $vals[] = Auth::userId();
             Database::query("UPDATE users SET " . implode(', ', $sets) . " WHERE id = ?", $vals);
         }
-        json_response(['success' => true, 'message' => 'Profile updated']);
-    } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
+        $pdo->commit();
+        if ($name !== '') { $_SESSION['user_name'] = $name; }
+        json_response([
+            'success' => true,
+            'message' => 'Profile updated',
+            'location_id' => $locationId,
+        ]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) { $pdo->rollBack(); }
+        json_response(['error' => $e->getMessage()], 500);
+    }
 } else {
     json_response(['success' => true, 'message' => 'Profile updated', 'demo' => true]);
 }

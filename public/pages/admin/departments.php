@@ -2,10 +2,12 @@
 if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
 
 $page_title = 'Departments';
-$active_menu = 'admin-departments';
+$active_menu = 'admin-users-access';
+$accessSection = 'departments';
 $required_permission = 'departments.manage';
 require APP_ROOT . '/includes/admin_guard.php';
 require APP_ROOT . '/includes/layout_header.php';
+require APP_ROOT . '/includes/admin_access_tabs.php';
 ?>
 <div class="max-w-6xl mx-auto">
     <!-- Add Department Modal -->

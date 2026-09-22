@@ -21,11 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $input = json_decode(file_get_contents('php://input'), true);
 $userId = Auth::userId();
 $messageId = (int)($input['message_id'] ?? 0);
+$sessionId = trim((string)($input['session_id'] ?? ''));
 $rating = $input['rating'] ?? null;
 $solved = $input['solved'] ?? null;
 
-if (!$messageId || !$rating) {
-    json_response(['error' => 'message_id and rating required'], 400);
+if (!$rating) {
+    json_response(['error' => 'rating required'], 400);
 }
 
 if (defined('DEMO_MODE') && DEMO_MODE) {
@@ -33,8 +34,9 @@ if (defined('DEMO_MODE') && DEMO_MODE) {
 }
 
 if (class_exists('Database')) {
-    AIDatabase::insert('ai_feedback', [
-        'message_id' => $messageId,
+    AIDatabase::insert('ai_response_feedback', [
+        'legacy_message_id' => $messageId ?: null,
+        'session_id' => $sessionId ?: null,
         'user_id' => $userId,
         'rating' => $rating,
         'solved' => $solved,

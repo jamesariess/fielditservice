@@ -34,6 +34,13 @@ class TicketStepSuggestions
     public static function sync(): void
     {
         self::ensure();
+        Database::query(
+            "UPDATE ticket_step_suggestions q
+             JOIN troubleshooting_sessions s ON s.id = q.session_id
+             JOIN troubleshooting_issues i ON i.id = s.issue_id
+             SET q.issue_id = s.issue_id, q.status = 'pending'
+             WHERE q.status IN ('pending','duplicate') AND q.issue_id <> s.issue_id"
+        );
         $sessions = Database::fetchAll(
             "SELECT id, issue_id, steps_performed FROM troubleshooting_sessions
              WHERE ended_at IS NOT NULL AND COALESCE(steps_approved, 0) = 0
