@@ -49,11 +49,12 @@ if ($article['id'] > 0 && !$demo) {
 
 <style>
     .kb-article-shell {
-        max-width: 1180px;
-        margin: 0 auto;
+        width: 100%;
+        max-width: none;
+        margin: 0;
         display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(260px, 0.9fr);
-        gap: 22px;
+        grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+        gap: 28px;
         align-items: start;
     }
     .kb-article-main, .kb-article-side { min-width: 0; }

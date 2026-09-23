@@ -555,8 +555,24 @@ function ticketApplyFilters() {
         return cb - ca; // newest
     });
     cards.forEach(function(card) { grid.appendChild(card); });
+    var hasVisibleCards = cards.some(function(card) { return card.style.display !== 'none'; });
+    var cardEmpty = document.getElementById('tickets-filter-empty');
+    if (cardEmpty) {
+        cardEmpty.hidden = hasVisibleCards;
+        grid.appendChild(cardEmpty);
+    }
     if (window.ticketTravelLoaded) ticketMarkFirstStop();
     if (typeof window.ticketWorkspaceSync === 'function') window.ticketWorkspaceSync();
+}
+
+function ticketClearFilters() {
+    var searchEl = document.getElementById('ticket-search');
+    if (searchEl) searchEl.value = '';
+    window.ticketActiveFilter = ticketDefaultFilter();
+    document.querySelectorAll('.filter-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.filter === window.ticketActiveFilter);
+    });
+    ticketApplyFilters();
 }
 
 function ticketDefaultFilter() {
@@ -3302,6 +3318,29 @@ function wireNewTicketModal() {
 // ticketApplyFilters(). Reports render inside the drawer (openTicketDrawer).
 
 // ==================== End New Ticket ==================== 
+
+function ticketCopyNewList() {
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.ft-ticket-card[data-status="new"]'));
+    if (!cards.length) { showToast('No new tickets match the current filters.', 'warning'); return; }
+    var rows = cards.map(function(card) {
+        var number = (card.querySelector('.ft-tnum') || {}).textContent || '';
+        var company = (card.querySelector('.ft-company') || {}).textContent || 'Company not specified';
+        return number.replace(/^Ticket\s*#/i, '').trim() + ' - ' + company.trim();
+    });
+    var text = rows.join('\n');
+    function copied() { showToast(rows.length + ' new ticket' + (rows.length === 1 ? '' : 's') + ' copied.', 'success'); }
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(copied).catch(function() { ticketCopyFallback(text, copied); });
+    } else { ticketCopyFallback(text, copied); }
+}
+function ticketCopyFallback(text, done) {
+    var area = document.createElement('textarea');
+    area.value = text; area.setAttribute('readonly', '');
+    area.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+    document.body.appendChild(area); area.select();
+    try { document.execCommand('copy'); done(); } catch (e) { showToast('Copy failed. Please try again.', 'warning'); }
+    document.body.removeChild(area);
+}
 
 // ==================== Team Chat ====================
 function chatSendMessage(e) {

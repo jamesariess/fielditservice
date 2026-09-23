@@ -1,8 +1,10 @@
 <?php
 if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
 
-$canViewAllTickets = Auth::canViewAllTickets();
-$page_title = $canViewAllTickets ? 'Team Tickets' : 'My Tickets';
+// This route is always the signed-in user's work queue. Managers and admins
+// use Ticket Management when they need to review the full team queue.
+$canViewAllTickets = false;
+$page_title = 'My Tickets';
 $active_menu = 'tickets';
 require APP_ROOT . '/includes/layout_header.php';
 ?>
@@ -410,9 +412,10 @@ foreach ($tickets as $t) {
             <option value="oldest">Oldest</option>
             <option value="updated">Recently Updated</option>
         </select>
+        <button type="button" class="ticket-copy-list" onclick="ticketCopyNewList()" title="Copy new ticket numbers and company names" aria-label="Copy <?= (int)$newCount ?> new ticket numbers and company names"><i data-lucide="clipboard-copy" aria-hidden="true"></i></button>
         <div class="tickets-view-toggle" id="tickets-view-toggle" aria-label="Ticket view">
-            <button type="button" data-view="cards" class="active"><i data-lucide="layout-grid" style="width:15px;height:15px;vertical-align:-3px;"></i> Cards</button>
-            <button type="button" data-view="table"><i data-lucide="list" style="width:15px;height:15px;vertical-align:-3px;"></i> Table</button>
+            <button type="button" data-view="cards" class="active" aria-label="Card view" title="Card view"><i data-lucide="layout-grid"></i></button>
+            <button type="button" data-view="table" aria-label="Table view" title="Table view"><i data-lucide="list"></i></button>
         </div>
     </div>
     <div class="tickets-table-wrap" aria-live="polite">
@@ -420,7 +423,12 @@ foreach ($tickets as $t) {
             <thead><tr><th>Ticket</th><th>Company / Site</th><th>Issue</th><th>Device</th><th>Assigned to</th><th>Priority</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
             <tbody id="tickets-table-body"></tbody>
         </table>
-        <div class="ticket-empty" id="ticket-table-empty">No tickets match the current filters.</div>
+        <div class="ticket-empty" id="ticket-table-empty" hidden>
+            <span><i data-lucide="search-x"></i></span>
+            <h2>No matching tickets</h2>
+            <p>Try a different status or clear your search.</p>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="ticketClearFilters()">Clear filters</button>
+        </div>
     </div>
     <div class="tickets-grid" id="tickets-grid">
     <?php foreach ($tickets as $t):
@@ -536,8 +544,8 @@ foreach ($tickets as $t) {
     <script>window.ttTicketData = window.ttTicketData || {}; window.ttTicketData[<?= (int)$ticketId ?>] = <?= json_encode($reportData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;</script>
     <article class="card ft-ticket-card" data-id="<?= (int)$ticketId ?>" data-status="<?= e($status) ?>" data-owner="<?= e($ownerName) ?>" data-created="<?= $createdTs ?>" data-updated="<?= $updatedTs ?>" data-lat="<?= e($latitude) ?>" data-lng="<?= e($longitude) ?>" data-address="<?= e($address ?: $location) ?>" data-search="<?= e($searchBlob) ?>">
         <!-- Header: company + ticket # | status -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-            <div style="display:flex;align-items:flex-start;gap:12px;min-width:0;">
+        <div class="ft-card-head">
+            <div class="ft-card-identity">
                 <div class="ft-co-ico"><i data-lucide="building-2"></i></div>
                 <div style="min-width:0;">
                     <div class="ft-company"><?= $companyName !== '' ? e($companyName) : 'Company not specified' ?></div>
@@ -549,7 +557,7 @@ foreach ($tickets as $t) {
         </div>
         <!-- Device information (only fields that actually exist) -->
         <?php if ($deviceName || $serial || $deviceTypeVal): ?>
-        <div class="ft-section">
+        <div class="ft-section ft-device-block">
             <?php if ($deviceName): ?>
                 <div class="ft-label">Device</div>
                 <div class="ft-value"><?= e($deviceName) ?></div>
@@ -565,7 +573,7 @@ foreach ($tickets as $t) {
         <?php endif; ?>
         <div class="ft-divider"></div>
         <!-- Issue / Task -->
-        <div class="ft-section" style="margin-top:0;">
+        <div class="ft-section ft-issue-block" style="margin-top:0;">
             <div class="ft-label">Issue / Task</div>
             <div class="ft-value ft-issue<?= $issueLong ? ' ft-clamped' : '' ?>" id="issue-<?= (int)$ticketId ?>"><?= e($issueText) ?></div>
             <?php if ($issueLong): ?>
@@ -703,6 +711,14 @@ foreach ($tickets as $t) {
     <?php endif; ?>
     </article>
     <?php endforeach; ?>
+    <?php if ($tickets): ?>
+        <div class="tickets-filter-empty" id="tickets-filter-empty" hidden aria-live="polite">
+            <span><i data-lucide="inbox"></i></span>
+            <h2>No tickets here</h2>
+            <p>No tickets match the current status or search.</p>
+            <button type="button" class="btn btn-secondary" onclick="ticketClearFilters()"><i data-lucide="rotate-ccw"></i> Clear filters</button>
+        </div>
+    <?php endif; ?>
     <?php if (!$tickets): ?>
         <div class="tickets-empty">
             <span><i data-lucide="inbox"></i></span>
@@ -731,6 +747,7 @@ foreach ($tickets as $t) {
 .ft-stat-lbl { font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
 .ft-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-top:6px; }
 .tickets-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+.ticket-copy-list{width:40px;height:40px;display:grid;place-items:center;padding:0;border:1px solid #c7d7f4;border-radius:10px;background:#f8fbff;color:#1d4ed8;cursor:pointer;box-shadow:0 1px 2px rgba(37,99,235,.06);transition:background .16s ease,border-color .16s ease,transform .16s ease}.ticket-copy-list:hover{background:#eef5ff;border-color:#8fb6f5;transform:translateY(-1px)}.ticket-copy-list:focus-visible{outline:2px solid #2563eb;outline-offset:2px}.ticket-copy-list svg{width:17px;height:17px}.dark .ticket-copy-list{background:#16243a;border-color:#294b7f;color:#bfdbfe}
 .tickets-filter-row { display:flex; gap:6px; flex-wrap:wrap; }
 .tickets-search-wrap { flex:1; min-width:220px; position:relative; }
 .tickets-sort { width:auto; padding:8px 12px; font-size:13px; border-radius:10px; color:#374151; }

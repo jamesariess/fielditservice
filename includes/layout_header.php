@@ -7,7 +7,7 @@ $currentUser = [
     'name' => Auth::userName() ?? 'Guest',
     'role' => $_SESSION['role_name'] ?? 'User',
 ];
-$ticketNavLabel = Auth::canViewAllTickets() ? 'Team Tickets' : 'My Tickets';
+$ticketNavLabel = 'My Tickets';
 
 $mainNav = [
     ['id' => 'dashboard', 'label' => 'Home', 'icon' => 'layout-dashboard', 'url' => '/'],
@@ -29,7 +29,7 @@ $sidebarItems = [
     ['id' => 'tools', 'label' => 'Tools', 'icon' => 'wrench', 'url' => '/tools'],
     ['id' => 'submit-steps', 'label' => 'Submit Steps', 'icon' => 'file-plus', 'url' => '/troubleshoot/submit'],
     ['section' => 'Work'],
-    ['id' => 'admin-ticket-approvals', 'label' => 'Ticket Approvals', 'icon' => 'clipboard-check', 'url' => '/admin/ticket-approvals', 'perm' => 'system.settings'],
+    ['id' => 'admin-ticket-approvals', 'label' => 'Ticket Management', 'icon' => 'clipboard-check', 'url' => '/admin/ticket-approvals', 'perm' => 'system.settings'],
     ['id' => 'tickets', 'label' => $ticketNavLabel, 'icon' => 'ticket', 'url' => '/tickets'],
     ['id' => 'profile', 'label' => 'My Profile', 'icon' => 'user-round', 'url' => '/profile'],
     ['id' => 'documentation', 'label' => 'Documentation', 'icon' => 'file-text', 'url' => '/documentation'],

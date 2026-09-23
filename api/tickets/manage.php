@@ -1,0 +1,13 @@
+<?php
+if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(__DIR__))); }
+require_once APP_ROOT.'/config/app.php'; require_once APP_ROOT.'/config/demo.php'; require_once APP_ROOT.'/includes/helpers.php'; require_once APP_ROOT.'/includes/Database.php'; require_once APP_ROOT.'/includes/Auth.php';
+require_once APP_ROOT.'/includes/Activity.php';
+Auth::start(); Auth::requireLogin();
+$role = strtolower((string)($_SESSION['role_name'] ?? ''));
+if (!Auth::hasPermission('system.settings') && !in_array($role, ['admin','super admin','super_admin','manager'], true)) { json_response(['error'=>'Permission denied'],403); exit; }
+if ($_SERVER['REQUEST_METHOD'] !== 'PATCH') { json_response(['error'=>'PATCH required'],405); exit; }
+$id=(int)($_GET['id']??0); $input=json_decode(file_get_contents('php://input'),true) ?: [];
+$allowedStatus=['new','in_progress','solved','partial','escalated','unsolved','cancelled']; $status=$input['status']??null;
+if (!$id || ($status !== null && !in_array($status,$allowedStatus,true))) { json_response(['error'=>'Invalid ticket update'],400); exit; }
+$fields=[];$params=[]; foreach(['ticket_number','company_name','location','problem_description','priority','status'] as $field){if(array_key_exists($field,$input)){if($field==='status'&&$input[$field]==='cancelled'){$fields[]='status = ?';$params[]='unsolved';$fields[]='resolution_type = ?';$params[]='cancelled';continue;}if($field==='priority'&&!in_array($input[$field],['low','medium','high','critical'],true)){json_response(['error'=>'Invalid priority'],400);exit;} $fields[]=$field.' = ?';$params[] = trim((string)$input[$field]);}}
+if(!$fields){json_response(['error'=>'No changes supplied'],400);exit;} $target=Database::fetch('SELECT user_id, ticket_number FROM troubleshooting_sessions WHERE id = ?',[$id]); $params[]=$id; Database::execute('UPDATE troubleshooting_sessions SET '.implode(', ',$fields).' WHERE id = ?',$params); Activity::log($status==='cancelled'?'CANCEL':'UPDATE','ticket',$id,$input); if($target && (int)$target['user_id'] !== (int)Auth::userId()) Activity::notifyUsers([(int)$target['user_id']], $status==='cancelled'?'ticket_cancelled':'ticket_updated', ($status==='cancelled'?'Ticket cancelled: ':'Ticket updated: ').($target['ticket_number'] ?: 'SD'.$id), 'A manager updated your ticket.', '/tickets'); json_response(['success'=>true]);

@@ -9,6 +9,7 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
     require_once APP_ROOT . '/includes/Database.php';
 }
 require_once APP_ROOT . '/includes/Auth.php';
+require_once APP_ROOT . '/includes/Activity.php';
 Auth::start();
 Auth::requireLogin();
 header('Content-Type: application/json');
@@ -69,6 +70,7 @@ if (!$demo) {
         }
         $pdo->commit();
         if ($name !== '') { $_SESSION['user_name'] = $name; }
+        Activity::log('UPDATE', 'profile', (int)Auth::userId(), ['company_name' => $company, 'location_name' => $locationName, 'location_id' => $locationId]);
         json_response([
             'success' => true,
             'message' => 'Profile updated',

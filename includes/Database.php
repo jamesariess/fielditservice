@@ -26,9 +26,25 @@ class Database {
     }
     
     public static function query(string $sql, array $params = []): PDOStatement {
-        $stmt = self::getInstance()->prepare($sql);
+        try {
+            $stmt = self::getInstance()->prepare($sql);
+        } catch (PDOException $e) {
+            // A long-lived PHP worker can retain a stale MySQL connection.
+            // Retrying a failed prepare is safe because no statement ran yet.
+            $mysqlCode = (int)($e->errorInfo[1] ?? 0);
+            if (!in_array($mysqlCode, [2006, 2013], true)) {
+                throw $e;
+            }
+            self::$instance = null;
+            $stmt = self::getInstance()->prepare($sql);
+        }
         $stmt->execute($params);
         return $stmt;
+    }
+
+    /** Execute a statement when no result rows are needed. */
+    public static function execute(string $sql, array $params = []): int {
+        return self::query($sql, $params)->rowCount();
     }
     
     public static function fetch(string $sql, array $params = []): ?array {

@@ -1,0 +1,59 @@
+#ticket-management{color:#243247}
+#ticket-management .page-hero{display:flex;align-items:end;justify-content:space-between;gap:20px;padding:4px 0 22px;margin-bottom:18px;border-bottom:1px solid #dce5f0}
+#ticket-management h1{font-size:24px;line-height:1.2;margin:0;font-weight:750;color:#182235}
+#ticket-management .page-hero p{margin:6px 0 0;color:#64748b;font-size:13px}
+#ticket-management .manage-filters{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:10px;align-items:center;margin:0 0 14px}
+#ticket-management .manage-filters .form-input{height:42px;min-width:0;padding:9px 12px;border:1px solid #d8e2ef;border-radius:8px;background:#fff;color:#263348;font-size:13px}
+#ticket-management .manage-filter-note{margin:0 0 12px;color:#64748b;font-size:12px}
+#ticket-management .manage-table-scroll{overflow-x:auto;border:1px solid #dce5f0;border-radius:8px;background:#fff}
+#ticket-management .manage-table{width:100%;min-width:980px;table-layout:fixed;border-collapse:collapse;text-align:left;font-size:12px}
+#ticket-management .manage-table th{padding:12px 14px;background:#f7f9fc;border-bottom:1px solid #dce5f0;color:#66758a;font-size:10px;font-weight:800;text-transform:uppercase}
+#ticket-management .manage-table td{padding:13px 14px;border-bottom:1px solid #e9edf4;vertical-align:middle;line-height:1.4;overflow-wrap:anywhere}
+#ticket-management .manage-table tbody tr:last-child td{border-bottom:0}
+#ticket-management .manage-table tbody tr:hover{background:#f8fbff}
+#ticket-management .manage-table th:nth-child(1){width:12%}#ticket-management .manage-table th:nth-child(2){width:23%}#ticket-management .manage-table th:nth-child(3){width:27%}#ticket-management .manage-table th:nth-child(4){width:12%}#ticket-management .manage-table th:nth-child(5){width:10%}#ticket-management .manage-table th:nth-child(6){width:9%}#ticket-management .manage-table th:nth-child(7){width:7%}
+#ticket-management .manage-table strong{color:#1558c7;font-weight:800;white-space:nowrap}
+#ticket-management .manage-table small{display:block;margin-top:3px;color:#8190a3;font-size:11px;line-height:1.35}
+#ticket-management .manage-table .approval-status{display:inline-flex;align-items:center;padding:4px 8px;border-radius:6px;background:#fff5d9;color:#875600;font-size:11px;font-weight:700;white-space:nowrap}
+#ticket-management .approval-status.in_progress{background:#e7f0ff;color:#1d4ed8}#ticket-management .approval-status.solved{background:#e5f6ed;color:#166534}#ticket-management .approval-status.unsolved,#ticket-management .approval-status.escalated,#ticket-management .approval-status.cancelled{background:#feecec;color:#a52a2a}
+#ticket-management .manage-edit summary{list-style:none;display:grid;place-items:center;width:30px;height:30px;border:1px solid #d8e2ef;border-radius:7px;background:#fff;color:#42536d;cursor:pointer}
+#ticket-management .manage-edit summary::-webkit-details-marker{display:none}
+#ticket-management .manage-edit summary:hover{color:#1558c7;background:#eef5ff}
+#ticket-management .manage-edit[open]:before{content:'';position:fixed;inset:0;z-index:90;background:rgba(15,23,42,.48)}
+#ticket-management .manage-form{position:fixed;z-index:91;top:50%;left:50%;transform:translate(-50%,-50%);display:grid;grid-template-columns:1fr 1fr;gap:13px;width:min(580px,calc(100vw - 24px));max-height:calc(100vh - 32px);overflow:auto;padding:24px!important;border-radius:10px;border:1px solid #dce5f0;box-shadow:0 24px 70px rgba(15,23,42,.25);background:#fff!important}
+#ticket-management .manage-form h2{grid-column:1/-1;margin:0 0 5px;font-size:18px;color:#182235}
+#ticket-management .manage-form .manage-close{position:absolute;top:16px;right:16px;display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid #d8e2ef;border-radius:7px;background:#fff;color:#52627a;cursor:pointer}
+#ticket-management .manage-form .manage-close:hover{background:#eef5ff;color:#1558c7}
+#ticket-management .manage-form .manage-close svg{width:16px;height:16px}
+#ticket-management .manage-form label{display:grid;gap:5px;color:#52627a;font-size:12px;font-weight:700}
+#ticket-management .manage-form label.wide{grid-column:1/-1}
+#ticket-management .manage-form .form-input{width:100%;min-width:0;padding:9px 11px;border:1px solid #d8e2ef;border-radius:7px;background:#fff;color:#253247;font-size:13px;font-weight:400}
+#ticket-management .manage-form .manage-form-actions{grid-column:1/-1;display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-top:5px}
+#ticket-management .manage-form-actions .manage-cancel-ticket{margin-right:auto;color:#b42332}
+#ticket-management .manage-form-actions button{min-height:36px}
+#ticket-management .manage-form .manage-message{grid-column:1/-1;min-height:18px;margin:0;color:#18764b;font-size:12px;font-weight:600}
+#ticket-management .manage-form .manage-message.is-error{color:#b42332}
+@media(max-width:700px){#ticket-management .manage-filters{grid-template-columns:1fr}#ticket-management .page-hero{align-items:start;flex-direction:column}#ticket-management .manage-form{grid-template-columns:1fr;padding:18px!important}}
+.dark #ticket-management .manage-table-scroll,.dark #ticket-management .manage-form{background:#142033!important;border-color:#344258}.dark #ticket-management h1,.dark #ticket-management .manage-form h2{color:#f1f5f9}.dark #ticket-management .manage-table th{background:#1b2a40;border-color:#344258;color:#aab8cc}.dark #ticket-management .manage-table td{border-color:#29384d}.dark #ticket-management .manage-table tbody tr:hover{background:#1b2a40}.dark #ticket-management .manage-filters .form-input,.dark #ticket-management .manage-form .form-input,.dark #ticket-management .manage-edit summary{background:#101b2c;color:#e2e8f0;border-color:#344258}
+#ticket-management .approval-filters{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:10px;align-items:center;margin:0 0 14px}
+#ticket-management .approval-filters .form-input{height:42px;min-width:0;padding:9px 12px;border:1px solid #d8e2ef;border-radius:8px;background:#fff;color:#263348;font-size:13px}
+#ticket-management .approval-table-scroll{overflow-x:auto;border:1px solid #dce5f0;border-radius:8px;background:#fff}
+#ticket-management .approval-table{width:100%;min-width:980px;table-layout:fixed;border-collapse:collapse;text-align:left;font-size:12px}
+#ticket-management .approval-table th{padding:12px 14px;background:#f7f9fc;border-bottom:1px solid #dce5f0;color:#66758a;font-size:10px;font-weight:800;text-transform:uppercase}
+#ticket-management .approval-table td{padding:13px 14px;border-bottom:1px solid #e9edf4;vertical-align:middle;line-height:1.4;overflow-wrap:anywhere}
+#ticket-management .approval-table tbody tr:last-child td{border-bottom:0}
+#ticket-management .approval-table tbody tr:hover{background:#f8fbff}
+#ticket-management .approval-table th:nth-child(1){width:12%}#ticket-management .approval-table th:nth-child(2){width:23%}#ticket-management .approval-table th:nth-child(3){width:27%}#ticket-management .approval-table th:nth-child(4){width:12%}#ticket-management .approval-table th:nth-child(5){width:10%}#ticket-management .approval-table th:nth-child(6){width:9%}#ticket-management .approval-table th:nth-child(7){width:7%}
+#ticket-management .approval-table strong{color:#1558c7;font-weight:800;white-space:nowrap}
+#ticket-management .approval-table small{display:block;margin-top:3px;color:#8190a3;font-size:11px;line-height:1.35}
+#ticket-management .approval-table .approval-status{display:inline-flex;align-items:center;padding:4px 8px;border-radius:6px;background:#fff5d9;color:#875600;font-size:11px;font-weight:700;white-space:nowrap}
+#ticket-management details summary{list-style:none;display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid #d8e2ef;border-radius:7px;background:#fff;color:#42536d;cursor:pointer}
+#ticket-management details summary::-webkit-details-marker{display:none}
+#ticket-management details summary:hover{color:#1558c7;background:#eef5ff}
+#ticket-management details[open]:before{content:'';position:fixed;inset:0;z-index:90;background:rgba(15,23,42,.48)}
+#ticket-management .manage-form{min-width:0!important}
+#ticket-management .manage-form input,#ticket-management .manage-form select,#ticket-management .manage-form textarea{min-width:0;width:100%;padding:9px 11px!important;border:1px solid #d8e2ef;border-radius:7px;background:#fff;color:#253247;font-size:13px!important}
+#ticket-management .manage-form textarea{grid-column:1/-1;resize:vertical}
+#ticket-management .manage-form button[data-cancel]{color:#b42332;background:#fff;border:1px solid #e5bbc0}
+@media(max-width:700px){#ticket-management .approval-filters{grid-template-columns:1fr}}
+.dark #ticket-management .approval-table-scroll{background:#142033;border-color:#344258}.dark #ticket-management .approval-table th{background:#1b2a40;border-color:#344258;color:#aab8cc}.dark #ticket-management .approval-table td{border-color:#29384d}.dark #ticket-management .approval-table tbody tr:hover{background:#1b2a40}.dark #ticket-management .approval-filters .form-input,.dark #ticket-management .manage-form input,.dark #ticket-management .manage-form select,.dark #ticket-management .manage-form textarea,.dark #ticket-management details summary{background:#101b2c;color:#e2e8f0;border-color:#344258}

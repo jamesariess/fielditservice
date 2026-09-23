@@ -15,6 +15,7 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
     require_once APP_ROOT . '/includes/TicketFieldMemory.php';
 }
 require_once APP_ROOT . '/includes/Auth.php';
+require_once APP_ROOT . '/includes/Activity.php';
 Auth::start();
 Auth::requireLogin();
 
@@ -236,6 +237,8 @@ try {
 
     // After time-out, always return the full session so the report card can rebuild
     $session = Database::fetch("SELECT * FROM troubleshooting_sessions WHERE id = ?", [$ticketId]);
+    Activity::log('COMPLETE', 'ticket', $ticketId, ['ticket_number' => $session['ticket_number'] ?? '', 'status' => $session['status'] ?? '', 'time_spent_minutes' => $timeSpentMinutes]);
+    Activity::notifyUsers(Activity::managers(), 'ticket_completed', 'Ticket completed: ' . ($session['ticket_number'] ?? ('SD' . $ticketId)), 'A technician completed a field service report.', '/admin/ticket-approvals');
 
     require_once APP_ROOT . '/includes/TicketRouteOrigin.php';
     json_response([

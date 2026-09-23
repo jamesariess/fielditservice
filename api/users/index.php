@@ -8,6 +8,7 @@ require_once APP_ROOT . '/includes/helpers.php';
 if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Database.php'; }
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
+Auth::requirePermission('users.manage');
 header('Content-Type: application/json');
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -30,7 +31,24 @@ if ($method === 'POST' && $action === 'invite') {
             $db = Database::getInstance();
             $token = bin2hex(random_bytes(32));
             $hash = password_hash('changeme', PASSWORD_DEFAULT);
-            $db->execute("INSERT INTO users (email, full_name, password_hash, role_id, department_id, status, invitation_token) VALUES (?, ?, ?, (SELECT id FROM roles WHERE name = ? LIMIT 1), (SELECT id FROM departments WHERE name = ? LIMIT 1), 'pending', ?)", [$email, $name, $hash, $role, $dept, $token]);
+            $roleId = (int)$role;
+            $deptId = (int)$dept;
+            if ($roleId <= 0) {
+                $roleRow = Database::fetch("SELECT id FROM roles WHERE name = ? LIMIT 1", [$role]);
+                $roleId = (int)($roleRow['id'] ?? 0);
+            }
+            if ($deptId <= 0) {
+                $deptRow = Database::fetch("SELECT id FROM departments WHERE name = ? LIMIT 1", [$dept]);
+                $deptId = (int)($deptRow['id'] ?? 0);
+            }
+            if ($roleId <= 0 || $deptId <= 0) { json_response(['error' => 'Select a valid role and department'], 400); }
+            $db->execute("INSERT INTO users (email, full_name, password_hash, role_id, department_id, status, invitation_token) VALUES (?, ?, ?, ?, ?, 'pending', ?)", [$email, $name, $hash, $roleId, $deptId, $token]);
+            Database::insert('audit_logs', [
+                'user_id' => Auth::userId(), 'action' => 'INVITE', 'resource_type' => 'user',
+                'resource_id' => (int)$db->lastInsertId(),
+                'details' => json_encode(['email' => $email, 'full_name' => $name, 'role_id' => $roleId, 'department_id' => $deptId]),
+                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'created_at' => date('Y-m-d H:i:s')
+            ]);
             json_response(['success' => true, 'message' => 'Invitation sent to ' . $email, 'token' => $token]);
         } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
     } else {
@@ -54,6 +72,11 @@ if ($method === 'POST' && $action === 'invite') {
             if ($deptId) { $set[] = 'department_id = ?'; $params[] = $deptId; }
             $params[] = $userId;
             $db->execute('UPDATE users SET ' . implode(', ', $set) . ' WHERE id = ?', $params);
+            Database::insert('audit_logs', [
+                'user_id' => Auth::userId(), 'action' => 'UPDATE', 'resource_type' => 'user', 'resource_id' => $userId,
+                'details' => json_encode(['full_name' => $name, 'email' => $email, 'role_id' => $roleId, 'department_id' => $deptId]),
+                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'created_at' => date('Y-m-d H:i:s')
+            ]);
             json_response(['success' => true, 'message' => 'User updated']);
         } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
     } else {
@@ -62,11 +85,17 @@ if ($method === 'POST' && $action === 'invite') {
 } elseif ($method === 'DELETE') {
     $userId = intval($_GET['id'] ?? $action);
     if (!$userId) { json_response(['error' => 'Invalid user ID'], 400); }
+    if ($userId === (int)Auth::userId()) { json_response(['error' => 'You cannot deactivate your own account'], 400); }
     $demo = !defined('DEMO_MODE') || DEMO_MODE;
     if (!$demo) {
         try {
             $db = Database::getInstance();
             $db->execute("UPDATE users SET status = 'inactive' WHERE id = ?", [$userId]);
+            Database::insert('audit_logs', [
+                'user_id' => Auth::userId(), 'action' => 'DEACTIVATE', 'resource_type' => 'user', 'resource_id' => $userId,
+                'details' => json_encode(['status' => 'inactive']),
+                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'created_at' => date('Y-m-d H:i:s')
+            ]);
             json_response(['success' => true]);
         } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
     } else {

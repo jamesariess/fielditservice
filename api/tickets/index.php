@@ -10,6 +10,7 @@ require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
 if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Database.php'; }
 require_once APP_ROOT . '/includes/Auth.php';
+require_once APP_ROOT . '/includes/Activity.php';
 Auth::start();
 Auth::requireLogin();
 
@@ -88,27 +89,10 @@ if ($method === 'POST') {
         'created_at' => date('Y-m-d H:i:s'),
     ]);
 
-    // Create notification for supervisor
-    Database::insert('notifications', [
-        'user_id' => 1,
-        'type' => 'new_ticket',
-        'title' => 'New Ticket: ' . $ticketNumber,
-        'message' => $title,
-        'url' => '/tickets',
-        'is_read' => 0,
-        'created_at' => date('Y-m-d H:i:s'),
-    ]);
+    Activity::notifyUsers(Activity::managers(), 'new_ticket', 'New Ticket: ' . $ticketNumber, $title, '/tickets');
 
     // Audit log
-    Database::insert('audit_logs', [
-        'user_id' => $userId,
-        'action' => 'CREATE',
-        'resource_type' => 'ticket',
-        'resource_id' => $ticketId,
-        'details' => json_encode(['ticket_number' => $ticketNumber]),
-        'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        'created_at' => date('Y-m-d H:i:s'),
-    ]);
+    Activity::log('CREATE', 'ticket', $ticketId, ['ticket_number' => $ticketNumber, 'title' => $title]);
 
     json_response(['success' => true, 'ticket' => ['id' => $ticketId, 'ticket_number' => $ticketNumber, 'title' => $title]]);
 }

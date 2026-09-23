@@ -41,8 +41,9 @@ $catIcons = [
 
 <style>
     .kb-shell {
-        max-width: 1280px;
-        margin: 0 auto;
+        width: 100%;
+        max-width: none;
+        margin: 0;
     }
     .kb-hero {
         position: relative;

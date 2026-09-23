@@ -10,7 +10,7 @@ require APP_ROOT . '/includes/layout_header.php';
 
 ?>
 
-<div class="max-w-3xl mx-auto">
+<div class="workspace-reading">
     <div class="page-hero fx-reveal" style="margin-bottom:20px;">
         <div>
             <div style="display:flex;align-items:center;gap:14px;">

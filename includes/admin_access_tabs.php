@@ -19,7 +19,7 @@ $accessTabs = [
     <?php endforeach; ?>
 </nav>
 <style>
-.admin-access-tabs { display:flex;align-items:center;gap:4px;margin:0 auto 18px;max-width:72rem;padding:5px;border:1px solid #dbe3ef;border-radius:8px;background:#fff;overflow-x:auto; }
+.admin-access-tabs { display:flex;align-items:center;gap:4px;width:100%;margin:0 0 18px;max-width:none;padding:5px;border:1px solid #dbe3ef;border-radius:8px;background:#fff;overflow-x:auto; }
 .admin-access-tab { min-height:38px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 14px;border-radius:6px;color:#64748b;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s; }
 .admin-access-tab i { width:16px;height:16px; }
 .admin-access-tab:hover { color:#1d4ed8;background:#f1f5f9; }

@@ -25,6 +25,7 @@ $countTotal = count($users);
 $countActive = 0;
 foreach ($users as $u) { if ($u['status'] === 'active') $countActive++; }
 $countRoles = count($roles);
+$pendingInvites = (int)(Database::fetch("SELECT COUNT(*) AS total FROM users WHERE status = 'pending'")['total'] ?? 0);
 ?>
 
 <div id="invite-user-modal" class="modal-overlay" style="display:none;">
@@ -113,7 +114,7 @@ $countRoles = count($roles);
     </div>
 </div>
 
-<div class="max-w-6xl mx-auto">
+<div class="workspace-wide">
     <div class="page-hero fx-reveal">
         <div>
             <div style="display:flex;align-items:center;gap:14px;">
@@ -142,7 +143,7 @@ $countRoles = count($roles);
             <div class="text-xs text-gray-500">Roles</div>
         </div>
         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
-            <div class="text-xl font-bold text-yellow-600">0</div>
+            <div class="text-xl font-bold text-yellow-600"><?= $pendingInvites ?></div>
             <div class="text-xs text-gray-500">Pending Invites</div>
         </div>
     </div>

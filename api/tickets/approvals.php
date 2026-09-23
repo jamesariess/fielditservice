@@ -9,6 +9,7 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
     require_once APP_ROOT . '/includes/TicketStepSuggestions.php';
 }
 require_once APP_ROOT . '/includes/Auth.php';
+require_once APP_ROOT . '/includes/Activity.php';
 
 Auth::start();
 Auth::requireLogin();
@@ -65,10 +66,14 @@ try {
         json_response(['error' => 'Invalid approval type'], 400);
     }
     if ($action === 'approve') {
-        json_response(['success' => true, 'updated' => TicketFieldMemory::approve($ids, Auth::userId())]);
+        $updated = TicketFieldMemory::approve($ids, Auth::userId());
+        Activity::log('APPROVE', 'ticket_memory', null, ['type' => $type, 'count' => count($ids)]);
+        json_response(['success' => true, 'updated' => $updated]);
     }
     if ($action === 'delete') {
-        json_response(['success' => true, 'updated' => TicketFieldMemory::deletePending($ids)]);
+        $updated = TicketFieldMemory::deletePending($ids);
+        Activity::log('REJECT', 'ticket_memory', null, ['type' => $type, 'count' => count($ids)]);
+        json_response(['success' => true, 'updated' => $updated]);
     }
     json_response(['error' => 'Invalid action'], 400);
 } catch (Throwable $e) {

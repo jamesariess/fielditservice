@@ -22,6 +22,21 @@ body:not(.dashboard) .page-content {
     padding: 26px clamp(18px, 2.4vw, 36px) 48px;
 }
 
+/* Operational pages use the available workspace instead of a narrow
+   marketing-style column. Reading and entry forms retain a usable line length. */
+body:not(.dashboard) .page-content > .workspace-wide {
+    width: 100%;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+body:not(.dashboard) .page-content > .workspace-reading {
+    width: 100%;
+    max-width: 1360px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
 body:not(.dashboard) .page-hero {
     min-height: 66px;
     margin-bottom: 20px;

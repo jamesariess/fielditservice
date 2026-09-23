@@ -14,6 +14,7 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
     require_once APP_ROOT . '/includes/TicketFieldMemory.php';
 }
 require_once APP_ROOT . '/includes/Auth.php';
+require_once APP_ROOT . '/includes/Activity.php';
 Auth::start();
 Auth::requireLogin();
 
@@ -293,6 +294,8 @@ try {
         // Non-fatal: ticket creation must not fail because of the address book.
     }
 
+    Activity::log('CREATE', 'ticket', (int)$sessionId, ['ticket_number' => $ticketNum, 'company' => $companyName, 'problem' => $task]);
+    Activity::notifyUsers(Activity::managers(), 'new_ticket', 'New ticket: ' . $ticketNum, $companyName . ' - ' . $task, '/admin/ticket-approvals');
     json_response([
         'success'        => true,
         'ticket_id'      => $sessionId,

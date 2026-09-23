@@ -83,7 +83,7 @@ $uBase = app_base();
                 </div>
                 <div class="input-wrap">
                     <i data-lucide="mail"></i>
-                    <input type="email" name="email" required class="login-input" placeholder="you@company.com" value="admin@fieldit.local" autocomplete="email">
+                    <input type="email" name="email" required class="login-input" placeholder="you@company.com" autocomplete="email">
                 </div>
                 <div style="display:flex;align-items:center;justify-content:space-between;margin:2px 0 6px;">
                     <label style="font-size:12.5px;font-weight:600;color:#374151;">Password</label>
@@ -91,7 +91,7 @@ $uBase = app_base();
                 </div>
                 <div class="input-wrap">
                     <i data-lucide="lock"></i>
-                    <input type="password" name="password" required class="login-input" id="pw-input" placeholder="Enter your password" value="password" autocomplete="current-password">
+                    <input type="password" name="password" required class="login-input" id="pw-input" placeholder="Enter your password" autocomplete="current-password">
                     <button type="button" class="toggle-pw" onclick="togglePw()" tabindex="-1"><i data-lucide="eye" id="pw-icon" style="width:16px;height:16px;"></i></button>
                 </div>
                 <label style="display:flex;align-items:center;gap:8px;margin:4px 0 16px;cursor:pointer;">
@@ -103,10 +103,6 @@ $uBase = app_base();
                 </button>
             </form>
 
-            <div class="demo-box">
-                All accounts password: <b>password</b><br>
-                Admin: <b>admin@fieldit.local</b> · Field IT: <b>fieldit@fieldit.local</b>
-            </div>
         </div>
     </div>
     <script>lucide.createIcons();</script>

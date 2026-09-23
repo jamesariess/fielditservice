@@ -5,7 +5,8 @@ $role = strtolower((string)($_SESSION['role_name'] ?? ''));
 if (!Auth::hasPermission('system.settings') && !in_array($role, ['admin','super admin','super_admin','manager'], true)) {
     http_response_code(403); echo 'Permission denied'; return;
 }
-$page_title = 'Ticket Approvals';
+$view = ($_GET['view'] ?? 'management') === 'approvals' ? 'approvals' : 'management';
+$page_title = $view === 'management' ? 'Ticket Management' : 'Reusable Entry Approvals';
 $active_menu = 'admin-ticket-approvals';
 $rows = [];
 $loadError = false;
@@ -39,6 +40,130 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
     } catch (Throwable $e) { error_log('Ticket approvals: ' . $e->getMessage()); $loadError = true; }
 }
 require APP_ROOT . '/includes/layout_header.php';
+if ($view === 'management') {
+    $managedTickets = Database::fetchAll("SELECT ts.id, ts.ticket_number, ts.company_name, ts.customer_name, ts.location, ts.problem_description, ts.priority, CASE WHEN ts.resolution_type='cancelled' THEN 'cancelled' ELSE ts.status END AS status, ts.created_at, u.full_name AS owner_name, i.title AS issue_title FROM troubleshooting_sessions ts LEFT JOIN users u ON u.id=ts.user_id LEFT JOIN troubleshooting_issues i ON i.id=ts.issue_id ORDER BY ts.created_at DESC, ts.id DESC");
+    ?>
+    <link rel="stylesheet" href="<?= e(app_base()) ?>assets/css/ticket-management.css?v=<?= filemtime(APP_ROOT . '/public/assets/css/ticket-management.css') ?>">
+    <section id="ticket-management">
+        <div class="page-hero"><div><h1>Ticket Management</h1><p>Review, update, and close field service tickets and reports.</p></div><a class="btn btn-secondary" href="<?= e(app_base()) ?>admin/ticket-approvals?view=approvals">Reusable Approvals</a></div>
+        <div class="approval-filters"><input id="manage-search" class="form-input" type="search" placeholder="Search ticket, company, problem, location or owner"><select id="manage-status" class="form-input"><option value="">All statuses</option><option>new</option><option>in_progress</option><option>solved</option><option>partial</option><option>escalated</option><option>unsolved</option><option>cancelled</option></select></div>
+        <div class="approval-table-scroll"><table class="approval-table"><thead><tr><th>Ticket</th><th>Company / Location</th><th>Problem</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="manage-body">
+        <?php foreach ($managedTickets as $ticket): $company = trim((string)($ticket['company_name'] ?: $ticket['customer_name'])); ?><tr data-search="<?= e(strtolower(implode(' ', [$ticket['ticket_number'], $company, $ticket['location'], $ticket['problem_description'], $ticket['owner_name'], $ticket['issue_title']])) ) ?>" data-status="<?= e($ticket['status']) ?>"><td><strong><?= e($ticket['ticket_number'] ?: 'SD'.$ticket['id']) ?></strong></td><td><?= e($company ?: 'Company not specified') ?><small><?= e($ticket['location'] ?: 'No location') ?></small></td><td><?= e($ticket['problem_description'] ?: $ticket['issue_title'] ?: 'No problem specified') ?></td><td><?= e($ticket['owner_name'] ?: 'Unknown') ?></td><td><span class="approval-status <?= e($ticket['status']) ?>"><?= e(ucwords(str_replace('_',' ', $ticket['status']))) ?></span></td><td><?= e(date('Y-m-d', strtotime($ticket['created_at']))) ?></td><td><details><summary class="btn btn-sm btn-secondary">Edit</summary><form class="manage-form" data-id="<?= (int)$ticket['id'] ?>" style="min-width:260px;padding:10px;background:var(--card-bg,#fff);"><input name="ticket_number" class="form-input" value="<?= e($ticket['ticket_number']) ?>" placeholder="Ticket number"><input name="company_name" class="form-input" value="<?= e($company) ?>" placeholder="Company name"><input name="location" class="form-input" value="<?= e($ticket['location']) ?>" placeholder="Location"><textarea name="problem_description" class="form-input" rows="2" placeholder="Problem / report"><?= e($ticket['problem_description']) ?></textarea><select name="priority" class="form-input"><option <?= $ticket['priority']==='low'?'selected':'' ?>>low</option><option <?= $ticket['priority']==='medium'?'selected':'' ?>>medium</option><option <?= $ticket['priority']==='high'?'selected':'' ?>>high</option><option <?= $ticket['priority']==='critical'?'selected':'' ?>>critical</option></select><select name="status" class="form-input"><option <?= $ticket['status']==='new'?'selected':'' ?>>new</option><option <?= $ticket['status']==='in_progress'?'selected':'' ?>>in_progress</option><option <?= $ticket['status']==='solved'?'selected':'' ?>>solved</option><option <?= $ticket['status']==='partial'?'selected':'' ?>>partial</option><option <?= $ticket['status']==='escalated'?'selected':'' ?>>escalated</option><option <?= $ticket['status']==='unsolved'?'selected':'' ?>>unsolved</option></select><p class="manage-message" role="status" aria-live="polite"></p><button class="btn btn-primary" type="submit">Save changes</button><button class="btn btn-secondary" type="button" data-cancel="<?= (int)$ticket['id'] ?>">Cancel ticket</button></form></details></td></tr><?php endforeach; ?>
+        </tbody></table></div>
+    </section>
+    <style>#ticket-management h1{font-size:24px;margin:0}#ticket-management .page-hero p{margin:5px 0 0;color:#64748b;font-size:13px}.manage-form{display:grid;gap:7px}.manage-form .form-input{font-size:12px;padding:7px}.approval-status.new{background:#fff5d9;color:#875600}.approval-status.in_progress{background:#e7f0ff;color:#1d4ed8}.approval-status.solved{background:#e5f6ed;color:#166534}.approval-status.unsolved,.approval-status.escalated,.approval-status.cancelled{background:#feecec;color:#a52a2a}</style>
+    <script>
+    const manageSearch = document.getElementById('manage-search');
+    const manageStatus = document.getElementById('manage-status');
+    const manageApi = <?= json_encode(app_base() . 'api/tickets/manage.php') ?>;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    function filterManaged() {
+        const query = (manageSearch.value || '').toLowerCase();
+        const status = manageStatus.value;
+        document.querySelectorAll('#manage-body tr').forEach(row => {
+            row.style.display = (!query || row.dataset.search.includes(query)) && (!status || row.dataset.status === status) ? '' : 'none';
+        });
+    }
+    async function updateManagedTicket(id, data) {
+        const response = await fetch(manageApi + '?id=' + encodeURIComponent(id), {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+            body: JSON.stringify(data)
+        });
+        const raw = await response.text();
+        let payload = {};
+        try { payload = raw ? JSON.parse(raw) : {}; } catch (_) { throw new Error('The server returned an invalid response.'); }
+        if (!response.ok || !payload.success) throw new Error(payload.error || 'Ticket update failed.');
+    }
+    manageSearch.oninput = filterManaged;
+    manageStatus.onchange = filterManaged;
+    document.querySelectorAll('.manage-form').forEach(form => {
+        const message = form.querySelector('.manage-message');
+        const report = text => { message.textContent = text; message.classList.add('is-error'); };
+        form.onsubmit = async event => {
+            event.preventDefault();
+            const save = form.querySelector('[type="submit"]');
+            save.disabled = true;
+            message.textContent = 'Saving changes...';
+            message.classList.remove('is-error');
+            try {
+                await updateManagedTicket(form.dataset.id, Object.fromEntries(new FormData(form)));
+                message.textContent = 'Saved. Refreshing ticket list...';
+                location.reload();
+            } catch (error) { report(error.message); save.disabled = false; }
+        };
+        form.querySelector('[data-cancel]').onclick = async () => {
+            const decision = await Swal.fire({
+                title: 'Cancel this ticket?',
+                text: 'The ticket will be marked as cancelled and removed from active work.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, cancel ticket',
+                cancelButtonText: 'Keep ticket',
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#64748b',
+                reverseButtons: true,
+                focusCancel: true
+            });
+            if (!decision.isConfirmed) return;
+            const cancel = form.querySelector('[data-cancel]');
+            cancel.disabled = true;
+            message.textContent = 'Cancelling ticket...';
+            message.classList.remove('is-error');
+            try {
+                await updateManagedTicket(form.dataset.id, {status: 'cancelled'});
+                await Swal.fire({title: 'Ticket cancelled', text: 'The ticket has been removed from active work.', icon: 'success', timer: 1100, showConfirmButton: false});
+                location.reload();
+            } catch (error) { report(error.message); cancel.disabled = false; }
+        };
+    });
+    </script>
+    <script>
+    document.querySelectorAll('#ticket-management details').forEach(function(panel) {
+        var form = panel.querySelector('.manage-form');
+        var summary = panel.querySelector('summary');
+        var ticket = panel.closest('tr').querySelector('strong').textContent;
+        summary.setAttribute('aria-label', 'Edit ' + ticket);
+        summary.setAttribute('title', 'Edit ' + ticket);
+        summary.innerHTML = '<i data-lucide="square-pen" aria-hidden="true"></i>';
+        var heading = document.createElement('h2');
+        heading.textContent = 'Edit ' + ticket;
+        form.prepend(heading);
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'manage-close';
+        close.setAttribute('aria-label', 'Close edit panel');
+        close.setAttribute('title', 'Close');
+        close.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
+        close.addEventListener('click', function() { panel.open = false; summary.focus(); });
+        heading.after(close);
+        var labels = {ticket_number:'Ticket number', company_name:'Company', location:'Location', problem_description:'Problem / task', priority:'Priority', status:'Status'};
+        Object.keys(labels).forEach(function(name) {
+            var field = form.querySelector('[name="' + name + '"]');
+            if (!field) return;
+            var label = document.createElement('label');
+            label.textContent = labels[name];
+            if (name === 'problem_description') label.className = 'wide';
+            field.parentNode.insertBefore(label, field);
+            label.appendChild(field);
+        });
+        var actions = document.createElement('div');
+        actions.className = 'manage-form-actions';
+        Array.from(form.querySelectorAll('button:not(.manage-close)')).forEach(function(button) { actions.appendChild(button); });
+        form.appendChild(actions);
+        form.querySelector('[data-cancel]').classList.add('manage-cancel-ticket');
+        panel.addEventListener('toggle', function() {
+            if (panel.open) document.querySelectorAll('#ticket-management details').forEach(function(other) { if (other !== panel) other.open = false; });
+        });
+    });
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') document.querySelectorAll('#ticket-management details[open]').forEach(function(panel) { panel.open = false; });
+    });
+    if (window.lucide) lucide.createIcons();
+    </script>
+    <?php require APP_ROOT . '/includes/layout_footer.php'; return;
+}
 ?>
 <section id="admin-ticket-approvals">
     <div class="page-hero"><div><h1>Ticket Approvals</h1></div><a class="btn btn-secondary" href="<?= e(app_base()) ?>tickets">My Tickets</a></div>
