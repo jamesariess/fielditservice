@@ -237,6 +237,7 @@ try {
     // After time-out, always return the full session so the report card can rebuild
     $session = Database::fetch("SELECT * FROM troubleshooting_sessions WHERE id = ?", [$ticketId]);
 
+    require_once APP_ROOT . '/includes/TicketRouteOrigin.php';
     json_response([
         'success' => true,
         'ticket_id' => $ticketId,
@@ -244,6 +245,7 @@ try {
         'time_spent_minutes' => $timeSpentMinutes,
         'session' => $session ?: [],
         'route_next' => $routeNext,
+        'route_origin' => TicketRouteOrigin::forUser((int)Auth::userId()),
         'company_address' => companyOriginAddress(),
     ]);
 } catch (Exception $e) {

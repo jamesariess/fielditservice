@@ -86,6 +86,7 @@ function statusLabel(string $status): string { return ucwords(str_replace('_', '
 
 require APP_ROOT . '/includes/layout_header.php';
 ?>
+<link rel="stylesheet" href="<?= $urlBase ?>assets/css/workspace-refresh.css?v=<?= filemtime(APP_ROOT . '/public/assets/css/workspace-refresh.css') ?>">
 <div class="stats-page">
     <div class="page-hero fx-reveal stats-hero">
         <div style="display:flex;align-items:center;gap:14px;">

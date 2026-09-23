@@ -229,8 +229,8 @@ try {
         'tools_used'       => $toolsUsed,
         'steps_performed'  => '[]',  // JSON column; updated on time-out with actual steps
         'time_spent_minutes' => $timeSpentMinutes,
-        'latitude'         => $latitude,
-        'longitude'        => $longitude,
+        'latitude'         => $latitude !== '' ? $latitude : null,
+        'longitude'        => $longitude !== '' ? $longitude : null,
         'address'          => $address,
     ]);
 

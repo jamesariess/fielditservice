@@ -556,6 +556,7 @@ function ticketApplyFilters() {
     });
     cards.forEach(function(card) { grid.appendChild(card); });
     if (window.ticketTravelLoaded) ticketMarkFirstStop();
+    if (typeof window.ticketWorkspaceSync === 'function') window.ticketWorkspaceSync();
 }
 
 function ticketDefaultFilter() {
@@ -591,22 +592,80 @@ function ticketTravelFallback(origin, destination) {
     var dLng = (destination.lng - origin.lng) * rad;
     var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(origin.lat * rad) * Math.cos(destination.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
     var straightKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    var roadKm = straightKm * 1.28;
-    return { distance: roadKm * 1000, duration: (roadKm / 32) * 3600, approximate: true };
+    return { distance: straightKm * 1000, duration: null, straightLine: true };
+}
+
+function ticketGeocodeVariants(address) {
+    var normalized = String(address || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return [];
+    var variants = [normalized];
+    var parts = normalized.split(',').map(function(part) { return part.trim(); }).filter(Boolean);
+    var maxTrim = Math.min(3, Math.max(0, parts.length - 2));
+    for (var i = 1; i <= maxTrim; i++) variants.push(parts.slice(i).join(', '));
+    variants.slice().forEach(function(value) {
+        if (!/\bphilippines\b/i.test(value)) variants.push(value + ', Philippines');
+    });
+    return variants.filter(function(value, index, all) { return all.indexOf(value) === index; });
+}
+
+function ticketForwardGeocode(address) {
+    var variants = ticketGeocodeVariants(address);
+    function tryQuery(index) {
+        if (index >= variants.length) return Promise.reject(new Error('Address not found'));
+        var query = variants[index];
+        var nominatim = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ph&addressdetails=1&q=' + encodeURIComponent(query);
+        return fetch(nominatim, { headers: { 'Accept-Language': 'en' } })
+            .then(function(response) { return response.ok ? response.json() : []; })
+            .then(function(rows) {
+                if (rows && rows[0] && rows[0].lat && rows[0].lon) {
+                    return { lat: Number(rows[0].lat), lng: Number(rows[0].lon), address: rows[0].display_name || query };
+                }
+                return tryQuery(index + 1);
+            }, function() { return tryQuery(index + 1); });
+    }
+    return tryQuery(0);
 }
 
 function ticketRenderTravel(card, route) {
     if (!card || !route) return;
-    card.dataset.distanceMeters = String(route.distance);
+    if (route.straightLine) delete card.dataset.distanceMeters;
+    else card.dataset.distanceMeters = String(route.distance);
     var box = document.getElementById('ticket-travel-' + card.dataset.id);
     if (!box) return;
     var distance = box.querySelector('.ft-travel-distance');
     var eta = box.querySelector('.ft-travel-eta');
     var km = Number(route.distance || 0) / 1000;
-    if (distance) distance.textContent = (route.approximate ? '~' : '') + (km < 10 ? km.toFixed(1) : Math.round(km)) + ' km away';
+    if (distance) distance.textContent = km.toFixed(1) + (route.straightLine ? ' km straight-line' : ' km by road');
     if (eta) {
-        var arrival = new Date(Date.now() + (Number(route.duration || 0) * 1000));
-        eta.textContent = 'Arrive ' + arrival.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' · ' + ticketTravelFormatDuration(route.duration);
+        eta.textContent = route.straightLine ? 'Route unavailable' : 'Est. ' + ticketTravelFormatDuration(route.duration);
+    }
+    var source = box.querySelector('.ft-travel-source');
+    if (!source) {
+        source = document.createElement('small');
+        source.className = 'ft-travel-source';
+        source.style.cssText = 'display:block;font-size:10px;line-height:1.4;white-space:normal;';
+        if (distance) distance.parentElement.appendChild(source);
+    }
+    source.textContent = route.straightLine ? 'Driving estimate unavailable' : 'OSRM estimate · No live traffic';
+    var origin = window.ttCurrentRouteOrigin || window.ttProfileTicketDefault || {};
+    if (origin.lat && origin.lng && card.dataset.lat && card.dataset.lng) {
+        var liveUrl = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(origin.lat + ',' + origin.lng)
+            + '&destination=' + encodeURIComponent(card.dataset.lat + ',' + card.dataset.lng) + '&travelmode=driving';
+        box.style.cursor = 'pointer';
+        box.setAttribute('role', 'link');
+        box.tabIndex = 0;
+        box.title = 'Open live route and traffic in Google Maps';
+        box.onclick = function(event) {
+            event.stopPropagation();
+            window.open(liveUrl, '_blank', 'noopener');
+        };
+        box.onkeydown = function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                window.open(liveUrl, '_blank', 'noopener');
+            }
+        };
     }
 }
 
@@ -618,18 +677,11 @@ function ticketMarkFirstStop() {
     if (visible[0]) visible[0].dataset.routeRank = '1';
 }
 
-function ticketInitTravelEstimates() {
-    if (window.ticketTravelLoading || window.ticketTravelLoaded) return;
-    var origin = { lat: parseFloat((window.ttProfileTicketDefault || {}).lat), lng: parseFloat((window.ttProfileTicketDefault || {}).lng) };
-    if (!isFinite(origin.lat) || !isFinite(origin.lng)) return;
-    var cards = Array.prototype.slice.call(document.querySelectorAll('.ft-ticket-card')).filter(function(card) {
-        return isFinite(parseFloat(card.dataset.lat)) && isFinite(parseFloat(card.dataset.lng));
-    });
-    if (!cards.length) return;
-    window.ticketTravelLoading = true;
+function ticketRouteCards(origin, cards) {
+    if (!cards.length) return Promise.resolve();
     var batches = [];
     for (var i = 0; i < cards.length; i += 40) batches.push(cards.slice(i, i + 40));
-    Promise.all(batches.map(function(batch) {
+    return Promise.all(batches.map(function(batch) {
         var coords = [origin.lng + ',' + origin.lat].concat(batch.map(function(card) { return card.dataset.lng + ',' + card.dataset.lat; }));
         var destinations = batch.map(function(_, index) { return index + 1; }).join(';');
         var url = 'https://router.project-osrm.org/table/v1/driving/' + coords.join(';') + '?sources=0&destinations=' + destinations + '&annotations=distance,duration';
@@ -640,7 +692,9 @@ function ticketInitTravelEstimates() {
             batch.forEach(function(card, index) {
                 var distance = data.distances && data.distances[0] ? data.distances[0][index] : null;
                 var duration = data.durations && data.durations[0] ? data.durations[0][index] : null;
-                if (distance != null && duration != null) ticketRenderTravel(card, { distance: distance, duration: duration });
+                if (distance != null && duration != null) {
+                    ticketRenderTravel(card, { distance: distance, duration: duration });
+                }
                 else ticketRenderTravel(card, ticketTravelFallback(origin, { lat: parseFloat(card.dataset.lat), lng: parseFloat(card.dataset.lng) }));
             });
         }).catch(function() {
@@ -648,13 +702,104 @@ function ticketInitTravelEstimates() {
                 ticketRenderTravel(card, ticketTravelFallback(origin, { lat: parseFloat(card.dataset.lat), lng: parseFloat(card.dataset.lng) }));
             });
         });
-    })).then(function() {
+    }));
+}
+
+function ticketResolveTravelCard(origin, card) {
+    var box = document.getElementById('ticket-travel-' + card.dataset.id);
+    var distance = box ? box.querySelector('.ft-travel-distance') : null;
+    var eta = box ? box.querySelector('.ft-travel-eta') : null;
+    if (distance) distance.textContent = 'Locating address...';
+    if (eta) eta.textContent = 'ETA --';
+    return ticketForwardGeocode(card.dataset.address).then(function(point) {
+        return api('/api/tickets/resolve-location', {
+            method: 'POST',
+            body: {
+                ticket_id: parseInt(card.dataset.id, 10),
+                latitude: point.lat,
+                longitude: point.lng
+            }
+        });
+    }).then(function(result) {
+        card.dataset.lat = String(result.lat);
+        card.dataset.lng = String(result.lng);
+        return ticketRouteCards(origin, [card]);
+    }).catch(function() {
+        card.dataset.locationFailed = '1';
+        if (distance) distance.textContent = 'Exact pin needed';
+        if (eta) eta.textContent = 'No ETA';
+    });
+}
+
+function ticketInitTravelEstimates() {
+    if (window.ticketTravelLoading || window.ticketTravelLoaded) return;
+    var startPoint = window.ttCurrentRouteOrigin || window.ttProfileTicketDefault || {};
+    var origin = { lat: parseFloat(startPoint.lat), lng: parseFloat(startPoint.lng) };
+    if (!isFinite(origin.lat) || !isFinite(origin.lng)) {
+        if (startPoint.ticket_id && startPoint.address && !startPoint.lookupFailed) {
+            window.ticketTravelLoading = true;
+            ticketForwardGeocode(startPoint.address).then(function(point) {
+                return api('/api/tickets/resolve-location', { method: 'POST', body: {
+                    ticket_id: startPoint.ticket_id, latitude: point.lat, longitude: point.lng
+                } });
+            }).then(function(point) {
+                startPoint.lat = point.lat;
+                startPoint.lng = point.lng;
+                window.ticketTravelLoading = false;
+                ticketInitTravelEstimates();
+            }).catch(function() {
+                startPoint.lookupFailed = true;
+                window.ticketTravelLoading = false;
+                document.querySelectorAll('.ft-travel-eta').forEach(function(el) {
+                    el.textContent = 'Start pin needed';
+                });
+            });
+        }
+        return;
+    }
+    var allCards = Array.prototype.slice.call(document.querySelectorAll('.ft-ticket-card'));
+    var cards = allCards.filter(function(card) {
+        return isFinite(parseFloat(card.dataset.lat)) && isFinite(parseFloat(card.dataset.lng));
+    });
+    var unresolved = allCards.filter(function(card) {
+        var active = card.dataset.status === 'new' || card.dataset.status === 'in_progress' || card.dataset.status === 'escalated';
+        var missingCoords = !isFinite(parseFloat(card.dataset.lat)) || !isFinite(parseFloat(card.dataset.lng));
+        return active && missingCoords && !!String(card.dataset.address || '').trim();
+    });
+    if (!cards.length && !unresolved.length) return;
+    window.ticketTravelLoading = true;
+
+    // Existing pins route immediately. Missing active-ticket pins resolve one at
+    // a time so the free geocoder is not flooded and the newest card gets ETA first.
+    var resolveQueue = Promise.resolve();
+    unresolved.forEach(function(card) {
+        resolveQueue = resolveQueue.then(function() { return ticketResolveTravelCard(origin, card); });
+    });
+    Promise.all([ticketRouteCards(origin, cards), resolveQueue]).then(function() {
         window.ticketTravelLoading = false;
         window.ticketTravelLoaded = true;
         ticketApplyFilters();
         ticketMarkFirstStop();
+    }).catch(function() {
+        window.ticketTravelLoading = false;
     });
 }
+
+function ticketRefreshRouteDay() {
+    if (!document.getElementById('tickets-grid')) return;
+    var origin = window.ttCurrentRouteOrigin || {};
+    var today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    if (!origin.day || origin.day === today || window.ticketRouteDayRefreshing) return;
+    window.ticketRouteDayRefreshing = true;
+    api('/api/tickets/route-origin').then(function(result) {
+        window.ttCurrentRouteOrigin = result.origin;
+        window.ticketTravelLoading = false;
+        window.ticketTravelLoaded = false;
+        ticketInitTravelEstimates();
+    }).finally(function() { window.ticketRouteDayRefreshing = false; });
+}
+window.addEventListener('focus', ticketRefreshRouteDay);
+setInterval(ticketRefreshRouteDay, 60000);
 
 function ticketSuggestionBulk(action) {
     var checked = Array.prototype.slice.call(document.querySelectorAll('#ticket-suggestions-list input[type="checkbox"]:checked'));
@@ -1379,6 +1524,7 @@ function ttLocationChoiceChanged() {
     var lat = document.getElementById('tt-lat');
     var lng = document.getElementById('tt-lng');
     if (!select || !input) return;
+    ttDestinationLookup++;
     if (select.value === '__OTHER__') {
         input.value = '';
         input.style.display = '';
@@ -1401,6 +1547,10 @@ function ttLocationChoiceChanged() {
             if (row.lat && row.lng) {
                 ttPlaceMapMarkerEnd(row.lat, row.lng);
             } else if (row.address) {
+                if (ttMapMarkerEnd && ttMapInstance) {
+                    ttMapInstance.removeLayer(ttMapMarkerEnd);
+                    ttMapMarkerEnd = null;
+                }
                 ttResolveDestinationAddress(row.address);
             } else if (ttMapMarkerEnd && ttMapInstance) {
                 ttMapInstance.removeLayer(ttMapMarkerEnd);
@@ -1429,6 +1579,7 @@ function ttApplySavedAddress() {
     var addr = (addrInput.value || '').trim();
     var saved = ttFindSavedAddress(ttCompanyValue(), addr);
     if (saved) {
+        ttDestinationLookup++;
         var locationInput = document.getElementById('tt-location');
         var locationSelect = document.getElementById('tt-location-select');
         if (saved.location && locationInput) {
@@ -1443,6 +1594,10 @@ function ttApplySavedAddress() {
         if (saved.lat && saved.lng) {
             ttPlaceMapMarkerEnd(saved.lat, saved.lng);
         } else if (saved.address) {
+            if (ttMapMarkerEnd && ttMapInstance) {
+                ttMapInstance.removeLayer(ttMapMarkerEnd);
+                ttMapMarkerEnd = null;
+            }
             ttResolveDestinationAddress(saved.address);
         }
     }
@@ -1454,7 +1609,7 @@ function ttResolveDestinationAddress(address) {
     address = String(address || '').trim();
     if (!address) return;
     var requestId = ++ttDestinationLookup;
-    api('/api/geocode?q=' + encodeURIComponent(address)).then(function(result) {
+    ticketForwardGeocode(address).then(function(result) {
         var addressInput = document.getElementById('tt-address');
         if (requestId !== ttDestinationLookup || !addressInput || String(addressInput.value || '').trim() !== address) return;
         var lat = result && result.lat;
@@ -1860,8 +2015,9 @@ function initTicketMap() {
     var latInput = document.getElementById('tt-lat');
     var lngInput = document.getElementById('tt-lng');
     var addrInput = document.getElementById('tt-address');
-    var originLat = parseFloat((ttProfileTicketDefault || {}).lat);
-    var originLng = parseFloat((ttProfileTicketDefault || {}).lng);
+    var startPoint = window.ttCurrentRouteOrigin || ttProfileTicketDefault || {};
+    var originLat = parseFloat(startPoint.lat);
+    var originLng = parseFloat(startPoint.lng);
     var hasOrigin = isFinite(originLat) && isFinite(originLng);
     var hasDestination = !!(latInput && lngInput && latInput.value && lngInput.value);
     var zoom = hasOrigin ? 15 : 14;
@@ -1878,13 +2034,14 @@ function initTicketMap() {
     // The profile location is the technician's route origin, never the ticket destination.
     if (hasOrigin) {
         ttMapMarker = L.marker([originLat, originLng], { icon: ttBlueIcon() }).addTo(ttMapInstance);
-        ttMapMarker.bindPopup('<b>My start location</b><br/>' + escHtml((ttProfileTicketDefault || {}).address || 'Profile location'));
+        ttMapMarker.bindPopup('<b>My start location</b><br/>' + escHtml(startPoint.address || 'Profile location'));
     }
     if (hasDestination) {
         ttMapMarkerEnd = L.marker(center, { icon: ttRedIcon() }).addTo(ttMapInstance);
         ttMapMarkerEnd.bindPopup('<b>Destination</b><br/>' + escHtml(addrInput.value)).openPopup();
     }
     ttMapInstance.on('click', function(e) {
+        ttDestinationLookup++;
         var lat = e.latlng.lat.toFixed(6);
         var lng = e.latlng.lng.toFixed(6);
         ttPlaceMapMarkerEnd(lat, lng);
@@ -1906,6 +2063,7 @@ function initTicketMap() {
     var clearBtn = document.getElementById('tt-map-clear');
     if (clearBtn) {
         clearBtn.onclick = function() {
+            ttDestinationLookup++;
             if (ttMapMarkerEnd) { ttMapInstance.removeLayer(ttMapMarkerEnd); ttMapMarkerEnd = null; }
             if (latInput) latInput.value = '';
             if (lngInput) lngInput.value = '';
@@ -1951,6 +2109,7 @@ function ttReverseGeocode(lat, lng, cb) {
 function ttLocateMe() {
     if (!navigator.geolocation) { showToast('Geolocation is not available on this device.', 'warning'); return; }
     navigator.geolocation.getCurrentPosition(function(pos) {
+        ttDestinationLookup++;
         var lat = pos.coords.latitude.toFixed(6);
         var lng = pos.coords.longitude.toFixed(6);
         ttPlaceMapMarkerEnd(lat, lng);
@@ -2843,6 +3002,19 @@ function ticketTimeOut(ticketId) {
                 }
             }
             showToast('Time Out recorded.', 'success');
+            if (res.route_origin) {
+                window.ttCurrentRouteOrigin = res.route_origin;
+                var completedCard = document.querySelector('.ft-ticket-card[data-id="' + ticketId + '"]');
+                if (completedCard) completedCard.dataset.status = 'solved';
+                document.querySelectorAll('.ft-ticket-card').forEach(function(card) {
+                    delete card.dataset.distanceMeters;
+                    delete card.dataset.routeRank;
+                });
+                window.ticketTravelLoading = false;
+                window.ticketTravelLoaded = false;
+                ticketInitTravelEstimates();
+                ticketApplyFilters();
+            }
             openTicketDrawer(ticketId);
         } else {
             showToast('Time Out failed: ' + (res.error || 'unknown'), 'error');
@@ -3110,10 +3282,15 @@ function wireNewTicketModal() {
         addrInput.addEventListener('change', ttApplySavedAddress);
         addrInput.addEventListener('input', function() {
             // Manual edit: clear old coords so a wrong pin isn't saved.
+            ttDestinationLookup++;
             var latInput = document.getElementById('tt-lat');
             var lngInput = document.getElementById('tt-lng');
             if (latInput) latInput.value = '';
             if (lngInput) lngInput.value = '';
+            if (ttMapMarkerEnd && ttMapInstance) {
+                ttMapInstance.removeLayer(ttMapMarkerEnd);
+                ttMapMarkerEnd = null;
+            }
         });
     }
 

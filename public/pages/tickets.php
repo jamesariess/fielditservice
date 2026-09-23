@@ -5,7 +5,10 @@ $canViewAllTickets = Auth::canViewAllTickets();
 $page_title = $canViewAllTickets ? 'Team Tickets' : 'My Tickets';
 $active_menu = 'tickets';
 require APP_ROOT . '/includes/layout_header.php';
-
+?>
+<link rel="stylesheet" href="<?= $urlBase ?>assets/css/workspace-refresh.css?v=<?= filemtime(APP_ROOT . '/public/assets/css/workspace-refresh.css') ?>">
+<script src="<?= $urlBase ?>assets/js/ticket-workspace.js?v=<?= filemtime(APP_ROOT . '/public/assets/js/ticket-workspace.js') ?>"></script>
+<?php
 $demo = !defined('DEMO_MODE') || DEMO_MODE;
 $tickets = [];
 $mfrOptions = [];   // for the equipment search typeahead (JSON-encoded into JS)
@@ -407,6 +410,17 @@ foreach ($tickets as $t) {
             <option value="oldest">Oldest</option>
             <option value="updated">Recently Updated</option>
         </select>
+        <div class="tickets-view-toggle" id="tickets-view-toggle" aria-label="Ticket view">
+            <button type="button" data-view="cards" class="active"><i data-lucide="layout-grid" style="width:15px;height:15px;vertical-align:-3px;"></i> Cards</button>
+            <button type="button" data-view="table"><i data-lucide="list" style="width:15px;height:15px;vertical-align:-3px;"></i> Table</button>
+        </div>
+    </div>
+    <div class="tickets-table-wrap" aria-live="polite">
+        <table class="tickets-table">
+            <thead><tr><th>Ticket</th><th>Company / Site</th><th>Issue</th><th>Device</th><th>Assigned to</th><th>Priority</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+            <tbody id="tickets-table-body"></tbody>
+        </table>
+        <div class="ticket-empty" id="ticket-table-empty">No tickets match the current filters.</div>
     </div>
     <div class="tickets-grid" id="tickets-grid">
     <?php foreach ($tickets as $t):
@@ -1366,6 +1380,13 @@ ttIssueData = <?= json_encode($issueOptions ?: [], JSON_HEX_TAG | JSON_HEX_APOS 
 ttCompanyData = <?= json_encode($companyLocationData ?: [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 ttTaskData = <?= json_encode($taskOptions ?: [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 ttProfileTicketDefault = <?= json_encode($profileTicketDefault, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+<?php
+require_once APP_ROOT . '/includes/TicketRouteOrigin.php';
+$routeOrigin = $demo ? $profileTicketDefault : TicketRouteOrigin::forUser((int)Auth::userId());
+?>
+window.ttCurrentRouteOrigin = <?= json_encode($routeOrigin, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+window.ticketTravelLoaded = false;
+window.ticketTravelLoading = false;
 ttIssueFieldOptions = <?= json_encode($ticketFieldOptions, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 ttCompanyContacts = <?= json_encode($ticketCompanyContacts, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
@@ -1374,6 +1395,7 @@ ttCompanyContacts = <?= json_encode($ticketCompanyContacts, JSON_HEX_TAG | JSON_
         if (typeof ticketInitDefaultFilter === 'function') ticketInitDefaultFilter();
         if (typeof ticketRestoreApprovalTab === 'function') ticketRestoreApprovalTab();
         if (typeof ticketRestorePageState === 'function') ticketRestorePageState();
+        if (typeof ticketWorkspaceInit === 'function') ticketWorkspaceInit();
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', tryWire);
