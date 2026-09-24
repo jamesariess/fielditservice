@@ -32,7 +32,7 @@ $pendingInvites = (int)(Database::fetch("SELECT COUNT(*) AS total FROM users WHE
     <div class="backdrop" onclick="closeModal('invite-user-modal')" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);z-index:10000;"></div>
     <div class="modal-panel" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:480px;background:#fff;border-radius:16px;z-index:10001;box-shadow:0 25px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto;">
         <div style="padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
-            <h2 style="font-size:18px;font-weight:700;color:#111827;">Invite User</h2>
+            <h2 style="font-size:18px;font-weight:700;color:#111827;">Create User</h2>
             <button onclick="closeModal('invite-user-modal')" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&#10005;</button>
         </div>
         <form onsubmit="inviteUser(event)" style="padding:20px 24px;">
@@ -43,6 +43,16 @@ $pendingInvites = (int)(Database::fetch("SELECT COUNT(*) AS total FROM users WHE
             <div style="margin-bottom:14px;">
                 <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Email *</label>
                 <input name="email" type="email" required placeholder="user@company.com" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Password *</label>
+                    <input name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Confirm Password *</label>
+                    <input name="password_confirm" type="password" required minlength="8" autocomplete="new-password" placeholder="Repeat password" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+                </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
                 <div>
@@ -64,7 +74,7 @@ $pendingInvites = (int)(Database::fetch("SELECT COUNT(*) AS total FROM users WHE
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;">
                 <button type="button" onclick="closeModal('invite-user-modal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary"><i data-lucide="user-plus" style="width:14px;height:14px;"></i> Send Invite</button>
+                <button type="submit" class="btn btn-primary"><i data-lucide="user-plus" style="width:14px;height:14px;"></i> Create User</button>
             </div>
         </form>
     </div>
@@ -126,7 +136,7 @@ $pendingInvites = (int)(Database::fetch("SELECT COUNT(*) AS total FROM users WHE
             </div>
         </div>
         <div class="page-hero-actions">
-            <button onclick="openInviteUserModal()" class="btn btn-primary"><i data-lucide="user-plus" style="width:15px;height:15px;"></i> Invite User</button>
+            <button onclick="openInviteUserModal()" class="btn btn-primary"><i data-lucide="user-plus" style="width:15px;height:15px;"></i> Create User</button>
         </div>
     </div>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

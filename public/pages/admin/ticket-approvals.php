@@ -41,14 +41,64 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
 }
 require APP_ROOT . '/includes/layout_header.php';
 if ($view === 'management') {
-    $managedTickets = Database::fetchAll("SELECT ts.id, ts.ticket_number, ts.company_name, ts.customer_name, ts.location, ts.problem_description, ts.priority, CASE WHEN ts.resolution_type='cancelled' THEN 'cancelled' ELSE ts.status END AS status, ts.created_at, u.full_name AS owner_name, i.title AS issue_title FROM troubleshooting_sessions ts LEFT JOIN users u ON u.id=ts.user_id LEFT JOIN troubleshooting_issues i ON i.id=ts.issue_id ORDER BY ts.created_at DESC, ts.id DESC");
+    $managedTickets = Database::fetchAll("SELECT ts.id, ts.ticket_number, ts.company_name, ts.customer_name, ts.location, ts.issue_id, ts.task, ts.problem_description, ts.steps_performed, ts.priority, CASE WHEN ts.resolution_type='cancelled' THEN 'cancelled' ELSE ts.status END AS status, ts.created_at, u.full_name AS owner_name, i.title AS issue_title FROM troubleshooting_sessions ts LEFT JOIN users u ON u.id=ts.user_id LEFT JOIN troubleshooting_issues i ON i.id=ts.issue_id ORDER BY ts.created_at DESC, ts.id DESC");
+    $ticketProblems = Database::fetchAll("SELECT id, title FROM troubleshooting_issues ORDER BY title");
     ?>
     <link rel="stylesheet" href="<?= e(app_base()) ?>assets/css/ticket-management.css?v=<?= filemtime(APP_ROOT . '/public/assets/css/ticket-management.css') ?>">
     <section id="ticket-management">
-        <div class="page-hero"><div><h1>Ticket Management</h1><p>Review, update, and close field service tickets and reports.</p></div><a class="btn btn-secondary" href="<?= e(app_base()) ?>admin/ticket-approvals?view=approvals">Reusable Approvals</a></div>
+        <div class="page-hero"><div><h1>Ticket Management</h1><p>Review, update, and close field service tickets and reports.</p></div><div class="manage-hero-actions"><button type="button" class="btn btn-primary" onclick="openManualStepModal()"><i data-lucide="list-plus" style="width:15px;height:15px;"></i> Add Troubleshooting Step</button><a class="btn btn-secondary" href="<?= e(app_base()) ?>admin/ticket-approvals?view=approvals">Reusable Approvals</a></div></div>
+        <div id="manual-step-modal" class="manual-step-modal" aria-hidden="true">
+            <div class="manual-step-backdrop" onclick="closeManualStepModal()"></div>
+            <form id="manual-step-form" class="manual-step-panel" onsubmit="saveManualTroubleshootingStep(event)">
+                <div class="manual-step-head"><div><h2>Add Troubleshooting Step</h2><p>Add it directly to a problem's reusable checklist.</p></div><button type="button" onclick="closeManualStepModal()" class="manage-close" aria-label="Close"><i data-lucide="x"></i></button></div>
+                <label>Problem<select name="issue_id" class="form-input" required><option value="">Select a problem</option><?php foreach ($ticketProblems as $problem): ?><option value="<?= (int)$problem['id'] ?>"><?= e($problem['title']) ?></option><?php endforeach; ?></select></label>
+                <label>Troubleshooting step<textarea name="title" class="form-input" rows="3" maxlength="200" required placeholder="Describe the action a technician should perform..."></textarea></label>
+                <label>Risk level<select name="risk_level" class="form-input"><option value="safe">Safe</option><option value="caution">Use caution</option><option value="danger">High risk</option></select></label>
+                <p id="manual-step-message" class="manage-message" role="status"></p>
+                <div class="manual-step-actions"><button type="button" class="btn btn-secondary" onclick="closeManualStepModal()">Cancel</button><button type="submit" class="btn btn-primary"><i data-lucide="save" style="width:14px;height:14px;"></i> Save Step</button></div>
+            </form>
+        </div>
         <div class="approval-filters"><input id="manage-search" class="form-input" type="search" placeholder="Search ticket, company, problem, location or owner"><select id="manage-status" class="form-input"><option value="">All statuses</option><option>new</option><option>in_progress</option><option>solved</option><option>partial</option><option>escalated</option><option>unsolved</option><option>cancelled</option></select></div>
-        <div class="approval-table-scroll"><table class="approval-table"><thead><tr><th>Ticket</th><th>Company / Location</th><th>Problem</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="manage-body">
-        <?php foreach ($managedTickets as $ticket): $company = trim((string)($ticket['company_name'] ?: $ticket['customer_name'])); ?><tr data-search="<?= e(strtolower(implode(' ', [$ticket['ticket_number'], $company, $ticket['location'], $ticket['problem_description'], $ticket['owner_name'], $ticket['issue_title']])) ) ?>" data-status="<?= e($ticket['status']) ?>"><td><strong><?= e($ticket['ticket_number'] ?: 'SD'.$ticket['id']) ?></strong></td><td><?= e($company ?: 'Company not specified') ?><small><?= e($ticket['location'] ?: 'No location') ?></small></td><td><?= e($ticket['problem_description'] ?: $ticket['issue_title'] ?: 'No problem specified') ?></td><td><?= e($ticket['owner_name'] ?: 'Unknown') ?></td><td><span class="approval-status <?= e($ticket['status']) ?>"><?= e(ucwords(str_replace('_',' ', $ticket['status']))) ?></span></td><td><?= e(date('Y-m-d', strtotime($ticket['created_at']))) ?></td><td><details><summary class="btn btn-sm btn-secondary">Edit</summary><form class="manage-form" data-id="<?= (int)$ticket['id'] ?>" style="min-width:260px;padding:10px;background:var(--card-bg,#fff);"><input name="ticket_number" class="form-input" value="<?= e($ticket['ticket_number']) ?>" placeholder="Ticket number"><input name="company_name" class="form-input" value="<?= e($company) ?>" placeholder="Company name"><input name="location" class="form-input" value="<?= e($ticket['location']) ?>" placeholder="Location"><textarea name="problem_description" class="form-input" rows="2" placeholder="Problem / report"><?= e($ticket['problem_description']) ?></textarea><select name="priority" class="form-input"><option <?= $ticket['priority']==='low'?'selected':'' ?>>low</option><option <?= $ticket['priority']==='medium'?'selected':'' ?>>medium</option><option <?= $ticket['priority']==='high'?'selected':'' ?>>high</option><option <?= $ticket['priority']==='critical'?'selected':'' ?>>critical</option></select><select name="status" class="form-input"><option <?= $ticket['status']==='new'?'selected':'' ?>>new</option><option <?= $ticket['status']==='in_progress'?'selected':'' ?>>in_progress</option><option <?= $ticket['status']==='solved'?'selected':'' ?>>solved</option><option <?= $ticket['status']==='partial'?'selected':'' ?>>partial</option><option <?= $ticket['status']==='escalated'?'selected':'' ?>>escalated</option><option <?= $ticket['status']==='unsolved'?'selected':'' ?>>unsolved</option></select><p class="manage-message" role="status" aria-live="polite"></p><button class="btn btn-primary" type="submit">Save changes</button><button class="btn btn-secondary" type="button" data-cancel="<?= (int)$ticket['id'] ?>">Cancel ticket</button></form></details></td></tr><?php endforeach; ?>
+        <div class="approval-table-scroll"><table class="approval-table"><thead><tr><th>Ticket</th><th>Company / Location</th><th>Problem</th><th>Task</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="manage-body">
+        <?php foreach ($managedTickets as $ticket):
+            $company = trim((string)($ticket['company_name'] ?: $ticket['customer_name']));
+            $task = trim((string)($ticket['task'] ?? ''));
+            $problemDetails = trim((string)($ticket['problem_description'] ?? ''));
+            $issueTitle = trim((string)($ticket['issue_title'] ?? ''));
+            // Older tickets stored "task\nproblem" in one column. Present those values separately.
+            if ($task === '' && $issueTitle !== '' && str_contains($problemDetails, "\n")) {
+                [$legacyTask, $legacyProblem] = array_map('trim', explode("\n", $problemDetails, 2));
+                if (strcasecmp($legacyProblem, $issueTitle) === 0) {
+                    $task = $legacyTask;
+                    $problemDetails = '';
+                }
+            }
+            $problemLabel = $issueTitle ?: ($problemDetails ?: 'No problem specified');
+            $savedSteps = json_decode((string)($ticket['steps_performed'] ?? '[]'), true);
+            if (!is_array($savedSteps)) { $savedSteps = preg_split('/\r?\n|\r/', (string)($ticket['steps_performed'] ?? '')); }
+            $savedSteps = array_values(array_filter(array_map('trim', $savedSteps), static fn($step) => $step !== ''));
+        ?>
+            <tr data-search="<?= e(strtolower(implode(' ', [$ticket['ticket_number'], $company, $ticket['location'], $task, $problemDetails, $ticket['owner_name'], $issueTitle])) ) ?>" data-status="<?= e($ticket['status']) ?>">
+                <td><strong><?= e($ticket['ticket_number'] ?: 'SD'.$ticket['id']) ?></strong></td>
+                <td><?= e($company ?: 'Company not specified') ?><small><?= e($ticket['location'] ?: 'No location') ?></small></td>
+                <td><?= e($problemLabel) ?></td>
+                <td><?= e($task ?: '—') ?></td>
+                <td><?= e($ticket['owner_name'] ?: 'Unknown') ?></td>
+                <td><span class="approval-status <?= e($ticket['status']) ?>"><?= e(ucwords(str_replace('_',' ', $ticket['status']))) ?></span></td>
+                <td><?= e(date('Y-m-d', strtotime($ticket['created_at']))) ?></td>
+                <td><details><summary class="btn btn-sm btn-secondary">Edit</summary><form class="manage-form" data-id="<?= (int)$ticket['id'] ?>" style="min-width:260px;padding:10px;background:var(--card-bg,#fff);">
+                    <input name="ticket_number" class="form-input" value="<?= e($ticket['ticket_number']) ?>" placeholder="Ticket number">
+                    <input name="company_name" class="form-input" value="<?= e($company) ?>" placeholder="Company name">
+                    <input name="location" class="form-input" value="<?= e($ticket['location']) ?>" placeholder="Location">
+                    <select name="issue_id" class="form-input"><option value="">Select a problem</option><?php foreach ($ticketProblems as $problem): ?><option value="<?= (int)$problem['id'] ?>" <?= (int)$ticket['issue_id'] === (int)$problem['id'] ? 'selected' : '' ?>><?= e($problem['title']) ?></option><?php endforeach; ?></select>
+                    <input name="task" class="form-input" value="<?= e($task) ?>" placeholder="Task / service request">
+                    <div class="manage-steps" data-steps="<?= e(json_encode($savedSteps, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP)) ?>"></div>
+                    <select name="priority" class="form-input"><option <?= $ticket['priority']==='low'?'selected':'' ?>>low</option><option <?= $ticket['priority']==='medium'?'selected':'' ?>>medium</option><option <?= $ticket['priority']==='high'?'selected':'' ?>>high</option><option <?= $ticket['priority']==='critical'?'selected':'' ?>>critical</option></select>
+                    <select name="status" class="form-input"><option <?= $ticket['status']==='new'?'selected':'' ?>>new</option><option <?= $ticket['status']==='in_progress'?'selected':'' ?>>in_progress</option><option <?= $ticket['status']==='solved'?'selected':'' ?>>solved</option><option <?= $ticket['status']==='partial'?'selected':'' ?>>partial</option><option <?= $ticket['status']==='escalated'?'selected':'' ?>>escalated</option><option <?= $ticket['status']==='unsolved'?'selected':'' ?>>unsolved</option></select>
+                    <p class="manage-message" role="status" aria-live="polite"></p><button class="btn btn-primary" type="submit">Save changes</button><button class="btn btn-secondary" type="button" data-cancel="<?= (int)$ticket['id'] ?>">Cancel ticket</button>
+                </form></details></td>
+            </tr>
+        <?php endforeach; ?>
         </tbody></table></div>
     </section>
     <style>#ticket-management h1{font-size:24px;margin:0}#ticket-management .page-hero p{margin:5px 0 0;color:#64748b;font-size:13px}.manage-form{display:grid;gap:7px}.manage-form .form-input{font-size:12px;padding:7px}.approval-status.new{background:#fff5d9;color:#875600}.approval-status.in_progress{background:#e7f0ff;color:#1d4ed8}.approval-status.solved{background:#e5f6ed;color:#166534}.approval-status.unsolved,.approval-status.escalated,.approval-status.cancelled{background:#feecec;color:#a52a2a}</style>
@@ -75,6 +125,30 @@ if ($view === 'management') {
         let payload = {};
         try { payload = raw ? JSON.parse(raw) : {}; } catch (_) { throw new Error('The server returned an invalid response.'); }
         if (!response.ok || !payload.success) throw new Error(payload.error || 'Ticket update failed.');
+    }
+    function openManualStepModal() {
+        const modal = document.getElementById('manual-step-modal');
+        modal.classList.add('is-open'); modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        setTimeout(() => modal.querySelector('select').focus(), 0);
+    }
+    function closeManualStepModal() {
+        const modal = document.getElementById('manual-step-modal');
+        modal.classList.remove('is-open'); modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+    async function saveManualTroubleshootingStep(event) {
+        event.preventDefault();
+        const form = event.target, message = document.getElementById('manual-step-message');
+        const save = form.querySelector('[type="submit"]');
+        save.disabled = true; message.textContent = 'Saving step...'; message.classList.remove('is-error');
+        try {
+            const data = Object.fromEntries(new FormData(form));
+            await api('/api/admin/troubleshooting-steps', {method:'POST', body:data});
+            form.reset(); closeManualStepModal(); showToast('Troubleshooting step added to the shared checklist.', 'success');
+        } catch (error) {
+            message.textContent = error.message; message.classList.add('is-error');
+        } finally { save.disabled = false; }
     }
     manageSearch.oninput = filterManaged;
     manageStatus.onchange = filterManaged;
@@ -122,11 +196,16 @@ if ($view === 'management') {
     <script>
     document.querySelectorAll('#ticket-management details').forEach(function(panel) {
         var form = panel.querySelector('.manage-form');
+        var message = form.querySelector('.manage-message');
+        var report = function(text) {
+            message.textContent = text;
+            message.classList.add('is-error');
+        };
         var summary = panel.querySelector('summary');
         var ticket = panel.closest('tr').querySelector('strong').textContent;
         summary.setAttribute('aria-label', 'Edit ' + ticket);
         summary.setAttribute('title', 'Edit ' + ticket);
-        summary.innerHTML = '<i data-lucide="square-pen" aria-hidden="true"></i>';
+        summary.innerHTML = '<i data-lucide="square-pen" aria-hidden="true"></i><span>Edit</span>';
         var heading = document.createElement('h2');
         heading.textContent = 'Edit ' + ticket;
         form.prepend(heading);
@@ -138,13 +217,13 @@ if ($view === 'management') {
         close.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
         close.addEventListener('click', function() { panel.open = false; summary.focus(); });
         heading.after(close);
-        var labels = {ticket_number:'Ticket number', company_name:'Company', location:'Location', problem_description:'Problem / task', priority:'Priority', status:'Status'};
+        var labels = {ticket_number:'Ticket number', company_name:'Company', location:'Location', issue_id:'Problem', task:'Task / service request', priority:'Priority', status:'Status'};
         Object.keys(labels).forEach(function(name) {
             var field = form.querySelector('[name="' + name + '"]');
             if (!field) return;
             var label = document.createElement('label');
             label.textContent = labels[name];
-            if (name === 'problem_description') label.className = 'wide';
+            if (name === 'issue_id' || name === 'task') label.className = 'wide';
             field.parentNode.insertBefore(label, field);
             label.appendChild(field);
         });
@@ -153,6 +232,39 @@ if ($view === 'management') {
         Array.from(form.querySelectorAll('button:not(.manage-close)')).forEach(function(button) { actions.appendChild(button); });
         form.appendChild(actions);
         form.querySelector('[data-cancel]').classList.add('manage-cancel-ticket');
+        var stepsBox = form.querySelector('.manage-steps');
+        if (stepsBox) {
+            var savedSteps = [];
+            try { savedSteps = JSON.parse(stepsBox.dataset.steps || '[]'); } catch (_) {}
+            if (!Array.isArray(savedSteps)) savedSteps = [];
+            var renderSteps = function() {
+                stepsBox.innerHTML = '<div class="manage-steps-title">Saved troubleshooting steps</div>'
+                    + (savedSteps.length ? '<div class="manage-steps-list">' + savedSteps.map(function(step, index) {
+                        return '<div class="manage-step"><span>' + String(step).replace(/[&<>"']/g, function(char) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]; }) + '</span><button type="button" class="manage-step-remove" data-step-index="' + index + '" title="Delete saved step" aria-label="Delete saved step"><i data-lucide="trash-2"></i></button></div>';
+                    }).join('') + '</div>' : '<p class="manage-steps-empty">No saved troubleshooting steps.</p>');
+                if (window.lucide) lucide.createIcons();
+            };
+            stepsBox.addEventListener('click', async function(event) {
+                var button = event.target.closest('.manage-step-remove');
+                if (!button) return;
+                var index = Number(button.dataset.stepIndex);
+                var step = savedSteps[index];
+                if (!step) return;
+                var decision = await Swal.fire({title:'Delete saved step?', text:step, icon:'warning', showCancelButton:true, confirmButtonText:'Delete step', cancelButtonText:'Keep step', confirmButtonColor:'#dc2626'});
+                if (!decision.isConfirmed) return;
+                button.disabled = true;
+                try {
+                    var nextSteps = savedSteps.filter(function(_, stepIndex) { return stepIndex !== index; });
+                    await updateManagedTicket(form.dataset.id, {steps_performed: nextSteps});
+                    savedSteps = nextSteps;
+                    stepsBox.dataset.steps = JSON.stringify(savedSteps);
+                    message.textContent = 'Saved step deleted.';
+                    message.classList.remove('is-error');
+                    renderSteps();
+                } catch (error) { report(error.message); button.disabled = false; }
+            });
+            renderSteps();
+        }
         panel.addEventListener('toggle', function() {
             if (panel.open) document.querySelectorAll('#ticket-management details').forEach(function(other) { if (other !== panel) other.open = false; });
         });
@@ -166,7 +278,7 @@ if ($view === 'management') {
 }
 ?>
 <section id="admin-ticket-approvals">
-    <div class="page-hero"><div><h1>Ticket Approvals</h1></div><a class="btn btn-secondary" href="<?= e(app_base()) ?>tickets">My Tickets</a></div>
+    <div class="page-hero"><div><h1>Ticket Approvals</h1></div><a class="btn btn-secondary" href="<?= e(app_base()) ?>admin/ticket-approvals">Back to Ticket Management</a></div>
     <?php if ($loadError): ?><p role="alert">Approval records could not be loaded. Please try again.</p><?php endif; ?>
     <div class="approval-filters">
         <input id="approval-search" class="form-input" type="search" aria-label="Search approvals" placeholder="Search text, problem, company, ticket or person">

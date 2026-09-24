@@ -56,6 +56,12 @@ function app_base(): string
     // Directory that hosts the front controller (index.php).
     $dir = rtrim(str_replace('\\', '/', dirname($script)), '/');
 
+    // A virtual host may point directly at public/. In that case /public is
+    // already the web root and must not appear in generated URLs.
+    if ($dir === '/public') {
+        return $base = '/';
+    }
+
     // When the controller lives in a /public sub-folder, the app base
     // is its parent directory (so clean URLs drop the /public part).
     if (preg_match('#^(.+)/public$#', $dir, $m)) {

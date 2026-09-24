@@ -84,7 +84,7 @@ function escHtml(s) {
 }
 
 // ==================== SweetAlert2 Helpers ====================
-function swalConfirm(title, text, onConfirm) {
+function swalConfirm(title, text, onConfirm, onCancel) {
     Swal.fire({
         title: title,
         text: text,
@@ -97,6 +97,7 @@ function swalConfirm(title, text, onConfirm) {
         reverseButtons: true
     }).then(function(result) {
         if (result.isConfirmed) onConfirm();
+        else if (typeof onCancel === 'function') onCancel();
     });
 }
 
@@ -2276,14 +2277,15 @@ function ttStatusBadge(status) {
         'in_progress': ['#eff6ff', '#2563eb', 'In Progress'],
         'solved':      ['#f0fdf4', '#16a34a', 'Solved'],
         'partial':     ['#f0fdf4', '#16a34a', 'Solved'],
-        'escalated':   ['#fef2f2', '#dc2626', 'Escalated']
+        'escalated':   ['#fef2f2', '#dc2626', 'Escalated'],
+        'unsolved':    ['#fff7ed', '#c2410c', 'Follow-up needed']
     };
     var m = map[status] || map['new'];
     return '<span class="badge" style="background:' + m[0] + ';color:' + m[1] + ';">' + m[2] + '</span>';
 }
 
 function ttStatusLabel(status) {
-    var labels = { 'new':'New', 'in_progress':'In Progress', 'solved':'Solved', 'partial':'Solved', 'escalated':'Escalated' };
+    var labels = { 'new':'New', 'in_progress':'In Progress', 'solved':'Solved', 'partial':'Solved', 'escalated':'Escalated', 'unsolved':'Follow-up needed' };
     return labels[status] || status;
 }
 
@@ -2392,7 +2394,8 @@ function openTicketDrawer(ticketId) {
     } else if (!S.started_at) {
         act += '<button onclick="ticketTimeIn(' + ticketId + ')" class="btn btn-sm btn-primary" style="flex:1;"><i data-lucide="play" style="width:13px;height:13px;"></i> Start Time In</button>';
     } else if (!S.ended_at) {
-        act += '<button onclick="ticketTimeOut(' + ticketId + ')" class="btn btn-sm btn-warning" style="flex:1;"><i data-lucide="square" style="width:13px;height:13px;"></i> Time Out</button>';
+        act += '<button onclick="ticketTimeOut(' + ticketId + ')" class="btn btn-sm btn-warning" style="flex:1;"><i data-lucide="square" style="width:13px;height:13px;"></i> Time Out</button>'
+            + '<button onclick="ticketReschedule(' + ticketId + ')" class="btn btn-sm btn-outline" style="flex:1;"><i data-lucide="calendar-clock" style="width:13px;height:13px;"></i> Reschedule</button>';
     } else if (status !== 'solved') {
         act += '<button onclick="ticketDone(' + ticketId + ')" class="btn btn-sm btn-success" style="flex:1;"><i data-lucide="check" style="width:13px;height:13px;"></i> Mark as Done</button>';
     } else {
@@ -3041,10 +3044,136 @@ function ticketTimeOut(ticketId) {
     });
 }
 
+// Rescheduling is a time-out workflow with a consistent, report-ready outcome.
+// Reasons are shared for this technician in the browser, never limited by company
+// or issue, and a new manual reason becomes available on every later ticket.
+function ttRescheduleReasons() {
+    var defaults = [
+        'Awaiting customer availability',
+        'Site access unavailable',
+        'Required part or equipment unavailable',
+        'Awaiting customer approval',
+        'Requires follow-up visit'
+    ];
+    try {
+        var saved = JSON.parse(localStorage.getItem('fieldit_reschedule_reasons') || '[]');
+        if (Array.isArray(saved)) {
+            saved.forEach(function(reason) {
+                reason = String(reason || '').trim();
+                if (reason && defaults.indexOf(reason) === -1) defaults.push(reason);
+            });
+        }
+    } catch (e) {}
+    return defaults;
+}
+
+function ttSaveRescheduleReason(reason) {
+    reason = String(reason || '').trim();
+    if (!reason) return;
+    try {
+        var values = ttRescheduleReasons();
+        if (values.indexOf(reason) === -1) values.push(reason);
+        localStorage.setItem('fieldit_reschedule_reasons', JSON.stringify(values));
+    } catch (e) {}
+}
+
+function ticketReschedule(ticketId) {
+    var current = window.ttTicketData && window.ttTicketData[ticketId];
+    if (current && current.can_edit === false) { showToast('Only the assigned technician can update this ticket.', 'info'); return; }
+    if (!current || !current.started_at) { showToast('Record Time In before rescheduling this ticket.', 'info'); return; }
+    if (current.ended_at) { showToast('This ticket already has a Time Out record.', 'info'); return; }
+
+    // The decision belongs in SweetAlert, not on top of the full ticket drawer.
+    closeTicketDrawer();
+    var options = ttRescheduleReasons().map(function(reason) {
+        return '<option value="' + ttEsc(reason) + '">' + ttEsc(reason) + '</option>';
+    }).join('');
+    Swal.fire({
+        title: 'Reschedule ticket?',
+        text: 'This records Time Out now and keeps the ticket for follow-up.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Save reschedule',
+        cancelButtonText: 'Keep working',
+        focusConfirm: false,
+        html: '<div style="text-align:left;display:grid;gap:12px;margin-top:16px;">'
+            + '<label style="font-size:13px;font-weight:700;color:#334155;">Reschedule reason</label>'
+            + '<select id="reschedule-reason-choice" class="swal2-input" style="width:100%;margin:0;height:42px;">'
+            + '<option value="">Choose a reason...</option>' + options + '<option value="__OTHER__">Other - type manually...</option></select>'
+            + '<input id="reschedule-reason-manual" class="swal2-input" placeholder="Type another reason" style="display:none;width:100%;margin:0;">'
+            + '<label style="font-size:13px;font-weight:700;color:#334155;">Confirmed by <span style="font-weight:400;color:#64748b;">(optional)</span></label>'
+            + '<input id="reschedule-confirmed-by" class="swal2-input" placeholder="Name of the person who confirmed" style="width:100%;margin:0;">'
+            + '</div>',
+        didOpen: function() {
+            var choice = Swal.getPopup().querySelector('#reschedule-reason-choice');
+            var manual = Swal.getPopup().querySelector('#reschedule-reason-manual');
+            choice.addEventListener('change', function() {
+                manual.style.display = choice.value === '__OTHER__' ? 'block' : 'none';
+                if (choice.value === '__OTHER__') manual.focus();
+            });
+        },
+        preConfirm: function() {
+            var popup = Swal.getPopup();
+            var choice = popup.querySelector('#reschedule-reason-choice').value;
+            var manual = popup.querySelector('#reschedule-reason-manual').value.trim();
+            var reason = choice === '__OTHER__' ? manual : choice;
+            if (!reason) {
+                Swal.showValidationMessage('Choose a reason or type one manually.');
+                return false;
+            }
+            return { reason: reason, confirmedBy: popup.querySelector('#reschedule-confirmed-by').value.trim() };
+        }
+    }).then(function(result) {
+        if (!result.isConfirmed) {
+            openTicketDrawer(ticketId);
+            return;
+        }
+        var reason = result.value.reason;
+        var confirmedBy = result.value.confirmedBy;
+        ttSaveRescheduleReason(reason);
+        api('/api/tickets/timeout', { method: 'POST', body: {
+            ticket_id: ticketId,
+            resolution: reason,
+            resolution_type: 'rescheduled',
+            action_taken: reason,
+            result_of_checking: 'N/A',
+            recommendation: 'Reschedule',
+            confirmed_by: confirmedBy,
+            status: 'unsolved',
+            steps_performed: [reason]
+        }}).then(function(res) {
+            if (!res.success) {
+                showToast('Reschedule failed: ' + (res.error || 'unknown'), 'error');
+                openTicketDrawer(ticketId);
+                return;
+            }
+            var S = window.ttTicketData && window.ttTicketData[ticketId];
+            if (S) {
+                var session = res.session || {};
+                Object.keys(session).forEach(function(key) { if (session[key] !== undefined && session[key] !== null) S[key] = session[key]; });
+                S.ended_at = res.ended_at || S.ended_at;
+                S.status = session.status || 'unsolved';
+                S.result_of_checking = 'N/A';
+                S.recommendation = 'Reschedule';
+                S.confirmed_by = confirmedBy;
+                S.steps = [reason];
+                S.steps_performed = JSON.stringify([reason]);
+            }
+            showToast('Ticket rescheduled and Time Out recorded.', 'success');
+            openTicketDrawer(ticketId);
+            ticketApplyFilters();
+        }).catch(function(err) {
+            showToast('Error: ' + err.message, 'error');
+            openTicketDrawer(ticketId);
+        });
+    });
+}
+
 // ---- Done: finalizes the ticket (after Time Out) ----
 function ticketDone(ticketId) {
     var current = window.ttTicketData && window.ttTicketData[ticketId];
     if (current && current.can_edit === false) { showToast('Only the assigned technician can update this ticket.', 'info'); return; }
+    closeTicketDrawer();
     swalConfirm('Mark as Done?', 'This ticket will be marked as solved and completed.', function() {
         ttCacheReport(ticketId);
         api('/api/tickets/action', { method: 'POST', body: { action: 'resolve', id: ticketId } })
@@ -3056,8 +3185,14 @@ function ticketDone(ticketId) {
                     openTicketDrawer(ticketId);
                 } else {
                     showToast('Done failed: ' + (res.error || 'unknown'), 'error');
+                    openTicketDrawer(ticketId);
                 }
-            }).catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+            }).catch(function(err) {
+                showToast('Error: ' + err.message, 'error');
+                openTicketDrawer(ticketId);
+            });
+    }, function() {
+        openTicketDrawer(ticketId);
     });
 }
 
@@ -3403,11 +3538,16 @@ function inviteUser(e) {
     var data = {
         email: form.querySelector('[name="email"]').value,
         name: form.querySelector('[name="name"]').value,
+        password: form.querySelector('[name="password"]').value,
         role: form.querySelector('[name="role"]').value,
         department: form.querySelector('[name="department"]').value
     };
+    if (data.password !== form.querySelector('[name="password_confirm"]').value) {
+        showToast('Passwords do not match.', 'error');
+        return;
+    }
     api('/api/users/invite', { method: 'POST', body: data }).then(function() {
-        showToast('Invitation sent successfully!', 'success');
+        showToast('User created. They can sign in now.', 'success');
         closeModal('invite-user-modal');
         form.reset();
         setTimeout(function() { window.location.reload(); }, 1000);

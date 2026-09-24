@@ -18,59 +18,70 @@ $uBase = app_base();
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', system-ui, sans-serif; }
-        .login-bg { position: relative; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: hidden; background: linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #172554 100%); }
-        .login-bg::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px); background-size: 44px 44px; -webkit-mask-image: radial-gradient(900px 620px at 50% 28%, #000 25%, transparent 75%); mask-image: radial-gradient(900px 620px at 50% 28%, #000 25%, transparent 75%); }
-        .orb { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .5; animation: floatOrb 16s ease-in-out infinite; pointer-events: none; }
-        .orb-1 { width: 480px; height: 480px; top: -150px; right: -130px; background: radial-gradient(circle, rgba(37,99,235,.55), transparent 70%); }
-        .orb-2 { width: 420px; height: 420px; bottom: -170px; left: -130px; background: radial-gradient(circle, rgba(139,92,246,.5), transparent 70%); animation-delay: -6s; }
-        .orb-3 { width: 300px; height: 300px; top: 38%; left: 58%; background: radial-gradient(circle, rgba(14,165,233,.4), transparent 70%); animation-delay: -10s; }
-        @keyframes floatOrb { 0%, 100% { transform: translate(0,0) scale(1); } 33% { transform: translate(34px,-44px) scale(1.08); } 66% { transform: translate(-26px,30px) scale(.94); } }
+        body { font-family: 'Inter', system-ui, sans-serif; color: #182235; }
+        .login-bg { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding:32px; background:#eaf0f6; background-image:linear-gradient(#dbe4ee 1px,transparent 1px),linear-gradient(90deg,#dbe4ee 1px,transparent 1px); background-size:44px 44px; }
+        .login-shell { width:min(1080px,100%); min-height:640px; display:grid; grid-template-columns:minmax(360px,.94fr) minmax(400px,1.06fr); overflow:hidden; border:1px solid #cfd9e5; border-radius:12px; background:#fff; box-shadow:0 24px 56px rgba(30,41,59,.16); }
+        .login-context { position:relative; display:flex; flex-direction:column; padding:44px; overflow:hidden; color:#e7edf5; background:#10243d; }
+        .login-context::before { content:''; position:absolute; inset:0; opacity:.18; background-image:linear-gradient(rgba(255,255,255,.25) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.25) 1px,transparent 1px); background-size:38px 38px; }
+        .context-brand,.context-copy,.context-footer { position:relative; z-index:1; }
+        .context-brand { display:flex; align-items:center; gap:12px; font-size:14px; font-weight:800; letter-spacing:0; }
+        .context-brand-mark { display:grid; place-items:center; width:38px; height:38px; border-radius:8px; background:#2563eb; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
+        .context-brand-mark img { width:23px; height:23px; }
+        .context-copy { margin:auto 0; max-width:330px; }
+        .context-kicker { display:flex; align-items:center; gap:8px; color:#7dd3fc; font-size:11px; font-weight:800; letter-spacing:0; text-transform:uppercase; }
+        .context-kicker i { width:15px; height:15px; }
+        .context-copy h1 { margin:16px 0 14px; color:#fff; font-size:35px; line-height:1.12; letter-spacing:0; }
+        .context-copy p { color:#b9c8d9; font-size:14px; line-height:1.7; }
+        .context-status { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:30px; }
+        .context-status div { padding:12px 0; border-top:1px solid rgba(203,213,225,.24); color:#cbd5e1; font-size:12px; }
+        .context-status strong { display:block; margin-bottom:3px; color:#fff; font-size:13px; }
+        .context-footer { color:#8fa4bb; font-size:11px; }
 
-        .login-card { position: relative; z-index: 2; width: 100%; max-width: 430px; background: rgba(255,255,255,.97); border-radius: 24px; padding: 38px 38px 28px; box-shadow: 0 30px 60px -15px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08) inset; animation: cardIn .7s cubic-bezier(.16,1,.3,1) both; }
-        @keyframes cardIn { from { opacity: 0; transform: translateY(28px) scale(.95); } to { opacity: 1; transform: none; } }
-
-        .brand-mark { position: relative; width: 60px; height: 60px; margin: 0 auto 16px; border-radius: 18px; background: linear-gradient(135deg, #2563eb, #7c3aed); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 22px rgba(37,99,235,.35); animation: markIn .7s .12s cubic-bezier(.34,1.56,.64,1) both; }
-        .brand-mark::after { content: ''; position: absolute; inset: -3px; border-radius: 21px; background: linear-gradient(135deg, #3b82f6, #a855f7); filter: blur(12px); z-index: -1; opacity: .5; animation: glowPulse 3.2s ease-in-out infinite; }
-        .brand-mark img { width: 32px; height: 32px; display: block; }
-        @keyframes markIn { from { opacity: 0; transform: scale(.4) rotate(-14deg); } to { opacity: 1; transform: none; } }
-        @keyframes glowPulse { 0%, 100% { opacity: .4; } 50% { opacity: .75; } }
-
-        .login-title { font-size: 21px; font-weight: 800; color: #0f172a; letter-spacing: -0.03em; text-align: center; }
-        .login-sub { font-size: 13px; color: #64748b; margin: 6px auto 26px; text-align: center; max-width: 280px; line-height: 1.5; }
-        .login-head-2 { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 3px; }
-        .login-head-p { font-size: 12.5px; color: #64748b; margin-bottom: 18px; }
+        .login-card { display:flex; flex-direction:column; justify-content:center; width:100%; padding:58px clamp(34px,6vw,76px); background:#fff; }
+        .form-brand { display:flex; align-items:center; gap:11px; margin-bottom:44px; color:#52627a; font-size:12px; font-weight:700; }
+        .form-brand .brand-mark { display:grid; place-items:center; width:36px; height:36px; border-radius:8px; border:1px solid #d8e4f0; background:#eff6ff; }
+        .form-brand .brand-mark img { width:21px; height:21px; }
+        .login-title { font-size:27px; line-height:1.18; font-weight:800; color:#172033; letter-spacing:0; }
+        .login-sub { font-size:13.5px; color:#66758a; margin:9px 0 30px; line-height:1.55; }
+        .login-head-2 { font-size:14px; font-weight:800; color:#263348; margin-bottom:5px; }
+        .login-head-p { font-size:12.5px; color:#758399; margin-bottom:20px; }
 
         .input-wrap { position: relative; margin-bottom: 14px; }
         .input-wrap > i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 17px; height: 17px; color: #94a3b8; pointer-events: none; transition: color .2s; }
-        .login-input { width: 100%; padding: 12px 44px 12px 42px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 13.5px; font-family: 'Inter', system-ui, sans-serif; outline: none; background: #f8fafc; color: #0f172a; transition: all .25s cubic-bezier(.4,0,.2,1); }
-        .login-input:focus { background: #fff; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+        .login-input { width: 100%; padding: 12px 44px 12px 42px; border: 1px solid #cfdbe8; border-radius:8px; font-size:13.5px; font-family:'Inter',system-ui,sans-serif; outline:none; background:#fbfcfe; color:#172033; transition:border-color .2s,box-shadow .2s; }
+        .login-input:focus { background:#fff; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
         .input-wrap:focus-within > i { color: #2563eb; }
         .toggle-pw { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #94a3b8; padding: 6px; border-radius: 8px; transition: all .2s; }
         .toggle-pw:hover { color: #2563eb; background: #eff6ff; }
 
-        .login-btn { position: relative; overflow: hidden; width: 100%; padding: 13px; margin-top: 4px; background: linear-gradient(135deg, #2563eb, #1d4ed8 60%, #4f46e5); background-size: 180% 180%; color: #fff; border: none; border-radius: 12px; font-size: 14px; font-weight: 600; font-family: 'Inter', system-ui, sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 6px 18px rgba(37,99,235,.3); transition: all .25s; }
-        .login-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(37,99,235,.4); background-position: 100% 0; }
-        .login-btn:active { transform: translateY(0) scale(.98); }
-        .login-btn::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); transform: translateX(-140%); }
-        .login-btn:hover::after { transform: translateX(140%); transition: transform .8s ease; }
+        .login-btn { width:100%; min-height:46px; margin-top:4px; background:#2563eb; color:#fff; border:0; border-radius:8px; font-size:14px; font-weight:700; font-family:'Inter',system-ui,sans-serif; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 5px 12px rgba(37,99,235,.22); transition:background .2s,transform .2s,box-shadow .2s; }
+        .login-btn:hover { background:#1d4ed8; transform:translateY(-1px); box-shadow:0 8px 16px rgba(37,99,235,.28); }
+        .login-btn:active { transform:translateY(0); }
 
         .login-error { display: none; padding: 10px 14px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; color: #991b1b; font-size: 13px; margin-bottom: 14px; font-weight: 500; }
 
-        .demo-box { margin-top: 22px; padding: 12px 14px; background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 12px; text-align: center; color: #94a3b8; font-size: 11px; line-height: 1.7; }
-        .demo-box b { color: #475569; }
+        .login-security { display:flex; align-items:center; gap:7px; margin-top:22px; color:#7b8ba1; font-size:11.5px; }
+        .login-security i { width:14px; height:14px; color:#16a34a; }
+        @media (max-width:760px) { .login-bg { padding:0; background:#fff; } .login-shell { min-height:100vh; grid-template-columns:1fr; border:0; border-radius:0; box-shadow:none; } .login-context { min-height:190px; padding:25px 28px; } .context-copy { margin:24px 0 0; } .context-copy h1 { margin:9px 0 6px; font-size:25px; } .context-copy p,.context-status,.context-footer { display:none; } .login-card { justify-content:flex-start; padding:35px 28px; } .form-brand { display:none; } }
     </style>
 </head>
 <body>
     <div class="login-bg">
-        <div class="orb orb-1"></div>
-        <div class="orb orb-2"></div>
-        <div class="orb orb-3"></div>
+        <div class="login-shell">
+        <aside class="login-context" aria-label="Field IT Support Hub">
+            <div class="context-brand"><span class="context-brand-mark"><img src="<?= $uBase ?>assets/img/logo.svg" alt=""></span>Field IT Support Hub</div>
+            <div class="context-copy">
+                <div class="context-kicker"><i data-lucide="radio-tower"></i>Service operations</div>
+                <h1>Keep field work moving.</h1>
+                <p>A focused workspace for field technicians, support teams, and service managers.</p>
+                <div class="context-status"><div><strong>Field tickets</strong>Track work in one place</div><div><strong>Service records</strong>Document every visit</div></div>
+            </div>
+            <div class="context-footer">Field IT Support Hub &middot; Secure service workspace</div>
+        </aside>
         <div class="login-card">
-            <!-- Brand -->
-            <div class="brand-mark"><img src="<?= $uBase ?>assets/img/logo.svg" alt="Field IT Support Hub"></div>
-            <h1 class="login-title">Field IT Support Hub</h1>
-            <p class="login-sub">Troubleshooting &amp; Knowledge Management for your field team</p>
+            <div class="form-brand"><span class="brand-mark"><img src="<?= $uBase ?>assets/img/logo.svg" alt=""></span>FIELD IT SUPPORT HUB</div>
+            <h1 class="login-title">Welcome back</h1>
+            <p class="login-sub">Sign in to access your field service workspace.</p>
 
             <div class="login-head-2">Sign in to your account</div>
             <p class="login-head-p">Enter your credentials to access the platform</p>
@@ -102,7 +113,8 @@ $uBase = app_base();
                     <i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In
                 </button>
             </form>
-
+            <div class="login-security"><i data-lucide="shield-check"></i>Your account is protected with secure sign-in.</div>
+        </div>
         </div>
     </div>
     <script>lucide.createIcons();</script>

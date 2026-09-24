@@ -20,17 +20,23 @@ $segments = explode('/', trim($path, '/'));
 $action = end($segments);
 
 if ($method === 'POST' && $action === 'invite') {
-    $email = $input['email'] ?? '';
-    $name = $input['name'] ?? '';
+    $email = strtolower(trim($input['email'] ?? ''));
+    $name = trim($input['name'] ?? '');
+    $password = (string)($input['password'] ?? '');
     $role = $input['role'] ?? 'standard_user';
     $dept = $input['department'] ?? 'IT';
-    if (!$email || !$name) { json_response(['error' => 'Email and name required'], 400); }
+    if (!$email || !$name || !$password) { json_response(['error' => 'Name, email, and password are required'], 400); }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { json_response(['error' => 'Enter a valid email address'], 400); }
+    if (strlen($password) < 8) { json_response(['error' => 'Password must be at least 8 characters'], 400); }
     $demo = !defined('DEMO_MODE') || DEMO_MODE;
     if (!$demo) {
         try {
             $db = Database::getInstance();
-            $token = bin2hex(random_bytes(32));
-            $hash = password_hash('changeme', PASSWORD_DEFAULT);
+            if (Database::fetch('SELECT id FROM users WHERE email = ? LIMIT 1', [$email])) {
+                json_response(['error' => 'An account with this email already exists'], 409);
+                exit;
+            }
+            $hash = password_hash($password, PASSWORD_DEFAULT);
             $roleId = (int)$role;
             $deptId = (int)$dept;
             if ($roleId <= 0) {
@@ -42,17 +48,17 @@ if ($method === 'POST' && $action === 'invite') {
                 $deptId = (int)($deptRow['id'] ?? 0);
             }
             if ($roleId <= 0 || $deptId <= 0) { json_response(['error' => 'Select a valid role and department'], 400); }
-            $db->execute("INSERT INTO users (email, full_name, password_hash, role_id, department_id, status, invitation_token) VALUES (?, ?, ?, ?, ?, 'pending', ?)", [$email, $name, $hash, $roleId, $deptId, $token]);
+            $db->execute("INSERT INTO users (email, full_name, password_hash, role_id, department_id, status, invitation_token) VALUES (?, ?, ?, ?, ?, 'active', NULL)", [$email, $name, $hash, $roleId, $deptId]);
             Database::insert('audit_logs', [
                 'user_id' => Auth::userId(), 'action' => 'INVITE', 'resource_type' => 'user',
                 'resource_id' => (int)$db->lastInsertId(),
                 'details' => json_encode(['email' => $email, 'full_name' => $name, 'role_id' => $roleId, 'department_id' => $deptId]),
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'created_at' => date('Y-m-d H:i:s')
             ]);
-            json_response(['success' => true, 'message' => 'Invitation sent to ' . $email, 'token' => $token]);
+            json_response(['success' => true, 'message' => 'User created: ' . $email]);
         } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
     } else {
-        json_response(['success' => true, 'message' => 'Invitation sent to ' . $email, 'demo' => true]);
+        json_response(['success' => true, 'message' => 'User created: ' . $email, 'demo' => true]);
     }
 } elseif ($method === 'POST' && $action === 'save') {
     $userId = intval($input['id'] ?? 0);

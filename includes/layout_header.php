@@ -195,6 +195,9 @@ foreach ($sidebarItems as $item) {
                         </div>
                     </div>
                 </div>
+                <a href="<?= $urlBase ?>logout" class="header-btn" data-tooltip="Log out" aria-label="Log out" title="Log out">
+                    <i data-lucide="log-out" style="width:18px;height:18px;"></i>
+                </a>
             </div>
         </header>
         <div class="page-content">

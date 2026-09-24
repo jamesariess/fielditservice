@@ -180,7 +180,7 @@ function layout_footer() {
                 <div class="sidebar-user-name"><?= e($currentUser['name']) ?></div>
                 <div class="sidebar-user-role"><?= e($currentUser['role']) ?></div>
             </div>
-            <a href="/logout" class="header-btn" data-tooltip="Logout"><i data-lucide="log-out" style="width:16px;height:16px;"></i></a>
+            <a href="/logout" class="header-btn" data-tooltip="Logout" aria-label="Log out" title="Log out"><i data-lucide="log-out" style="width:16px;height:16px;"></i></a>
         </div>
     </aside>
     <div class="app-main">
@@ -197,6 +197,7 @@ function layout_footer() {
                     <i data-lucide="moon" style="width:18px;height:18px;" class="hidden dark:block"></i>
                 </button>
                 <button class="header-btn" data-tooltip="Notifications"><i data-lucide="bell" style="width:18px;height:18px;"></i><span class="dot"></span></button>
+                <a href="/logout" class="header-btn" data-tooltip="Log out" aria-label="Log out" title="Log out"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
             </div>
         </header>
         <div class="page-content">

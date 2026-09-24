@@ -85,6 +85,21 @@ $latitude       = trim($input['latitude'] ?? '');
 $longitude      = trim($input['longitude'] ?? '');
 $address        = trim($input['address'] ?? '');
 
+// A reschedule is always a completed on-site attempt: it stamps Time Out but
+// keeps the ticket unresolved for a future visit. Lock report values here so a
+// crafted browser request cannot create an inconsistent reschedule report.
+if ($resolutionType === 'rescheduled') {
+    if ($actionTaken === '') { json_response(['error' => 'A reschedule reason is required'], 400); exit; }
+    $resolution = $actionTaken;
+    $resultOfChecking = 'N/A';
+    $recommendation = 'Reschedule';
+    $status = 'unsolved';
+}
+
+if (!in_array($status, ['solved', 'partial', 'escalated', 'unsolved'], true)) {
+    json_response(['error' => 'Invalid ticket status'], 400); exit;
+}
+
 // Checklist steps sent from the Time Out button (the checklist IS the action log).
 // These are stored in steps_performed as JSON and marked as pending approval.
 $checklistSteps = $input['steps_performed'] ?? [];
@@ -237,8 +252,20 @@ try {
 
     // After time-out, always return the full session so the report card can rebuild
     $session = Database::fetch("SELECT * FROM troubleshooting_sessions WHERE id = ?", [$ticketId]);
-    Activity::log('COMPLETE', 'ticket', $ticketId, ['ticket_number' => $session['ticket_number'] ?? '', 'status' => $session['status'] ?? '', 'time_spent_minutes' => $timeSpentMinutes]);
-    Activity::notifyUsers(Activity::managers(), 'ticket_completed', 'Ticket completed: ' . ($session['ticket_number'] ?? ('SD' . $ticketId)), 'A technician completed a field service report.', '/admin/ticket-approvals');
+    $wasRescheduled = $resolutionType === 'rescheduled';
+    Activity::log($wasRescheduled ? 'RESCHEDULE' : 'COMPLETE', 'ticket', $ticketId, [
+        'ticket_number' => $session['ticket_number'] ?? '',
+        'status' => $session['status'] ?? '',
+        'time_spent_minutes' => $timeSpentMinutes,
+        'reason' => $wasRescheduled ? $actionTaken : null,
+    ]);
+    Activity::notifyUsers(
+        Activity::managers(),
+        $wasRescheduled ? 'ticket_rescheduled' : 'ticket_completed',
+        ($wasRescheduled ? 'Ticket rescheduled: ' : 'Ticket completed: ') . ($session['ticket_number'] ?? ('SD' . $ticketId)),
+        $wasRescheduled ? ('Reason: ' . $actionTaken) : 'A technician completed a field service report.',
+        '/admin/ticket-approvals'
+    );
 
     require_once APP_ROOT . '/includes/TicketRouteOrigin.php';
     json_response([

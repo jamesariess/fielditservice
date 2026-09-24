@@ -17,8 +17,15 @@ class Database {
                 ]);
             } catch (PDOException $e) {
                 error_log('Database connection failed: ' . $e->getMessage());
+                $mysqlCode = (int)($e->errorInfo[1] ?? 0);
+                $safeMessage = match ($mysqlCode) {
+                    1045 => 'Database authentication failed. Verify the database username and password in config/production.php.',
+                    1049 => 'Database name was not found. Import the unified database and verify DB_NAME in config/production.php.',
+                    2002, 2003 => 'Database host could not be reached. Verify DB_HOST and DB_PORT in config/production.php.',
+                    default => 'Database connection failed. Verify the production database configuration.',
+                };
                 http_response_code(500);
-                echo json_encode(['error' => 'Database connection failed']);
+                echo json_encode(['error' => $safeMessage]);
                 exit;
             }
         }
