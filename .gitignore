@@ -1,5 +1,6 @@
 # Local secrets (API keys) — never commit
 config/secrets.php
+config/production.php
 
 # Dependency/vendor folders (none yet)
 # vendor/

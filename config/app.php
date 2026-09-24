@@ -8,17 +8,33 @@ if (!defined('APP_ROOT')) {
     define('APP_ROOT', dirname(__DIR__));
 }
 
+// Hosting configuration can come from environment variables or from the
+// gitignored config/production.php file used by shared PHP hosting.
+$deploymentConfig = [];
+$deploymentConfigPath = __DIR__ . '/production.php';
+if (is_file($deploymentConfigPath)) {
+    $loadedConfig = require $deploymentConfigPath;
+    if (is_array($loadedConfig)) $deploymentConfig = $loadedConfig;
+}
+$configValue = static function (string $key, $default = null) use ($deploymentConfig) {
+    $environmentValue = getenv($key);
+    if ($environmentValue !== false && $environmentValue !== '') return $environmentValue;
+    return $deploymentConfig[$key] ?? $default;
+};
+
 // Application
 define('APP_NAME', 'Field IT Support Hub');
 define('APP_VERSION', '1.0.0');
-define('APP_URL', 'http://localhost:8000');
+define('APP_ENV', (string)$configValue('APP_ENV', 'local'));
+define('APP_URL', rtrim((string)$configValue('APP_URL', 'http://localhost:8000'), '/'));
 
 // Database
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'fieldit_hub');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_CHARSET', 'utf8mb4');
+define('DB_HOST', (string)$configValue('DB_HOST', 'localhost'));
+define('DB_PORT', (int)$configValue('DB_PORT', 3306));
+define('DB_NAME', (string)$configValue('DB_NAME', 'fieldit_hub'));
+define('DB_USER', (string)$configValue('DB_USER', 'root'));
+define('DB_PASS', (string)$configValue('DB_PASS', ''));
+define('DB_CHARSET', (string)$configValue('DB_CHARSET', 'utf8mb4'));
 
 // Security
 define('SESSION_LIFETIME', 8 * 3600);       // absolute max session life: 8 hours
@@ -46,9 +62,9 @@ define('AI_BURST_LIMIT', 30);  // max messages per minute (all users, incl. burs
 define('AI_DAILY_LIMIT', 50);  // max messages per user per day (0 = unlimited; admins always unlimited)
 
 // Timezone
-date_default_timezone_set('UTC');
+date_default_timezone_set((string)$configValue('APP_TIMEZONE', 'UTC'));
 
-// Error reporting (disable in production)
+// Errors are logged in production but never rendered to visitors.
 error_reporting(E_ALL);
-ini_set('display_errors', 0);
+ini_set('display_errors', APP_ENV === 'production' ? '0' : '1');
 ini_set('log_errors', 1);
