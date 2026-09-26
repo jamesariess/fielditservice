@@ -5,7 +5,9 @@ require_once APP_ROOT.'/includes/Activity.php';
 Auth::start(); Auth::requireLogin();
 $role = strtolower((string)($_SESSION['role_name'] ?? ''));
 if (!Auth::hasPermission('system.settings') && !in_array($role, ['admin','super admin','super_admin','manager'], true)) { json_response(['error'=>'Permission denied'],403); exit; }
-if ($_SERVER['REQUEST_METHOD'] !== 'PATCH') { json_response(['error'=>'PATCH required'],405); exit; }
+// POST is used by the management screen because it is handled consistently by
+// shared hosts. PATCH remains accepted for existing installations.
+if (!in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PATCH'], true)) { json_response(['error'=>'POST or PATCH required'],405); exit; }
 $id=(int)($_GET['id']??0); $input=json_decode(file_get_contents('php://input'),true) ?: [];
 $allowedStatus=['new','in_progress','solved','partial','escalated','unsolved','cancelled']; $status=$input['status']??null;
 if (!$id || ($status !== null && !in_array($status,$allowedStatus,true))) { json_response(['error'=>'Invalid ticket update'],400); exit; }
@@ -28,4 +30,19 @@ if(array_key_exists('issue_id',$input)){
     if($issueId > 0 && !Database::fetch('SELECT id FROM troubleshooting_issues WHERE id = ?',[$issueId])){json_response(['error'=>'Selected problem no longer exists'],400);exit;}
     $fields[]='issue_id = ?';$params[]=$issueId ?: null;
 }
-if(!$fields){json_response(['error'=>'No changes supplied'],400);exit;} $target=Database::fetch('SELECT user_id, ticket_number FROM troubleshooting_sessions WHERE id = ?',[$id]); $params[]=$id; Database::execute('UPDATE troubleshooting_sessions SET '.implode(', ',$fields).' WHERE id = ?',$params); Activity::log($status==='cancelled'?'CANCEL':'UPDATE','ticket',$id,$input); if($target && (int)$target['user_id'] !== (int)Auth::userId()) Activity::notifyUsers([(int)$target['user_id']], $status==='cancelled'?'ticket_cancelled':'ticket_updated', ($status==='cancelled'?'Ticket cancelled: ':'Ticket updated: ').($target['ticket_number'] ?: 'SD'.$id), 'A manager updated your ticket.', '/tickets'); json_response(['success'=>true]);
+if(!$fields){json_response(['error'=>'No changes supplied'],400);exit;}
+
+try {
+    $target=Database::fetch('SELECT user_id, ticket_number FROM troubleshooting_sessions WHERE id = ?',[$id]);
+    if (!$target) { json_response(['error'=>'Ticket no longer exists'],404); exit; }
+    $params[]=$id;
+    Database::execute('UPDATE troubleshooting_sessions SET '.implode(', ',$fields).' WHERE id = ?',$params);
+    Activity::log($status==='cancelled'?'CANCEL':'UPDATE','ticket',$id,$input);
+    if ((int)$target['user_id'] !== (int)Auth::userId()) {
+        Activity::notifyUsers([(int)$target['user_id']], $status==='cancelled'?'ticket_cancelled':'ticket_updated', ($status==='cancelled'?'Ticket cancelled: ':'Ticket updated: ').($target['ticket_number'] ?: 'SD'.$id), 'A manager updated your ticket.', '/tickets');
+    }
+    json_response(['success'=>true]);
+} catch (Throwable $e) {
+    error_log('Ticket management update failed: ' . $e->getMessage());
+    json_response(['error'=>'Unable to save this ticket. Confirm that the production database has the latest troubleshooting_sessions table.'], 500);
+}

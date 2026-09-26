@@ -1,5 +1,8 @@
 RewriteEngine On
 
+# Support applications opened directly at /public/ on shared hosting.
+RewriteRule ^api(?:/.*)?$ index.php [QSA,L]
+
 # If the requested file/folder exists, serve it directly
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

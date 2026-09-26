@@ -1227,6 +1227,455 @@ html.js .fx-reveal.fx-in { opacity: 1; transform: none; }
     background: linear-gradient(90deg, #3b82f6, #2563eb);
     animation: navIn .3s ease both;
 }
+
+/* ===== Mobile layout foundation =====
+   Keeps fixed mobile controls from covering page content and dialogs. */
+html, body { max-width: 100%; overflow-x: hidden; }
+
+@media (max-width: 767px) {
+    :root { --mobile-nav-height: 76px; }
+
+    body { min-width: 0; }
+    .app-main { min-width: 0; padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px)) !important; }
+    .page-content { min-width: 0; padding: 16px 14px calc(var(--mobile-nav-height) + 24px) !important; }
+    .bottom-nav {
+        display: flex !important;
+        z-index: 10060 !important;
+        min-height: var(--mobile-nav-height);
+    }
+
+    .app-header { min-width: 0; padding-left: 14px; padding-right: 14px; z-index: 10060 !important; }
+    .header-actions { min-width: 0; gap: 0; }
+    .header-btn { min-width: 36px; }
+
+    /* A navigation drawer must cover, rather than sit behind, the tab bar. */
+    .sidebar { width: min(86vw, 320px); height: 100dvh; z-index: 130; }
+    .sidebar-overlay { z-index: 120; }
+
+    /* Menus anchored to header buttons need viewport-aware dimensions. */
+    .notif-dropdown {
+        position: fixed;
+        top: calc(var(--header-height) + 8px);
+        right: 12px;
+        left: 12px;
+        width: auto;
+        max-width: none;
+        max-height: calc(100dvh - var(--header-height) - var(--mobile-nav-height) - 24px);
+        overflow-y: auto;
+        z-index: 110;
+    }
+
+    /* Every generic dialog follows the same mobile sheet/card behavior. */
+    .modal-overlay,
+    .kb-modal,
+    .eq-modal,
+    .ts-modal-overlay,
+    .tm-panel-overlay,
+    .audit-modal,
+    .ftd-modal-overlay,
+    #brand-modal-overlay,
+    #kb-editor-overlay,
+    #kb-viewer-overlay,
+    #eq-editor-overlay,
+    #eq-viewer-overlay {
+        z-index: 10040 !important;
+        position: fixed !important;
+        top: var(--header-height) !important;
+        right: 0 !important;
+        bottom: var(--mobile-nav-height) !important;
+        left: 0 !important;
+        height: auto !important;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        overflow-y: auto;
+        background: rgba(15, 23, 42, .62) !important;
+        backdrop-filter: blur(10px) saturate(1.08) !important;
+        padding: 12px 12px calc(var(--mobile-nav-height) + 12px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .modal-panel,
+    .kb-modal-content,
+    .eq-modal-content,
+    .ts-modal,
+    .tm-panel,
+    .audit-modal-panel,
+    .ftd-modal,
+    #brand-modal,
+    #kb-editor-panel,
+    #kb-viewer-panel,
+    #eq-editor-panel,
+    #eq-viewer-panel {
+        position: relative !important;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        transform: none !important;
+        width: 100%;
+        max-width: min(100%, 680px) !important;
+        z-index: 10045 !important;
+        max-height: calc(100dvh - var(--header-height) - var(--mobile-nav-height) - 20px) !important;
+        margin: 0 auto !important;
+        border-radius: 18px !important;
+        border: 1px solid rgba(255,255,255,.72) !important;
+        background: #fff !important;
+        overflow: hidden !important;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, .34), 0 2px 0 rgba(255,255,255,.35) inset !important;
+    }
+
+    .modal-header,
+    .modal-panel > div:first-child,
+    .kb-modal-header,
+    .eq-modal-header,
+    .tm-panel-head,
+    .audit-modal-panel header,
+    .ftd-modal-head,
+    #brand-modal form > div:first-of-type,
+    #kb-editor-panel > div:first-child,
+    #kb-viewer-panel > div:first-child,
+    #eq-editor-panel > div:first-child,
+    #eq-viewer-panel > div:first-child {
+        flex: 0 0 auto;
+        padding: 16px 18px !important;
+        border-bottom: 0 !important;
+        background:
+            radial-gradient(circle at top left, rgba(255,255,255,.26), transparent 30%),
+            linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+        color: #fff !important;
+        border-radius: 18px 18px 0 0 !important;
+        box-shadow: 0 1px 0 rgba(255,255,255,.18) inset;
+    }
+
+    .modal-overlay .backdrop,
+    .manual-step-backdrop,
+    .audit-modal-backdrop,
+    .ftd-modal-overlay,
+    .tm-panel-overlay,
+    #brand-modal-overlay {
+        position: absolute !important;
+        inset: 0 !important;
+        top: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        height: auto !important;
+        z-index: 10040 !important;
+    }
+
+    .manual-step-backdrop,
+    .audit-modal-backdrop,
+    .ftd-modal-overlay,
+    .tm-panel-overlay,
+    #brand-modal-overlay,
+    #kb-editor-overlay,
+    #kb-viewer-overlay,
+    #eq-editor-overlay,
+    #eq-viewer-overlay {
+        position: fixed !important;
+        top: var(--header-height) !important;
+        right: 0 !important;
+        bottom: var(--mobile-nav-height) !important;
+        left: 0 !important;
+        height: auto !important;
+    }
+
+    .modal-header i,
+    .modal-header svg,
+    .modal-panel > div:first-child i,
+    .modal-panel > div:first-child svg,
+    .kb-modal-header i,
+    .kb-modal-header svg,
+    .eq-modal-header i,
+    .eq-modal-header svg,
+    .tm-panel-head i,
+    .tm-panel-head svg,
+    .audit-modal-panel header i,
+    .audit-modal-panel header svg,
+    .ftd-modal-head i,
+    .ftd-modal-head svg,
+    #brand-modal form > div:first-of-type i,
+    #brand-modal form > div:first-of-type svg {
+        color: #fff !important;
+        stroke: currentColor !important;
+    }
+
+    .modal-panel > div:first-child h2:not(:has(i)):not(:has(svg))::before,
+    .kb-modal-header h2:not(:has(i)):not(:has(svg))::before,
+    .eq-modal-header h2:not(:has(i)):not(:has(svg))::before,
+    .tm-panel-head h3:not(:has(i)):not(:has(svg))::before,
+    #kb-editor-panel > div:first-child h2::before,
+    #kb-viewer-panel > div:first-child h2::before,
+    #eq-editor-panel > div:first-child h2::before,
+    #eq-viewer-panel > div:first-child h2::before {
+        content: '';
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+        margin-right: 10px;
+        vertical-align: middle;
+        border-radius: 10px;
+        background: rgba(255,255,255,.18) url('../img/logo.svg') center/19px 19px no-repeat;
+        box-shadow: 0 1px 0 rgba(255,255,255,.18) inset;
+    }
+
+    .modal-header h1,
+    .modal-header h2,
+    .modal-header h3,
+    .modal-panel > div:first-child h1,
+    .modal-panel > div:first-child h2,
+    .modal-panel > div:first-child h3,
+    .kb-modal-header h1,
+    .kb-modal-header h2,
+    .kb-modal-header h3,
+    .eq-modal-header h1,
+    .eq-modal-header h2,
+    .eq-modal-header h3,
+    .tm-panel-head h1,
+    .tm-panel-head h2,
+    .tm-panel-head h3,
+    .audit-modal-panel header h1,
+    .audit-modal-panel header h2,
+    .audit-modal-panel header h3,
+    .ftd-modal-head h1,
+    .ftd-modal-head h2,
+    .ftd-modal-head h3,
+    #kb-editor-panel > div:first-child h2,
+    #kb-viewer-panel > div:first-child h2,
+    #eq-editor-panel > div:first-child h2,
+    #eq-viewer-panel > div:first-child h2 {
+        color: #fff !important;
+    }
+
+    .modal-header p,
+    .modal-panel > div:first-child p,
+    .kb-modal-header p,
+    .eq-modal-header p,
+    .tm-panel-head p,
+    .audit-modal-panel header p,
+    .ftd-modal-head p {
+        color: rgba(255,255,255,.78) !important;
+    }
+
+    .modal-header button,
+    .modal-panel > div:first-child button,
+    .kb-modal-header button,
+    .eq-modal-header button,
+    .tm-panel-head button,
+    .audit-modal-panel header button,
+    .ftd-modal-head button,
+    #kb-editor-panel > div:first-child button,
+    #kb-viewer-panel > div:first-child button,
+    #eq-editor-panel > div:first-child button,
+    #eq-viewer-panel > div:first-child button {
+        color: #fff !important;
+        background: rgba(255,255,255,.16) !important;
+        border-color: transparent !important;
+        width: 38px !important;
+        min-width: 38px !important;
+        height: 38px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 0 rgba(255,255,255,.18) inset;
+    }
+
+    .modal-header button:hover,
+    .modal-panel > div:first-child button:hover,
+    .kb-modal-header button:hover,
+    .eq-modal-header button:hover,
+    .tm-panel-head button:hover,
+    .audit-modal-panel header button:hover,
+    .ftd-modal-head button:hover {
+        background: rgba(255,255,255,.26) !important;
+    }
+
+    .modal-body,
+    .modal-panel > form,
+    .modal-panel > div:not(:first-child),
+    .kb-modal-body,
+    .eq-modal-body,
+    .tm-panel-body,
+    .audit-detail-list,
+    .ftd-modal-body,
+    #kb-editor-form,
+    #kb-viewer-content,
+    #eq-editor-form,
+    #eq-viewer-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto !important;
+        padding: 18px !important;
+        max-height: none !important;
+        background: linear-gradient(180deg, #fff, #fbfdff);
+    }
+
+    .modal-panel :is(input, select, textarea),
+    .kb-modal-content :is(input, select, textarea),
+    .eq-modal-content :is(input, select, textarea),
+    .ts-modal :is(input, select, textarea),
+    .tm-panel :is(input, select, textarea),
+    #brand-modal :is(input, select, textarea) {
+        min-height: 44px;
+        border-radius: 12px !important;
+        border-color: #cbd8e8 !important;
+        background-color: #f8fbff !important;
+        box-shadow: 0 1px 0 rgba(255,255,255,.9) inset;
+    }
+
+    .modal-panel :is(input, select, textarea):focus,
+    .kb-modal-content :is(input, select, textarea):focus,
+    .eq-modal-content :is(input, select, textarea):focus,
+    .ts-modal :is(input, select, textarea):focus,
+    .tm-panel :is(input, select, textarea):focus,
+    #brand-modal :is(input, select, textarea):focus {
+        outline: none;
+        border-color: #2563eb !important;
+        background-color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(37,99,235,.12) !important;
+    }
+
+    .modal-footer,
+    .modal-panel > form > div:last-child,
+    .eq-modal-footer,
+    .tm-panel-foot,
+    #brand-modal form > div:last-child,
+    #kb-editor-form > div:last-child,
+    #eq-editor-form > div:last-child {
+        flex: 0 0 auto;
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-end;
+        padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+        border-top: 1px solid #e5e7eb !important;
+        background: #fff !important;
+        border-radius: 0 0 18px 18px !important;
+        box-shadow: 0 -10px 26px rgba(15,23,42,.08);
+    }
+
+    .modal-footer .btn,
+    .modal-panel > form > div:last-child .btn,
+    .modal-panel > form > div:last-child button,
+    .eq-modal-footer .btn,
+    .tm-panel-foot .tm-btn,
+    .ts-modal .ts-btn {
+        flex: 1 1 140px;
+        min-height: 44px;
+        justify-content: center;
+        border-radius: 12px !important;
+        font-weight: 750;
+    }
+
+    .ts-modal > h3:first-of-type {
+        margin: -24px -24px 18px;
+        padding: 16px 52px 16px 18px;
+        border-radius: 18px 18px 0 0;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #fff;
+    }
+
+    .ts-modal-close {
+        position: absolute;
+        top: 12px;
+        right: 14px;
+        z-index: 3;
+        color: #fff !important;
+        background: rgba(255,255,255,.16) !important;
+        border-radius: 10px;
+    }
+
+    .ftd-modal {
+        width: min(100%, 720px) !important;
+    }
+
+    #brand-modal form {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #kb-editor-panel,
+    #kb-viewer-panel,
+    #eq-editor-panel,
+    #eq-viewer-panel {
+        height: auto !important;
+    }
+
+    .tm-panel,
+    .ftd-modal,
+    #brand-modal,
+    #kb-editor-panel,
+    #kb-viewer-panel,
+    #eq-editor-panel,
+    #eq-viewer-panel {
+        position: fixed !important;
+        top: calc(var(--header-height) + 10px) !important;
+        right: 12px !important;
+        bottom: auto !important;
+        left: 12px !important;
+        width: auto !important;
+        max-width: 680px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        max-height: calc(100dvh - var(--header-height) - var(--mobile-nav-height) - 20px) !important;
+    }
+
+    #kb-editor-form,
+    #eq-editor-form {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    #brand-modal form > div:nth-of-type(2),
+    #new-ticket-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto !important;
+        max-height: none !important;
+    }
+
+    #search-modal .modal-panel > div:first-child {
+        background: #fff !important;
+        color: #0f172a !important;
+        border-radius: 18px 18px 0 0 !important;
+    }
+
+    #search-modal .modal-panel > div:first-child input,
+    #search-modal .modal-panel > div:first-child kbd,
+    #search-modal .modal-panel > div:first-child svg {
+        color: inherit !important;
+    }
+
+    /* Common forms and action rows remain usable in narrow viewports. */
+    input, select, textarea, button { max-width: 100%; }
+    .form-grid, .form-row, .two-column, .two-col, .split-grid { grid-template-columns: minmax(0, 1fr) !important; }
+    .page-hero, .page-hero-actions, .toolbar-actions, .filter-actions { min-width: 0; }
+    .page-hero-actions, .toolbar-actions { flex-wrap: wrap; }
+    .page-hero-actions .btn, .toolbar-actions .btn { min-width: 0; }
+
+    /* Horizontal data is deliberately scrollable inside its own boundary. */
+    .table-responsive, .table-wrap, .table-container, .data-table-wrap,
+    .manage-table-scroll, .approval-table-scroll, .tickets-table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .swal2-container { z-index: 1500 !important; padding-bottom: calc(var(--mobile-nav-height) + 12px) !important; }
+    .swal2-popup { width: min(100%, 32rem) !important; }
+}
+
+@media (max-width: 390px) {
+    .page-content { padding-left: 12px !important; padding-right: 12px !important; }
+    .header-btn { min-width: 34px; padding-left: 7px; padding-right: 7px; }
+}
 @keyframes navIn { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
 
 /* ---- Empty state / misc ---- */

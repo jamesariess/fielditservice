@@ -289,14 +289,19 @@ function api(endpoint, options) {
     var merged = Object.assign({}, defaults, options);
     merged.headers = Object.assign({}, defaults.headers, options.headers || {});
     return fetch(endpoint, merged).then(function(response) {
-        return response.json().then(function(data) {
-            if (!response.ok) {
-                if (response.status === 401) { 
-                    window.location.href = APP_BASE + 'login'; 
-                    return; 
-                }
-                throw new Error(data.error || 'Request failed');
+        return response.text().then(function(raw) {
+            var data = null;
+            try { data = raw ? JSON.parse(raw) : null; } catch (_) {
+                throw new Error('The server returned an invalid response. Please try again.');
             }
+            if (!response.ok) {
+                if (response.status === 401) {
+                    window.location.href = APP_BASE + 'login';
+                    return;
+                }
+                throw new Error((data && data.error) || 'Request failed');
+            }
+            if (!data) throw new Error('The server returned an empty response. Please try again.');
             return data;
         });
     }).catch(function(err) {

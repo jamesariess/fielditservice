@@ -78,7 +78,13 @@ $catIcons = [
     .kb-form-input { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; color: #0f172a; }
     .dark .kb-form-input { background: rgba(15,23,42,0.8); border-color: #334155; color: #f8fafc; }
     .kb-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 768px) { .kb-form-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) {
+        .kb-form-grid { grid-template-columns: 1fr; }
+        .kb-modal { align-items: flex-start; overflow-y: auto; padding: 12px 12px 96px; }
+        .kb-modal-content { width: 100%; max-height: calc(100dvh - 108px); margin: 0; border-radius: 12px; }
+        .kb-modal-header { padding: 16px 18px; }
+        .kb-modal-body { padding: 18px; }
+    }
     .kb-hero-copy {
         display: flex;
         align-items: center;

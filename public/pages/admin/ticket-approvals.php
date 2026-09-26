@@ -52,14 +52,15 @@ if ($view === 'management') {
             <form id="manual-step-form" class="manual-step-panel" onsubmit="saveManualTroubleshootingStep(event)">
                 <div class="manual-step-head"><div><h2>Add Troubleshooting Step</h2><p>Add it directly to a problem's reusable checklist.</p></div><button type="button" onclick="closeManualStepModal()" class="manage-close" aria-label="Close"><i data-lucide="x"></i></button></div>
                 <label>Problem<select name="issue_id" class="form-input" required><option value="">Select a problem</option><?php foreach ($ticketProblems as $problem): ?><option value="<?= (int)$problem['id'] ?>"><?= e($problem['title']) ?></option><?php endforeach; ?></select></label>
-                <label>Troubleshooting step<textarea name="title" class="form-input" rows="3" maxlength="200" required placeholder="Describe the action a technician should perform..."></textarea></label>
+                <div class="manual-step-entry-group"><div class="manual-step-entry-head"><span>Troubleshooting steps</span><button type="button" class="btn btn-secondary btn-sm" onclick="addManualStepField()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add another</button></div><div id="manual-step-fields"><label><span class="sr-only">Troubleshooting step</span><textarea name="titles[]" class="form-input manual-step-title" rows="3" maxlength="200" required placeholder="Describe the action a technician should perform..."></textarea></label></div></div>
                 <label>Risk level<select name="risk_level" class="form-input"><option value="safe">Safe</option><option value="caution">Use caution</option><option value="danger">High risk</option></select></label>
                 <p id="manual-step-message" class="manage-message" role="status"></p>
-                <div class="manual-step-actions"><button type="button" class="btn btn-secondary" onclick="closeManualStepModal()">Cancel</button><button type="submit" class="btn btn-primary"><i data-lucide="save" style="width:14px;height:14px;"></i> Save Step</button></div>
+                <div class="manual-step-actions"><button type="button" class="btn btn-secondary" onclick="closeManualStepModal()">Cancel</button><button type="submit" class="btn btn-primary"><i data-lucide="save" style="width:14px;height:14px;"></i> Save Steps</button></div>
             </form>
         </div>
         <div class="approval-filters"><input id="manage-search" class="form-input" type="search" placeholder="Search ticket, company, problem, location or owner"><select id="manage-status" class="form-input"><option value="">All statuses</option><option>new</option><option>in_progress</option><option>solved</option><option>partial</option><option>escalated</option><option>unsolved</option><option>cancelled</option></select></div>
-        <div class="approval-table-scroll"><table class="approval-table"><thead><tr><th>Ticket</th><th>Company / Location</th><th>Problem</th><th>Task</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="manage-body">
+        <div class="manage-bulk-bar" aria-live="polite"><span id="manage-selected-count">0 selected</span><button id="manage-bulk-delete" type="button" class="btn btn-danger" disabled><i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete selected</button></div>
+        <div class="approval-table-scroll"><table class="approval-table"><thead><tr><th class="manage-select-col"><input id="manage-select-all" type="checkbox" aria-label="Select all visible tickets"></th><th>Ticket</th><th>Company / Location</th><th>Problem</th><th>Task</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="manage-body">
         <?php foreach ($managedTickets as $ticket):
             $company = trim((string)($ticket['company_name'] ?: $ticket['customer_name']));
             $task = trim((string)($ticket['task'] ?? ''));
@@ -79,6 +80,7 @@ if ($view === 'management') {
             $savedSteps = array_values(array_filter(array_map('trim', $savedSteps), static fn($step) => $step !== ''));
         ?>
             <tr data-search="<?= e(strtolower(implode(' ', [$ticket['ticket_number'], $company, $ticket['location'], $task, $problemDetails, $ticket['owner_name'], $issueTitle])) ) ?>" data-status="<?= e($ticket['status']) ?>">
+                <td class="manage-select-col"><input class="manage-ticket-select" type="checkbox" value="<?= (int)$ticket['id'] ?>" aria-label="Select <?= e($ticket['ticket_number'] ?: 'ticket SD'.$ticket['id']) ?>"></td>
                 <td><strong><?= e($ticket['ticket_number'] ?: 'SD'.$ticket['id']) ?></strong></td>
                 <td><?= e($company ?: 'Company not specified') ?><small><?= e($ticket['location'] ?: 'No location') ?></small></td>
                 <td><?= e($problemLabel) ?></td>
@@ -113,10 +115,26 @@ if ($view === 'management') {
         document.querySelectorAll('#manage-body tr').forEach(row => {
             row.style.display = (!query || row.dataset.search.includes(query)) && (!status || row.dataset.status === status) ? '' : 'none';
         });
+        syncManagedSelection();
+    }
+    const manageSelectAll = document.getElementById('manage-select-all');
+    const manageBulkDelete = document.getElementById('manage-bulk-delete');
+    const manageSelectedCount = document.getElementById('manage-selected-count');
+    function selectedManagedIds() {
+        return Array.from(document.querySelectorAll('.manage-ticket-select:checked')).map(function(input) { return Number(input.value); }).filter(Boolean);
+    }
+    function syncManagedSelection() {
+        const checks = Array.from(document.querySelectorAll('.manage-ticket-select'));
+        const selected = selectedManagedIds();
+        const visible = checks.filter(function(input) { return input.closest('tr').style.display !== 'none'; });
+        manageSelectedCount.textContent = selected.length + (selected.length === 1 ? ' ticket selected' : ' tickets selected');
+        manageBulkDelete.disabled = selected.length === 0;
+        manageSelectAll.checked = visible.length > 0 && visible.every(function(input) { return input.checked; });
+        manageSelectAll.indeterminate = visible.some(function(input) { return input.checked; }) && !manageSelectAll.checked;
     }
     async function updateManagedTicket(id, data) {
         const response = await fetch(manageApi + '?id=' + encodeURIComponent(id), {
-            method: 'PATCH',
+            method: 'POST',
             credentials: 'same-origin',
             headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
             body: JSON.stringify(data)
@@ -137,21 +155,71 @@ if ($view === 'management') {
         modal.classList.remove('is-open'); modal.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
     }
+    function addManualStepField() {
+        const fields = document.getElementById('manual-step-fields');
+        const row = document.createElement('div');
+        row.className = 'manual-step-entry';
+        row.innerHTML = '<textarea name="titles[]" class="form-input manual-step-title" rows="3" maxlength="200" required placeholder="Describe the action a technician should perform..."></textarea><button type="button" class="manual-step-remove-field" aria-label="Remove step" title="Remove step"><i data-lucide="x"></i></button>';
+        row.querySelector('.manual-step-remove-field').onclick = function() { row.remove(); };
+        fields.appendChild(row);
+        if (window.lucide) lucide.createIcons();
+        row.querySelector('textarea').focus();
+    }
     async function saveManualTroubleshootingStep(event) {
         event.preventDefault();
         const form = event.target, message = document.getElementById('manual-step-message');
         const save = form.querySelector('[type="submit"]');
         save.disabled = true; message.textContent = 'Saving step...'; message.classList.remove('is-error');
         try {
-            const data = Object.fromEntries(new FormData(form));
+            const data = {
+                issue_id: form.querySelector('[name="issue_id"]').value,
+                risk_level: form.querySelector('[name="risk_level"]').value,
+                titles: Array.from(form.querySelectorAll('.manual-step-title')).map(function(field) { return field.value.trim(); }).filter(Boolean)
+            };
+            if (!data.titles.length) throw new Error('Enter at least one troubleshooting step.');
             await api('/api/admin/troubleshooting-steps', {method:'POST', body:data});
-            form.reset(); closeManualStepModal(); showToast('Troubleshooting step added to the shared checklist.', 'success');
+            const fields = document.getElementById('manual-step-fields');
+            fields.innerHTML = '<label><span class="sr-only">Troubleshooting step</span><textarea name="titles[]" class="form-input manual-step-title" rows="3" maxlength="200" required placeholder="Describe the action a technician should perform..."></textarea></label>';
+            form.reset(); closeManualStepModal(); showToast(data.titles.length + ' troubleshooting step' + (data.titles.length === 1 ? '' : 's') + ' added to the shared checklist.', 'success');
         } catch (error) {
             message.textContent = error.message; message.classList.add('is-error');
         } finally { save.disabled = false; }
     }
     manageSearch.oninput = filterManaged;
     manageStatus.onchange = filterManaged;
+    manageSelectAll.onchange = function() {
+        document.querySelectorAll('.manage-ticket-select').forEach(function(input) {
+            if (input.closest('tr').style.display !== 'none') input.checked = manageSelectAll.checked;
+        });
+        syncManagedSelection();
+    };
+    document.querySelectorAll('.manage-ticket-select').forEach(function(input) { input.onchange = syncManagedSelection; });
+    manageBulkDelete.onclick = async function() {
+        const ids = selectedManagedIds();
+        if (!ids.length) return;
+        const decision = await Swal.fire({
+            title: 'Delete selected tickets?',
+            text: ids.length + ' ticket' + (ids.length === 1 ? '' : 's') + ' and their related work records will be permanently deleted.',
+            icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete selected', cancelButtonText: 'Keep tickets', confirmButtonColor: '#dc2626', reverseButtons: true, focusCancel: true
+        });
+        if (!decision.isConfirmed) return;
+        manageBulkDelete.disabled = true;
+        manageBulkDelete.innerHTML = '<i data-lucide="loader-circle" class="icon-spin" style="width:15px;height:15px;"></i> Deleting...';
+        if (window.lucide) lucide.createIcons();
+        try {
+            const response = await fetch(<?= json_encode(app_base() . 'api/tickets/bulk-delete') ?>, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken}, body:JSON.stringify({ticket_ids:ids})});
+            const payload = await response.json();
+            if (!response.ok || !payload.success) throw new Error(payload.error || 'Could not delete selected tickets.');
+            await Swal.fire({title:'Tickets deleted', text:payload.deleted + ' ticket' + (payload.deleted === 1 ? '' : 's') + ' deleted.', icon:'success', timer:1100, showConfirmButton:false});
+            location.reload();
+        } catch (error) {
+            await Swal.fire({title:'Delete failed', text:error.message || 'Could not delete selected tickets.', icon:'error'});
+            manageBulkDelete.innerHTML = '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete selected';
+            if (window.lucide) lucide.createIcons();
+            syncManagedSelection();
+        }
+    };
+    syncManagedSelection();
     document.querySelectorAll('.manage-form').forEach(form => {
         const message = form.querySelector('.manage-message');
         const report = text => { message.textContent = text; message.classList.add('is-error'); };

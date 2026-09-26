@@ -231,12 +231,23 @@ if (str_starts_with($uri, '/api/')) {
     $apiPath = substr($uri, 4);
     $apiFile = APP_ROOT . '/api' . $apiPath . '.php';
     $apiIndex = APP_ROOT . '/api' . $apiPath . '/index.php';
-    // Try exact file, then index.php in directory
+    // Try an exact file, then index.php in the requested directory.
+    // Some endpoint groups handle action URLs in their parent index, e.g.
+    // /api/users/invite is served by /api/users/index.php.
     if (file_exists($apiFile)) {
         require $apiFile;
     } elseif (file_exists($apiIndex)) {
         require $apiIndex;
     } else {
+        $segments = explode('/', trim($apiPath, '/'));
+        while (count($segments) > 1) {
+            array_pop($segments);
+            $parentIndex = APP_ROOT . '/api/' . implode('/', $segments) . '/index.php';
+            if (file_exists($parentIndex)) {
+                require $parentIndex;
+                exit;
+            }
+        }
         http_response_code(404);
         json_response(['error' => 'API endpoint not found'], 404);
     }

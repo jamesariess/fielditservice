@@ -6,5 +6,8 @@
     # Avoid a second rewrite after Apache has entered the public front controller.
     RewriteRule ^public/ - [L]
 
+    # Match API calls before Apache enters the physical api directory.
+    RewriteRule ^api(?:/.*)?$ public/index.php [QSA,L]
+
     RewriteRule ^(.*)$ public/index.php [QSA,L]
 </IfModule>

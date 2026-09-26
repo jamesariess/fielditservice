@@ -48,7 +48,9 @@ if ($method === 'POST' && $action === 'invite') {
                 $deptId = (int)($deptRow['id'] ?? 0);
             }
             if ($roleId <= 0 || $deptId <= 0) { json_response(['error' => 'Select a valid role and department'], 400); }
-            $db->execute("INSERT INTO users (email, full_name, password_hash, role_id, department_id, status, invitation_token) VALUES (?, ?, ?, ?, ?, 'active', NULL)", [$email, $name, $hash, $roleId, $deptId]);
+            // Users are created as active accounts. Keep this compatible with
+            // the deployed schema, which has no invitation_token column.
+            Database::execute("INSERT INTO users (email, full_name, password_hash, role_id, department_id, status) VALUES (?, ?, ?, ?, ?, 'active')", [$email, $name, $hash, $roleId, $deptId]);
             Database::insert('audit_logs', [
                 'user_id' => Auth::userId(), 'action' => 'INVITE', 'resource_type' => 'user',
                 'resource_id' => (int)$db->lastInsertId(),
@@ -56,7 +58,10 @@ if ($method === 'POST' && $action === 'invite') {
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'created_at' => date('Y-m-d H:i:s')
             ]);
             json_response(['success' => true, 'message' => 'User created: ' . $email]);
-        } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
+        } catch (Throwable $e) {
+            error_log('Create user failed: ' . $e->getMessage());
+            json_response(['error' => 'Unable to create the user. Check that the selected role and department exist.'], 500);
+        }
     } else {
         json_response(['success' => true, 'message' => 'User created: ' . $email, 'demo' => true]);
     }
@@ -77,14 +82,17 @@ if ($method === 'POST' && $action === 'invite') {
             if ($roleId) { $set[] = 'role_id = ?'; $params[] = $roleId; }
             if ($deptId) { $set[] = 'department_id = ?'; $params[] = $deptId; }
             $params[] = $userId;
-            $db->execute('UPDATE users SET ' . implode(', ', $set) . ' WHERE id = ?', $params);
+            Database::execute('UPDATE users SET ' . implode(', ', $set) . ' WHERE id = ?', $params);
             Database::insert('audit_logs', [
                 'user_id' => Auth::userId(), 'action' => 'UPDATE', 'resource_type' => 'user', 'resource_id' => $userId,
                 'details' => json_encode(['full_name' => $name, 'email' => $email, 'role_id' => $roleId, 'department_id' => $deptId]),
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'created_at' => date('Y-m-d H:i:s')
             ]);
             json_response(['success' => true, 'message' => 'User updated']);
-        } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
+        } catch (Throwable $e) {
+            error_log('Update user failed: ' . $e->getMessage());
+            json_response(['error' => 'Unable to update the user.'], 500);
+        }
     } else {
         json_response(['success' => true, 'message' => 'User updated', 'demo' => true]);
     }
@@ -96,14 +104,17 @@ if ($method === 'POST' && $action === 'invite') {
     if (!$demo) {
         try {
             $db = Database::getInstance();
-            $db->execute("UPDATE users SET status = 'inactive' WHERE id = ?", [$userId]);
+            Database::execute("UPDATE users SET status = 'inactive' WHERE id = ?", [$userId]);
             Database::insert('audit_logs', [
                 'user_id' => Auth::userId(), 'action' => 'DEACTIVATE', 'resource_type' => 'user', 'resource_id' => $userId,
                 'details' => json_encode(['status' => 'inactive']),
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'created_at' => date('Y-m-d H:i:s')
             ]);
             json_response(['success' => true]);
-        } catch (Exception $e) { json_response(['error' => $e->getMessage()], 500); }
+        } catch (Throwable $e) {
+            error_log('Deactivate user failed: ' . $e->getMessage());
+            json_response(['error' => 'Unable to deactivate the user.'], 500);
+        }
     } else {
         json_response(['success' => true, 'demo' => true]);
     }

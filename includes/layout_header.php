@@ -112,14 +112,17 @@ foreach ($sidebarItems as $item) {
     <link rel="stylesheet" href="<?= $urlBase ?>assets/css/ui-refresh.css?v=<?= filemtime(APP_ROOT . '/public/assets/css/ui-refresh.css') ?>">
     <script src="<?= $urlBase ?>assets/js/app.js?v=<?= filemtime(APP_ROOT . '/public/assets/js/app.js') ?>"></script>
     <style>
-        .bottom-nav { display:none; position:fixed; bottom:0; left:0; right:0; z-index:60; background:rgba(255,255,255,0.95); backdrop-filter:blur(12px); border-top:1px solid #e5e7eb; padding:6px 0 env(safe-area-inset-bottom,6px); }
+        .bottom-nav { display:none; position:fixed; bottom:0; left:0; right:0; z-index:10060; min-height:72px; background:rgba(255,255,255,0.95); backdrop-filter:blur(12px); border-top:1px solid #e5e7eb; padding:6px 0 env(safe-area-inset-bottom,6px); }
         .bottom-nav a { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 4px; font-size:10px; font-weight:600; color:#94a3b8; text-decoration:none; transition:color 0.15s; }
         .bottom-nav a.active { color:#2563eb; }
         .bottom-nav a i { width:20px; height:20px; }
         @media (max-width:767px) {
-            .bottom-nav { display:flex; }
-            .app-main { margin-left:0 !important; width:100% !important; padding-bottom:72px; }
+            .bottom-nav { display:flex !important; }
+            .app-header { z-index:10060 !important; }
+            .app-main { margin-left:0 !important; width:100% !important; padding-bottom:calc(76px + env(safe-area-inset-bottom, 0px)); }
             .hide-mobile-nav { display:none !important; }
+            .sidebar { width:min(86vw, 320px); height:100dvh; z-index:130; }
+            .sidebar-overlay { z-index:120; }
         }
         .sidebar-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:40; opacity:0; pointer-events:none; transition:opacity 0.25s; }
         .sidebar-overlay.active { opacity:1; pointer-events:auto; }

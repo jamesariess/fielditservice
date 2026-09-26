@@ -40,7 +40,7 @@ function time_ago(string $datetime): string {
  * Examples:
  *   domain-root install        -> '/'
  *   sub-folder install         -> '/fielditservice/'
- *   legacy /public/ URL style  -> '/fielditservice/'  (front controller sits in /public)
+ *   direct /public/ URL style  -> '/public/'
  *
  * Centralises the base-path logic that used to be copy-pasted
  * throughout the layout files.
@@ -56,14 +56,13 @@ function app_base(): string
     // Directory that hosts the front controller (index.php).
     $dir = rtrim(str_replace('\\', '/', dirname($script)), '/');
 
-    // A virtual host may point directly at public/. In that case /public is
-    // already the web root and must not appear in generated URLs.
+    // A direct /public URL needs that path retained in generated URLs. A
+    // virtual host rooted at public/ reports /index.php instead.
     if ($dir === '/public') {
-        return $base = '/';
+        return $base = '/public/';
     }
 
-    // When the controller lives in a /public sub-folder, the app base
-    // is its parent directory (so clean URLs drop the /public part).
+    // A nested project retains its parent path while clean URLs omit /public.
     if (preg_match('#^(.+)/public$#', $dir, $m)) {
         return $base = $m[1] . '/';
     }
