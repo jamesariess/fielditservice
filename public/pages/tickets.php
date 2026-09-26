@@ -10,6 +10,7 @@ require APP_ROOT . '/includes/layout_header.php';
 ?>
 <link rel="stylesheet" href="<?= $urlBase ?>assets/css/workspace-refresh.css?v=<?= filemtime(APP_ROOT . '/public/assets/css/workspace-refresh.css') ?>">
 <script src="<?= $urlBase ?>assets/js/ticket-workspace.js?v=<?= filemtime(APP_ROOT . '/public/assets/js/ticket-workspace.js') ?>"></script>
+<script src="<?= $urlBase ?>assets/js/ticket-scan.js?v=<?= filemtime(APP_ROOT . '/public/assets/js/ticket-scan.js') ?>"></script>
 <?php
 $demo = !defined('DEMO_MODE') || DEMO_MODE;
 $tickets = [];
@@ -212,6 +213,13 @@ foreach ($tickets as $t) {
         <div id="new-ticket-body" style="padding:20px 24px;">
             <!-- ============ Step 1: Ticket + Company + Task + Device first ============ -->
             <div id="step-device">
+                <!-- Scan the printed work order: OCR fills what it can read, the rest stays manual. -->
+                <div style="margin-bottom:14px;">
+                    <button type="button" onclick="ticketScanOpen()" class="btn btn-primary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;">
+                        <i data-lucide="scan-line" style="width:16px;height:16px;"></i> Scan Work Order
+                    </button>
+                    <div style="font-size:11px;color:#64748b;margin-top:6px;text-align:center;">Photograph the printed work order — we fill ticket no., company, address, device, serial and task. Type or pick anything the scan cannot read.</div>
+                </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                     <div><label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">Ticket No. *</label>
                         <div class="tt-ticket-number-wrap"><span>SD</span><input id="tt-ticket-no" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="24" placeholder="25646" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="form-input dark-input" style="width:100%;padding:10px 14px 10px 42px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:600;"></div></div>
@@ -343,6 +351,72 @@ foreach ($tickets as $t) {
                     <button type="button" onclick="ticketStepBack()" class="btn btn-secondary">Back</button>
                     <button type="button" id="tt-next-2" class="btn btn-primary">Create Ticket</button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ Scan Work Order: camera -> OCR -> pre-fill the ticket form ============ -->
+<div id="ticket-scan-modal" class="modal-overlay" style="display:none;z-index:10050;">
+    <div class="backdrop" onclick="ticketScanClose()"></div>
+    <div class="modal-panel" style="max-width:540px;background:#fff;border-radius:16px;z-index:10051;box-shadow:0 25px 60px rgba(0,0,0,0.35);max-height:92vh;overflow-y:auto;">
+        <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+            <div>
+                <h2 style="font-size:17px;font-weight:700;color:#111827;margin:0;">Scan Work Order</h2>
+                <div style="font-size:11px;color:#64748b;margin-top:3px;">Fill the frame with the printed form, keep it flat and well lit.</div>
+            </div>
+            <button type="button" onclick="ticketScanClose()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;line-height:1;">&#10005;</button>
+        </div>
+        <div id="ticket-scan-body" style="padding:16px 20px;">
+            <!-- 1. Live camera -->
+            <div id="ticket-scan-live" style="display:none;">
+                <div style="position:relative;border-radius:12px;overflow:hidden;background:#0f172a;aspect-ratio:3/4;max-height:44vh;">
+                    <video id="ticket-scan-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+                    <div style="position:absolute;inset:10px;border:2px dashed rgba(255,255,255,0.55);border-radius:10px;pointer-events:none;"></div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:12px;">
+                    <button type="button" onclick="ticketScanCapture()" class="btn btn-primary" style="flex:1;"><i data-lucide="camera" style="width:16px;height:16px;"></i> Capture</button>
+                    <button type="button" onclick="ticketScanFlipCamera()" class="btn btn-secondary">Flip</button>
+                </div>
+            </div>
+
+            <!-- 2. Camera blocked / choose an existing photo -->
+            <div id="ticket-scan-fallback" style="display:none;">
+                <div style="padding:18px 16px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;text-align:center;">
+                    <i data-lucide="image-plus" style="width:26px;height:26px;color:#2563eb;"></i>
+                    <div style="font-size:13px;font-weight:600;color:#334155;margin-top:8px;">Take or choose a photo of the work order</div>
+                    <div id="ticket-scan-camera-hint" style="font-size:11px;color:#94a3b8;margin-top:4px;"></div>
+                    <button type="button" onclick="ticketScanPickFile()" class="btn btn-primary" style="margin-top:12px;"><i data-lucide="camera" style="width:16px;height:16px;"></i> Open camera / gallery</button>
+                </div>
+            </div>
+
+            <!-- 3. Photo preview + read progress -->
+            <div id="ticket-scan-preview-wrap" style="display:none;margin-top:12px;">
+                <img id="ticket-scan-photo" alt="Work order photo" style="width:100%;max-height:34vh;object-fit:contain;border:1px solid #e5e7eb;border-radius:10px;background:#f8fafc;display:block;">
+                <div id="ticket-scan-read-actions" style="display:flex;gap:8px;margin-top:10px;">
+                    <button type="button" onclick="ticketScanRead()" class="btn btn-primary" style="flex:1;"><i data-lucide="scan-text" style="width:16px;height:16px;"></i> Read work order</button>
+                    <button type="button" onclick="ticketScanRetake()" class="btn btn-secondary">Retake</button>
+                </div>
+                <div id="ticket-scan-progress-wrap" style="display:none;margin-top:12px;">
+                    <div style="height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden;"><div id="ticket-scan-progress" style="height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#60a5fa);transition:width .25s;"></div></div>
+                    <div id="ticket-scan-message" style="font-size:11px;color:#64748b;margin-top:6px;"></div>
+                </div>
+            </div>
+
+            <input type="file" id="ticket-scan-file" accept="image/*" capture="environment" style="display:none;" onchange="ticketScanFileChosen(this)">
+            <!-- 4. Detected values (all editable before they reach the form) -->
+            <div id="ticket-scan-result-wrap" style="display:none;margin-top:14px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#334155;margin-bottom:10px;">
+                    <i data-lucide="clipboard-check" style="width:15px;height:15px;color:#16a34a;"></i> Review the detected values — edit anything the scan misread
+                </div>
+                <div id="ticket-scan-results" style="display:flex;flex-direction:column;gap:10px;"></div>
+                <div id="ticket-scan-missing" style="display:none;margin-top:10px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;font-size:11.5px;color:#92400e;"></div>
+                <div style="display:flex;gap:8px;margin-top:12px;">
+                    <button type="button" onclick="ticketScanApply()" class="btn btn-primary" style="flex:1;"><i data-lucide="check" style="width:16px;height:16px;"></i> Fill the ticket form</button>
+                    <button type="button" onclick="ticketScanRetake()" class="btn btn-secondary">Rescan</button>
+                </div>
+                <button type="button" onclick="ticketScanToggleRaw()" class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;">Show / hide raw scanned text</button>
+                <pre id="ticket-scan-raw" style="display:none;margin:8px 0 0;max-height:180px;overflow:auto;background:#0f172a;color:#e2e8f0;font-size:10.5px;line-height:1.5;padding:10px;border-radius:8px;white-space:pre-wrap;"></pre>
             </div>
         </div>
     </div>

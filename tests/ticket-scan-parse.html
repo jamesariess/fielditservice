@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>ticket-scan parser test</title></head>
+<!--
+  Work-order OCR parser test (no test runner needed).
+
+  Run it by opening this file in a browser, or headless:
+    msedge --headless=new --disable-gpu --dump-dom tests/ticket-scan-parse.html
+  Every line in <pre id="out"> must start with PASS.
+-->
+<body>
+<pre id="out">running</pre>
+<div id="ticket-scan-results"></div>
+<div id="ticket-scan-missing" style="display:none;"></div>
+<script>
+var scanErrors = [];
+window.onerror = function (msg, src, line, col) { scanErrors.push('JS-ERROR ' + msg + ' @' + line + ':' + col); };
+function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function showToast() {}
+function ttNormalizeName(v) { return String(v || '').toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9&.\- ]/g, '').trim(); }
+window.ttEqData = [
+    { id: 1, manufacturer: 'Lenovo', model_name: 'ThinkPad T14 Gen 3', device_type: 'Laptop', serial_number: 'PWOEX84C', asset_tag: 'A-100', location: 'Room 201' },
+    { id: 2, manufacturer: 'HP', model_name: 'LaserJet Pro M404', device_type: 'Printer', serial_number: 'HPLCJ404X', asset_tag: '', location: '' }
+];
+</script>
+<script src="../public/assets/js/ticket-scan.js"></script>
+<script>
+// What Tesseract normally returns for the printed work order (columns merged,
+// faint dots read as '·', the sticky checklist glued onto the right edge).
+var SAMPLE = [
+    'Work Order No.: SD1040842',
+    'Request Date: Sched Date: Assigned Tech: Sched by: Department:',
+    'Sep 23, 2026 9/25 Pmon michelleann.cadiz Field Service',
+    "Warranty: In Add'l: KYD Charges: N/A",
+    'Contact Person: John Niel Laurenciano | MARK BACUMAG Contact Nos.: 02893000000 loc. 412',
+    'Company Name: Commonwealth Hospital and Medical Center T',
+    'Address:',
+    'DCD 7th Floor, Neopolitan Business Park, Regalado Highway,',
+    'Brgy. Greater Lagro, Quezon, Metro Manila, NCR',
+    'Unit Reported: Lenovo 21L2S4VS00 L14 Gen 5 Serial/CRTL No.: PW0EX84C',
+    'Request: · Repair / Service CustRef No.:',
+    'Task Description / Reported Problem: Slow performance',
+    'For onsite visit',
+    'Action Taken:',
+    '- CHECKED THE UNIT',
+    'Recommendation / Remarks:',
+    '- FOR REQUEST SSD REPLACEMENT',
+    'Status: Completed O Burn-In Test O Unit for Delivery'
+].join('\n');
+
+var out = [];
+try {
+    var p = ticketScanParse(SAMPLE);
+    var checks = [
+        ['ticket_no', p.ticket_no, '1040842'],
+        ['serial', p.serial, 'PW0EX84C'],
+        ['company', p.company, 'Commonwealth Hospital and Medical Center'],
+        ['address', p.address, 'DCD 7th Floor, Neopolitan Business Park, Regalado Highway, Brgy. Greater Lagro, Quezon, Metro Manila, NCR'],
+        ['unit', p.unit, 'Lenovo 21L2S4VS00 L14 Gen 5'],
+        ['manufacturer', p.manufacturer, 'Lenovo'],
+        ['device_type', p.device_type, 'Laptop'],
+        ['task', p.task, 'Slow performance'],
+        ['problem', p.problem, 'Slow performance For onsite visit'],
+        ['customer', p.customer, 'John Niel Laurenciano'],
+        ['note', p.note, 'Request: Repair / Service · Contact No.: 02893000000 loc. 412']
+    ];
+    out.push('read_count=' + p.read_count + ' model=' + p.model);
+    for (var i = 0; i < checks.length; i++) {
+        var ok = String(checks[i][1]) === String(checks[i][2]);
+        out.push((ok ? 'PASS ' : 'FAIL ') + checks[i][0] + ' => [' + checks[i][1] + ']' + (ok ? '' : ' expected [' + checks[i][2] + ']'));
+    }
+    // Serial OCR slips (O/0, I/1) must still find the equipment record.
+    var eq = ticketScanMatchEquipment('PW0EX84C', 'L14 Gen 5');
+    out.push((eq && eq.id === 1 ? 'PASS ' : 'FAIL ') + 'equipment match by serial => ' + (eq ? eq.serial_number : 'none'));
+    var eq2 = ticketScanMatchEquipment('', 'HP LaserJet Pro M404dn');
+    out.push((eq2 && eq2.id === 2 ? 'PASS ' : 'FAIL ') + 'equipment match by model => ' + (eq2 ? eq2.model_name : 'none'));
+    var sparse = ticketScanParse('Work Order No: WO-55123\nUnit Reported: HP LaserJet Pro M404dn\nSerial No: HPLCJ404X');
+    out.push((sparse.ticket_no === '55123' ? 'PASS ' : 'FAIL ') + 'sparse ticket_no => ' + sparse.ticket_no);
+    out.push((sparse.company === '' && sparse.task === '' ? 'PASS ' : 'FAIL ') + 'missing fields stay empty (company=[' + sparse.company + '] task=[' + sparse.task + '])');
+} catch (e) {
+    scanErrors.push('THROWN ' + e.name + ': ' + e.message);
+}
+out.push('errors=' + (scanErrors.length ? scanErrors.join(' | ') : 'none'));
+document.getElementById('out').textContent = out.join('\n');
+</script>
+</body>
+</html>

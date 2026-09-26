@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>ticket-scan apply test</title></head>
+<!--
+  Scan -> ticket form mapping test (no test runner needed).
+
+  Run it by opening this file in a browser, or headless:
+    msedge --headless=new --disable-gpu --dump-dom tests/ticket-scan-apply.html
+  Every line in <pre id="out"> must start with PASS.
+-->
+<body>
+<pre id="out">running</pre>
+
+<!-- Minimal stand-in for the New Ticket form (same ids as tickets.php) -->
+<div id="ticket-scan-modal" class="modal-overlay" style="display:none;"></div>
+<div id="ticket-scan-results"></div>
+<div id="ticket-scan-missing" style="display:none;"></div>
+<input id="tt-ticket-no" type="text">
+<input id="tt-serial" type="text">
+<select id="tt-company"><option value="">—</option><option value="Field IT Services">Field IT Services</option><option value="__OTHER__">Other</option></select>
+<input id="tt-company-other" type="text" style="display:none;">
+<div id="tt-company-hint" style="display:none;"></div>
+<select id="tt-task"><option value="">—</option><option value="Onsite visit">Onsite visit</option><option value="__OTHER__">Other</option></select>
+<input id="tt-task-other" type="text" style="display:none;">
+<div id="tt-task-hint" style="display:none;"></div>
+<select id="tt-device"><option value="">—</option></select>
+<input id="tt-device-other" type="text" style="display:none;">
+<input id="tt-device-type" type="hidden">
+<input id="tt-model-search" type="text">
+<select id="tt-issue"><option value="">—</option><option value="7">No Power</option><option value="__OTHER__">Other</option></select>
+<textarea id="tt-issue-custom" style="display:none;"></textarea>
+<input id="tt-customer" type="text">
+<textarea id="tt-address"></textarea>
+<input id="tt-note" type="text">
+<input id="tt-lat" type="hidden">
+<input id="tt-lng" type="hidden">
+
+<script>
+var testErrors = [];
+var toasts = [];
+window.onerror = function (msg, src, line, col) { testErrors.push('JS-ERROR ' + msg + ' @' + line + ':' + col); };
+function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function showToast(m, type) { toasts.push((type || 'info') + ': ' + m); }
+function openModal() {}
+function ttNormalizeName(v) { return String(v || '').toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9&.\- ]/g, '').trim(); }
+function el(id) { return document.getElementById(id); }
+function ttCompanyValue() {
+    var sel = el('tt-company');
+    return sel.value === '__OTHER__' ? String(el('tt-company-other').value || '').trim() : String(sel.value || '').trim();
+}
+function ttTaskValue() {
+    var sel = el('tt-task');
+    return sel.value === '__OTHER__' ? String(el('tt-task-other').value || '').trim() : String(sel.value || '').trim();
+}
+window.ttSelectedDeviceType = '';
+window.ttSelectedModelName = '';
+function ttPopulateDeviceDropdown() {
+    var sel = el('tt-device');
+    var html = '<option value="">—</option>';
+    (window.ttEqData || []).forEach(function(row) {
+        if (row.device_type && html.indexOf('value="' + row.device_type + '"') === -1) html += '<option value="' + row.device_type + '">' + row.device_type + '</option>';
+    });
+    html += '<option value="__OTHER__">Other</option>';
+    sel.innerHTML = html;
+    if (window.ttSelectedDeviceType) sel.value = window.ttSelectedDeviceType;
+}
+function ttSelectEquipment(id) {
+    var row = null;
+    (window.ttEqData || []).forEach(function(r) { if (r.id === id) row = r; });
+    if (!row) return;
+    window.ttSelectedDeviceType = row.device_type || '';
+    window.ttSelectedModelName = row.model_name || '';
+    el('tt-model-search').value = row.model_name || '';
+    el('tt-serial').value = row.serial_number || '';
+    el('tt-issue').value = '7';                  // the real code also rebuilds the problem list
+    ttPopulateDeviceDropdown();                  // mirrors app.js: the card + dropdown are refreshed
+}
+function ttModelFreeText(v) { window.ttSelectedModelName = v; }
+function ttIssueChanged() { el('tt-issue-custom').style.display = el('tt-issue').value ? 'none' : ''; }
+function ttRenderAddressDatalist() {}
+function ttResolveDestinationAddress() { window.ttGeoAsked = true; }
+window.ttEqData = [
+    { id: 1, manufacturer: 'Lenovo', model_name: 'ThinkPad T14 Gen 3', device_type: 'Laptop', serial_number: 'PWOEX84C' },
+    { id: 2, manufacturer: 'HP', model_name: 'LaserJet Pro M404', device_type: 'Printer', serial_number: 'HPLCJ404X' }
+];
+</script>
+<script src="../public/assets/js/ticket-scan.js"></script>
+<script>
+var SAMPLE = [
+    'Work Order No.: SD1040842',
+    'Company Name: Commonwealth Hospital and Medical Center T',
+    'Address:',
+    'DCD 7th Floor, Neopolitan Business Park, Regalado Highway,',
+    'Brgy. Greater Lagro, Quezon, Metro Manila, NCR',
+    'Contact Person: John Niel Laurenciano | MARK BACUMAG Contact Nos.: 02893000000 loc. 412',
+    'Unit Reported: Lenovo 21L2S4VS00 L14 Gen 5 Serial/CRTL No.: PW0EX84C',
+    'Request: · Repair / Service CustRef No.:',
+    'Task Description / Reported Problem: Slow performance',
+    'For onsite visit'
+].join('\n');
+
+var out = [];
+function check(label, actual, expected) {
+    var ok = String(actual) === String(expected);
+    out.push((ok ? 'PASS ' : 'FAIL ') + label + ' => [' + actual + ']' + (ok ? '' : ' expected [' + expected + ']'));
+}
+try {
+    ticketScanRenderResults(ticketScanParse(SAMPLE));
+    ticketScanApply();
+    check('tt-ticket-no', el('tt-ticket-no').value, '1040842');
+    check('tt-company select', el('tt-company').value, '__OTHER__');
+    check('tt-company-other', el('tt-company-other').value, 'Commonwealth Hospital and Medical Center');
+    check('tt-serial (equipment record wins)', el('tt-serial').value, 'PWOEX84C');
+    check('device type global', window.ttSelectedDeviceType, 'Laptop');
+    check('tt-device select', el('tt-device').value, 'Laptop');
+    check('tt-model-search', el('tt-model-search').value, 'ThinkPad T14 Gen 3');
+    check('tt-task select', el('tt-task').value, '__OTHER__');
+    check('tt-task-other', el('tt-task-other').value, 'Slow performance');
+    check('tt-issue-custom', el('tt-issue-custom').value, 'Slow performance For onsite visit');
+    check('tt-customer', el('tt-customer').value, 'John Niel Laurenciano');
+    check('tt-address', el('tt-address').value, 'DCD 7th Floor, Neopolitan Business Park, Regalado Highway, Brgy. Greater Lagro, Quezon, Metro Manila, NCR');
+    check('tt-note', el('tt-note').value, 'Request: Repair / Service · Contact No.: 02893000000 loc. 412');
+    check('address handed to geocoder', window.ttGeoAsked, true);
+    check('toast', toasts.join(' | '), 'success: Work order scanned — the ticket form is filled. Check the values, then continue.');
+
+    // A device that is not on file falls back to the printed Unit Reported text.
+    ticketScanRenderResults(ticketScanParse([
+        'Work Order No.: SD9999',
+        'Company Name: Acme Corp',
+        'Unit Reported: Hikvision DS-2CD1023G0E-I IP Camera',
+        'Task Description / Reported Problem: No display'
+    ].join('\n')));
+    ticketScanApply();
+    check('fallback ticket no', el('tt-ticket-no').value, '9999');
+    check('fallback company', el('tt-company-other').value, 'Acme Corp');
+    check('fallback device select', el('tt-device').value, '__OTHER__');
+    check('fallback device text', el('tt-device-other').value, 'CCTV');
+    check('fallback model', el('tt-model-search').value, 'DS-2CD1023G0E-I IP Camera');
+    check('fallback task + problem', el('tt-task-other').value + ' | ' + el('tt-issue-custom').value, 'No display | No display');
+} catch (e) {
+    testErrors.push('THROWN ' + e.name + ': ' + e.message);
+}
+out.push('errors=' + (testErrors.length ? testErrors.join(' | ') : 'none'));
+document.getElementById('out').textContent = out.join('\n');
+</script>
+</body>
+</html>
