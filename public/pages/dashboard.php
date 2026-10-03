@@ -5,76 +5,23 @@ $page_title = 'Dashboard';
 $active_menu = 'dashboard';
 require APP_ROOT . '/includes/layout_header.php';
 
-// Fetch real stats from database
-$totalSessions = 0; $solvedToday = 0; $pendingTickets = 0; $kbArticles = 0;
-$recentTickets = []; $topIssues = []; $notifications = [];
-$pendingCount = 0; $escalatedCount = 0;
-
-if (defined('DEMO_MODE') && DEMO_MODE) {
-    // Use demo values
-    $totalSessions = 127; $solvedToday = 8; $pendingTickets = 5; $kbArticles = 15;
-} else {
-    try {
-        $totalSessions = Database::count('troubleshooting_sessions');
-        $solvedToday = Database::count('troubleshooting_sessions', "result = 'solved' AND DATE(created_at) = CURDATE()");
-        $pendingTickets = Database::count('troubleshooting_sessions', "result IS NULL OR result = 'in_progress'");
-        $kbArticles = Database::count('knowledge_articles');
-        $pendingCount = Database::count('troubleshooting_sessions', "result IS NULL");
-        $escalatedCount = Database::count('troubleshooting_sessions', "result = 'escalated'");
-
-        $recentTickets = Database::fetchAll(
-            "SELECT ts.*, ti.title as issue_title, ti.category_id, tc.name as category_name
-             FROM troubleshooting_sessions ts
-             LEFT JOIN troubleshooting_issues ti ON ts.issue_id = ti.id
-             LEFT JOIN troubleshooting_categories tc ON ti.category_id = tc.id
-             ORDER BY ts.created_at DESC LIMIT 6"
-        );
-
-        $topIssues = Database::fetchAll(
-            "SELECT ti.title, COUNT(*) as cnt
-             FROM troubleshooting_sessions ts
-             JOIN troubleshooting_issues ti ON ts.issue_id = ti.id
-             GROUP BY ts.issue_id ORDER BY cnt DESC LIMIT 5"
-        );
-        if (empty($topIssues)) {
-            $topIssues = [
-                ['title' => 'No Display', 'cnt' => 18],
-                ['title' => 'Printer Offline', 'cnt' => 14],
-                ['title' => 'Network Issues', 'cnt' => 11],
-                ['title' => 'Application Crash', 'cnt' => 9],
-                ['title' => 'Slow Performance', 'cnt' => 7],
-            ];
-        }
-
-        $notifications = Database::fetchAll(
-            "SELECT * FROM notifications ORDER BY created_at DESC LIMIT 8"
-        );
-    } catch (Exception $e) {
-        $totalSessions = 127; $solvedToday = 8; $pendingTickets = 5; $kbArticles = 15;
-    }
+require_once APP_ROOT.'/includes/DashboardData.php';
+$dashboard = ['stats'=>['total_sessions'=>0,'solved_today'=>0,'pending_tickets'=>0,'kb_articles'=>0,'escalated_count'=>0],'recent'=>[],'top_issues'=>[]];
+$dashboardError = null;
+try {
+    if (defined('DEMO_MODE') && DEMO_MODE) throw new RuntimeException('Live dashboard is unavailable in demo mode.');
+    $dashboard = DashboardData::load();
+} catch (Throwable $e) {
+    error_log('Dashboard load failed: '.$e->getMessage());
+    $dashboardError = 'Dashboard data is unavailable. Retrying automatically.';
 }
-
-if (empty($recentTickets)) {
-    $recentTickets = [
-        ['issue_title' => 'No Display', 'category_name' => 'Display', 'result' => 'solved', 'created_at' => date('Y-m-d H:i:s', strtotime('-2 hours')), 'device_type' => 'Desktop', 'device_model' => 'Dell OptiPlex 7090'],
-        ['issue_title' => 'Network Slow', 'category_name' => 'Network', 'result' => 'in_progress', 'created_at' => date('Y-m-d H:i:s', strtotime('-4 hours')), 'device_type' => 'Laptop', 'device_model' => 'HP ProBook 450'],
-        ['issue_title' => 'Printer Offline', 'category_name' => 'Printer', 'result' => 'escalated', 'created_at' => date('Y-m-d H:i:s', strtotime('-6 hours')), 'device_type' => 'Printer', 'device_model' => 'HP LaserJet Pro M404'],
-        ['issue_title' => 'No Sound', 'category_name' => 'Sound', 'result' => 'solved', 'created_at' => date('Y-m-d H:i:s', strtotime('-1 day')), 'device_type' => 'Desktop', 'device_model' => 'Lenovo ThinkCentre M70s'],
-        ['issue_title' => 'WiFi Not Connecting', 'category_name' => 'Network', 'result' => 'in_progress', 'created_at' => date('Y-m-d H:i:s', strtotime('-1 day')), 'device_type' => 'Laptop', 'device_model' => 'Dell Latitude 5520'],
-    ];
-}
-
-if (empty($notifications)) {
-    $notifications = [
-        ['title' => 'Ticket TK-1001 escalated', 'message' => 'Supervisor review required for printer issue', 'created_at' => date('Y-m-d H:i:s', strtotime('-30 min')), 'is_read' => 0],
-        ['title' => 'KB article approved', 'message' => 'No Display troubleshooting guide published', 'created_at' => date('Y-m-d H:i:s', strtotime('-2 hours')), 'is_read' => 0],
-        ['title' => 'New team member', 'message' => 'Ana T. joined the Field IT team', 'created_at' => date('Y-m-d H:i:s', strtotime('-5 hours')), 'is_read' => 1],
-    ];
-}
-
-$unreadNotif = 0;
-foreach ($notifications as $n) { if (empty($n['is_read'])) $unreadNotif++; }
-$notifCount = count($notifications);
+$totalSessions = $dashboard['stats']['total_sessions'];
+$solvedToday = $dashboard['stats']['solved_today'];
+$pendingTickets = $pendingCount = $dashboard['stats']['pending_tickets'];
+$kbArticles = $dashboard['stats']['kb_articles'];
+$escalatedCount = $dashboard['stats']['escalated_count'];
+$recentTickets = $dashboard['recent'];
+$topIssues = $dashboard['top_issues'];
 ?>
 
 <style>
@@ -379,48 +326,28 @@ $notifCount = count($notifications);
 </div>
 
 <!-- Stats Row -->
+<p id="dashboard-refresh-status" role="status" style="font-size:12px;color:#64748b;margin-bottom:12px;" class="dash-text-muted"><?= e($dashboardError ?? 'Current database data') ?></p>
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;" class="stats-grid">
     <?php
     $statCards = [
-        ['icon' => 'activity', 'label' => 'Total Sessions', 'value' => $totalSessions, 'change' => '+12', 'up' => true, 'color' => '#2563eb', 'glow' => 'rgba(37,99,235,0.15)', 'spark' => [3,5,4,7,6,8,9,7,11,10,12,14,13,15,14,16,17,15,18,17]],
-        ['icon' => 'check-circle-2', 'label' => 'Solved Today', 'value' => $solvedToday, 'change' => '+3', 'up' => true, 'color' => '#16a34a', 'glow' => 'rgba(22,163,74,0.15)', 'spark' => [2,3,2,4,5,4,6,5,7,6,8,7,8,7,9,8,8,7,8,8]],
-        ['icon' => 'clock-3', 'label' => 'Pending Tickets', 'value' => $pendingTickets, 'change' => '-2', 'up' => false, 'color' => '#d97706', 'glow' => 'rgba(217,119,6,0.15)', 'spark' => [8,9,7,8,6,7,5,6,5,4,5,4,6,5,4,5,4,3,4,3]],
-        ['icon' => 'book-open', 'label' => 'KB Articles', 'value' => $kbArticles, 'change' => '+5', 'up' => true, 'color' => '#9333ea', 'glow' => 'rgba(147,51,234,0.15)', 'spark' => [5,6,7,6,8,9,8,10,11,10,12,13,12,14,13,15,14,16,15,17]],
+        ['key'=>'total_sessions','icon'=>'activity','label'=>'Total Sessions','value'=>$totalSessions,'color'=>'#2563eb','glow'=>'rgba(37,99,235,0.15)'],
+        ['key'=>'solved_today','icon'=>'check-circle-2','label'=>'Solved Today','value'=>$solvedToday,'color'=>'#16a34a','glow'=>'rgba(22,163,74,0.15)'],
+        ['key'=>'pending_tickets','icon'=>'clock-3','label'=>'Pending Tickets','value'=>$pendingTickets,'color'=>'#d97706','glow'=>'rgba(217,119,6,0.15)'],
+        ['key'=>'kb_articles','icon'=>'book-open','label'=>'Published KB Articles','value'=>$kbArticles,'color'=>'#9333ea','glow'=>'rgba(147,51,234,0.15)'],
     ];
     $si = 0;
     foreach ($statCards as $s):
         $fxDelay = $si * 90; $si++;
-        // Generate SVG sparkline
-        $pts = $s['spark'];
-        $max = max($pts); $min = min($pts);
-        $range = max($max - $min, 1);
-        $w = 120; $h = 50;
-        $coords = [];
-        foreach ($pts as $i => $v) {
-            $x = ($i / (count($pts) - 1)) * $w;
-            $y = $h - (($v - $min) / $range) * ($h - 8) - 4;
-            $coords[] = sprintf('%.1f,%.1f', $x, $y);
-        }
-        $pathD = 'M' . implode(' L', $coords);
-        $areaD = $pathD . " L{$w},{$h} L0,{$h} Z";
     ?>
         <div class="stat-card-premium fx-reveal" style="--fx-delay:<?= $fxDelay ?>ms;">
             <div class="stat-glow" style="background:<?= $s['color'] ?>;"></div>
-            <svg class="stat-sparkline" viewBox="0 0 <?= $w ?> <?= $h ?>" preserveAspectRatio="none">
-                <path d="<?= $areaD ?>" fill="<?= $s['color'] ?>" />
-                <path d="<?= $pathD ?>" fill="none" stroke="<?= $s['color'] ?>" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
             <div style="display:flex;align-items:center;gap:14px;position:relative;z-index:1;">
                 <div style="width:48px;height:48px;border-radius:12px;background:<?= $s['glow'] ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                     <i data-lucide="<?= $s['icon'] ?>" style="width:22px;height:22px;color:<?= $s['color'] ?>;"></i>
                 </div>
                 <div style="flex:1;min-width:0;">
                     <div style="display:flex;align-items:baseline;gap:8px;">
-                        <span data-count="<?= (int)$s['value'] ?>" style="font-size:28px;font-weight:800;color:#111827;letter-spacing:-0.03em;line-height:1;" class="dash-text"><?= $s['value'] ?></span>
-                        <span class="trend-badge <?= $s['up'] ? 'up' : 'down' ?>">
-                            <i data-lucide="<?= $s['up'] ? 'trending-up' : 'trending-down' ?>" style="width:10px;height:10px;"></i>
-                            <?= $s['change'] ?>
-                        </span>
+                        <span data-dashboard-stat="<?= $s['key'] ?>" style="font-size:28px;font-weight:800;color:#111827;line-height:1;" class="dash-text"><?= $dashboardError ? '&mdash;' : (int)$s['value'] ?></span>
                     </div>
                     <div style="font-size:13px;color:#64748b;font-weight:500;margin-top:2px;"><?= $s['label'] ?></div>
                 </div>
@@ -484,16 +411,17 @@ $notifCount = count($notifications);
                     </div>
                 </div>
                 <div style="display:flex;gap:6px;">
-                    <span class="badge badge-yellow" style="font-size:11px;"><?= $pendingCount ?> pending</span>
-                    <span class="badge badge-red" style="font-size:11px;"><?= $escalatedCount ?> escalated</span>
+                    <span id="dashboard-pending" class="badge badge-yellow" style="font-size:11px;"><?= $pendingCount ?> pending</span>
+                    <span id="dashboard-escalated" class="badge badge-red" style="font-size:11px;"><?= $escalatedCount ?> escalated</span>
                 </div>
             </div>
-            <div style="padding:4px 24px 8px;">
+            <div id="dashboard-recent" style="padding:4px 24px 8px;">
+                <?php if (!$recentTickets): ?><p class="dash-text-muted" style="padding:16px 0;">No recent sessions.</p><?php endif; ?>
                 <?php foreach ($recentTickets as $t):
-                    $result = $t['result'] ?? 'pending';
-                    if ($result === 'solved') { $statusBadge = 'badge-green'; $statusText = 'Solved'; }
+                    $result = $t['status'] ?? 'new';
+                    if (in_array($result,['solved','completed'],true)) { $statusBadge = 'badge-green'; $statusText = 'Solved'; }
                     elseif ($result === 'escalated') { $statusBadge = 'badge-red'; $statusText = 'Escalated'; }
-                    else { $statusBadge = 'badge-blue'; $statusText = 'In Progress'; }
+                    else { $statusBadge = 'badge-blue'; $statusText = ucwords(str_replace('_',' ', $result)); }
 
                     $timeAgo = '';
                     if (!empty($t['created_at'])) {
@@ -506,7 +434,7 @@ $notifCount = count($notifications);
                     $icons = ['Display'=>'monitor','Network'=>'wifi','Printer'=>'printer','Sound'=>'volume-2','Hardware'=>'cpu','Software'=>'app-window'];
                     $icon = $icons[$t['category_name'] ?? ''] ?? 'wrench';
                 ?>
-                    <div class="ticket-row" style="text-decoration:none;cursor:pointer;" onclick="window.location.href=APP_BASE+'troubleshoot'">
+                    <div class="ticket-row" style="text-decoration:none;cursor:pointer;" onclick="window.location.href=APP_BASE+'tickets'">
                         <div style="width:38px;height:38px;border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;flex-shrink:0;" class="dark:bg-gray-700">
                             <i data-lucide="<?= $icon ?>" style="width:16px;height:16px;color:#64748b;"></i>
                         </div>
@@ -537,7 +465,8 @@ $notifCount = count($notifications);
                     <p style="font-size:11px;color:#94a3b8;">This week's top troubleshooting categories</p>
                 </div>
             </div>
-            <div style="padding:16px 24px 20px;">
+            <div id="dashboard-issues" style="padding:16px 24px 20px;">
+                <?php if (!$topIssues): ?><p class="dash-text-muted">No sessions this week.</p><?php endif; ?>
                 <?php
                 $maxCnt = !empty($topIssues) ? max(array_column($topIssues, 'cnt')) : 1;
                 $barColors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444'];
@@ -701,4 +630,5 @@ function toggleChecklist(cb) {
 
 </script>
 
+<script defer src="<?= e($urlBase) ?>assets/js/dashboard-live.js?v=<?= filemtime(APP_ROOT.'/public/assets/js/dashboard-live.js') ?>"></script>
 <?php require APP_ROOT . '/includes/layout_footer.php'; ?>
