@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ticket status filters - every ticket reachable</title>
+<style>
+body { margin:0; padding:16px; background:#eef2f7; font:13px/1.5 system-ui, sans-serif; color:#0f172a; }
+#checks { background:#0f172a; color:#cbd5e1; font:12px/1.6 ui-monospace, monospace; padding:12px 14px; border-radius:10px; white-space:pre-wrap; }
+.chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+#tickets-grid { display:grid; gap:8px; }
+.card-fixture { padding:10px 12px; border:1px solid #dbe2ea; border-radius:8px; background:#fff; }
+</style>
+</head>
+<body>
+<h1 style="font-size:16px;">Every ticket status must be reachable from the filter row</h1>
+<p style="color:#475569;">Runs the real <code>ticketFilter</code> / <code>ticketApplyFilters</code> / <code>ticketDefaultFilter</code> code sliced straight out of <code>../public/assets/js/app.js</code>, against a fixture grid holding one card of every status the API can store.</p>
+
+<!-- Mirrors the chips rendered by public/pages/tickets.php -->
+<div class="chips" id="tickets-filter-row">
+    <button class="filter-btn" data-filter="all">All</button>
+    <button class="filter-btn active" data-filter="new">New</button>
+    <button class="filter-btn" data-filter="in_progress">In Progress</button>
+    <button class="filter-btn" data-filter="solved">Solved</button>
+    <button class="filter-btn" data-filter="escalated">Escalated</button>
+    <button class="filter-btn" data-filter="partial">Partial</button>
+    <button class="filter-btn" data-filter="other">Unsolved / Cancelled</button>
+</div>
+<div class="chips">
+    <input id="ticket-search" placeholder="search">
+    <select id="ticket-sort"><option value="newest">newest</option><option value="oldest">oldest</option></select>
+</div>
+<!-- The page keeps the empty state as the last child of the grid, and
+     ticketApplyFilters() re-appends it there to keep it under the sorted cards. -->
+<div id="tickets-grid"><div id="tickets-filter-empty" hidden>No tickets here</div></div>
+
+<pre id="checks">running&hellip;</pre>
+
+<script>
+// One card per status the app can store (see api/tickets/manage.php).
+var FIXTURE_STATUSES = ['new', 'in_progress', 'solved', 'partial', 'escalated', 'unsolved', 'cancelled'];
+
+function buildGrid(statuses) {
+    var list = statuses || FIXTURE_STATUSES;
+    var grid = document.getElementById('tickets-grid');
+    var empty = document.getElementById('tickets-filter-empty');
+    Array.prototype.slice.call(grid.querySelectorAll('.ft-ticket-card')).forEach(function(card) { card.remove(); });
+    list.forEach(function(status, i) {
+        var card = document.createElement('article');
+        card.className = 'ft-ticket-card';
+        card.dataset.status = status;
+        card.dataset.created = String(1000 + i);
+        card.dataset.updated = String(1000 + i);
+        card.dataset.search = ('company ' + status + ' ticket #SD' + (100000 + i)).toLowerCase();
+        card.textContent = status;
+        grid.appendChild(card);
+    });
+    if (empty) grid.appendChild(empty);
+}
+
+function visibleStatuses() {
+    return Array.prototype.slice.call(document.querySelectorAll('#tickets-grid .ft-ticket-card'))
+        .filter(function(c) { return c.style.display !== 'none'; })
+        .map(function(c) { return c.dataset.status; });
+}
+
+function loadFilterCode() {
+    return fetch('../public/assets/js/app.js').then(function(r) { return r.text(); }).then(function(src) {
+        var start = src.indexOf('// Statuses that own a filter chip of their own');
+        var end = src.indexOf('function ticketTravelFormatDuration');
+        if (start === -1 || end === -1 || end < start) throw new Error('filter functions not found in app.js');
+        // Run the page's own implementation: a copy here would drift and stop proving anything.
+        new Function(src.slice(start, end) + '; window.__fns = { ticketFilter: ticketFilter, ticketApplyFilters: ticketApplyFilters, ticketClearFilters: ticketClearFilters, ticketDefaultFilter: ticketDefaultFilter, ticketScrollActiveFilterIntoView: ticketScrollActiveFilterIntoView };')();
+    });
+}
+
+var lines = [];
+function check(name, ok, detail) {
+    lines.push((ok ? 'PASS ' : 'FAIL ') + name + (detail ? ' (' + detail + ')' : ''));
+}
+function finish() {
+    document.getElementById('checks').textContent = 'CHECKS\n' + lines.join('\n');
+    window.__filterChecks = lines;
+}
+
+loadFilterCode().then(function() {
+    var f = window.__fns;
+    var search = document.getElementById('ticket-search');
+
+    // 1. Every chip must actually be rendered by the page's filter row.
+    var chips = Array.prototype.slice.call(document.querySelectorAll('#tickets-filter-row .filter-btn')).map(function(b) { return b.dataset.filter; });
+    check('filter row has an All chip', chips.indexOf('all') !== -1, chips.join(','));
+    check('filter row has a chip for each stored status',
+        FIXTURE_STATUSES.every(function(s) { return s === 'unsolved' || s === 'cancelled' ? chips.indexOf('other') !== -1 : chips.indexOf(s) !== -1; }),
+        chips.join(','));
+
+    // 2. "All" shows everything.
+    buildGrid(); search.value = '';
+    f.ticketFilter('all');
+    check('All shows every ticket', visibleStatuses().length === FIXTURE_STATUSES.length,
+        visibleStatuses().length + '/' + FIXTURE_STATUSES.length);
+
+    // 3. Each chip shows exactly its status.
+    buildGrid(); search.value = '';
+    f.ticketFilter('partial');
+    check('Partial chip reaches partial repairs', visibleStatuses().join(',') === 'partial', visibleStatuses().join(','));
+
+    buildGrid(); search.value = '';
+    f.ticketFilter('other');
+    check('Unsolved / Cancelled chip reaches the leftovers', visibleStatuses().sort().join(',') === 'cancelled,unsolved', visibleStatuses().join(','));
+
+    // 4. Union of every chip covers every card: nothing can hide behind the filters.
+    var union = {};
+    chips.forEach(function(chip) {
+        buildGrid(); search.value = '';
+        f.ticketFilter(chip);
+        visibleStatuses().forEach(function(s) { union[s] = true; });
+    });
+    var missing = FIXTURE_STATUSES.filter(function(s) { return !union[s]; });
+    check('every status is reachable through some chip', missing.length === 0, missing.length ? 'unreachable: ' + missing.join(',') : 'none missing');
+
+    // 5. Default filter never renders an empty list when tickets exist.
+    buildGrid();
+    check('default prefers New when New tickets exist', f.ticketDefaultFilter() === 'new', f.ticketDefaultFilter());
+    buildGrid(['unsolved', 'cancelled']);
+    var fallback = f.ticketDefaultFilter();
+    f.ticketApplyFilters();
+    check('default falls back to All when only leftovers exist', fallback === 'all' && visibleStatuses().length === 2,
+        'default=' + fallback + ' visible=' + visibleStatuses().length);
+
+    // 6. Clearing the filters reveals the most, not the least.
+    buildGrid();
+    f.ticketFilter('solved');
+    f.ticketClearFilters();
+    check('Clear filters lands on All', visibleStatuses().length === FIXTURE_STATUSES.length, visibleStatuses().length + ' visible');
+
+    // 7. Search still narrows inside the chosen status.
+    buildGrid();
+    f.ticketFilter('all');
+    search.value = 'sd100003';
+    f.ticketApplyFilters();
+    check('search narrows within a status', visibleStatuses().length === 1, visibleStatuses().join(','));
+    check('filter empty-state shows only when nothing matches', document.getElementById('tickets-filter-empty').hidden === true, 'hidden=' + document.getElementById('tickets-filter-empty').hidden);
+    search.value = 'nothing-matches-this';
+    f.ticketApplyFilters();
+    check('empty-state appears when nothing matches', document.getElementById('tickets-filter-empty').hidden === false);
+    search.value = '';
+
+    finish();
+}).catch(function(err) {
+    lines.push('FAIL could not load the filter code (' + err.message + ')');
+    finish();
+});
+</script>
+</body>
+</html>

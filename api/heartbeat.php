@@ -15,6 +15,8 @@ Auth::requireLogin();
 // A heartbeat is only sent when the user has actively interacted with the page,
 // so it legitimately counts as activity for the idle timeout.
 $_SESSION['last_activity'] = time();
+require_once APP_ROOT . '/includes/ChatAccess.php';
+ChatAccess::touch();
 
 json_response(['success' => true, 'timestamp' => time()]);
 ?>

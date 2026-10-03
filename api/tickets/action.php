@@ -12,6 +12,7 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) {
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
 Auth::requireLogin();
+require_once APP_ROOT.'/includes/Activity.php';
 
 header('Content-Type: application/json');
 
@@ -76,6 +77,7 @@ if (!$demo) {
             "SELECT * FROM troubleshooting_sessions WHERE id = ? AND user_id = ?",
             [$ticketId, Auth::userId()]
         );
+        Activity::notifyUsers(Activity::managers(), 'ticket_'.$action, 'Ticket '.($session['ticket_number'] ?? $ticketId), 'Ticket status changed to '.($session['status'] ?? $action).'.', '/tickets');
         json_response([
             'success' => true,
             'action' => $action,

@@ -40,10 +40,17 @@ if ($method === 'PUT') {
 
     if ($notifId) {
         Database::update('notifications', ['is_read' => 1], 'id = ? AND user_id = ?', [$notifId, $userId]);
-    } else {
+    } elseif (!empty($input['all'])) {
         Database::update('notifications', ['is_read' => 1], 'user_id = ? AND is_read = 0', [$userId]);
+    } else {
+        json_response(['error'=>'Notification ID or all is required'],400);
     }
     json_response(['success' => true]);
+}
+
+if ($method === 'DELETE') {
+    Database::delete('notifications', 'user_id = ?', [$userId]);
+    json_response(['success'=>true]);
 }
 
 json_response(['error' => 'Method not allowed'], 405);

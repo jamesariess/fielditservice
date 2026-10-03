@@ -4,7 +4,7 @@
  * POST /api/knowledge/save.php  → create
  * PUT  /api/knowledge/save.php  → update
  */
-if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(dirname(__DIR__)))); }
+if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(__DIR__))); }
 require_once APP_ROOT . '/config/app.php';
 require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
@@ -83,6 +83,8 @@ try {
             'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
         ]);
 
+        require_once APP_ROOT.'/includes/Activity.php';
+        if (in_array($status,['submitted','under_review'],true)) Activity::notifyUsers(Activity::managers(), 'knowledge_submission', 'Article needs review', $title, '/admin/knowledge');
         json_response(['success' => true, 'id' => $id, 'message' => 'Article updated']);
     } else {
         // Create new article
@@ -98,6 +100,8 @@ try {
             'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
         ]);
 
+        require_once APP_ROOT.'/includes/Activity.php';
+        if (in_array($status,['submitted','under_review'],true)) Activity::notifyUsers(Activity::managers(), 'knowledge_submission', 'Article needs review', $title, '/admin/knowledge');
         json_response(['success' => true, 'id' => $newId, 'message' => 'Article created']);
     }
 } catch (Exception $e) {

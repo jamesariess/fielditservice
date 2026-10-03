@@ -13,7 +13,7 @@ $fUrlBase = app_base();
 $mainNav = [
     ['id' => 'dashboard', 'label' => 'Home', 'icon' => 'layout-dashboard', 'url' => $fUrlBase],
     ['id' => 'troubleshoot', 'label' => 'Fix', 'icon' => 'stethoscope', 'url' => $fUrlBase . 'troubleshoot'],
-    ['id' => 'ai', 'label' => 'AI', 'icon' => 'sparkles', 'url' => $fUrlBase . 'ai'],
+    ['id' => 'chat', 'label' => 'AI', 'icon' => 'sparkles', 'url' => $fUrlBase . 'team-messages?assistant=1'],
     ['id' => 'knowledge', 'label' => 'KB', 'icon' => 'book-open', 'url' => $fUrlBase . 'knowledge'],
     ['id' => 'tickets', 'label' => 'Tickets', 'icon' => 'ticket', 'url' => $fUrlBase . 'tickets'],
 ];
@@ -48,6 +48,7 @@ $mainNav = [
         </div>
     </div>
 
+    <link rel="stylesheet" href="<?= e($fUrlBase) ?>assets/css/dark-compat.css?v=<?= filemtime(APP_ROOT.'/public/assets/css/dark-compat.css') ?>">
     <script>lucide.createIcons();</script>
 </body>
 </html>

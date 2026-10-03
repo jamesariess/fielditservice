@@ -12,7 +12,7 @@ $ticketNavLabel = 'My Tickets';
 $mainNav = [
     ['id' => 'dashboard', 'label' => 'Home', 'icon' => 'layout-dashboard', 'url' => '/'],
     ['id' => 'troubleshoot', 'label' => 'Fix', 'icon' => 'stethoscope', 'url' => '/troubleshoot'],
-    ['id' => 'ai', 'label' => 'AI', 'icon' => 'sparkles', 'url' => '/ai'],
+    ['id' => 'chat', 'label' => 'AI', 'icon' => 'sparkles', 'url' => '/team-messages?assistant=1'],
     ['id' => 'knowledge', 'label' => 'KB', 'icon' => 'book-open', 'url' => '/knowledge'],
     ['id' => 'tickets', 'label' => 'Tickets', 'icon' => 'ticket', 'url' => '/tickets'],
 ];
@@ -21,7 +21,6 @@ $sidebarItems = [
     ['section' => 'Main'],
     ['id' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'layout-dashboard', 'url' => '/'],
     ['id' => 'troubleshoot', 'label' => 'Troubleshoot', 'icon' => 'stethoscope', 'url' => '/troubleshoot'],
-    ['id' => 'ai', 'label' => 'IT Support AI', 'icon' => 'sparkles', 'url' => '/ai'],
     ['section' => 'Resources'],
     ['id' => 'knowledge', 'label' => 'Knowledge Base', 'icon' => 'book-open', 'url' => '/knowledge'],
     ['id' => 'equipment', 'label' => 'Equipment', 'icon' => 'package', 'url' => '/equipment'],
@@ -31,9 +30,10 @@ $sidebarItems = [
     ['section' => 'Work'],
     ['id' => 'admin-ticket-approvals', 'label' => 'Ticket Management', 'icon' => 'clipboard-check', 'url' => '/admin/ticket-approvals', 'perm' => 'system.settings'],
     ['id' => 'tickets', 'label' => $ticketNavLabel, 'icon' => 'ticket', 'url' => '/tickets'],
-    ['id' => 'profile', 'label' => 'My Profile', 'icon' => 'user-round', 'url' => '/profile'],
+    // "My Profile" is deliberately NOT in the sidebar: the avatar at the top of
+    // every page (and the user block at the bottom of the sidebar) opens it.
     ['id' => 'documentation', 'label' => 'Documentation', 'icon' => 'file-text', 'url' => '/documentation'],
-    ['id' => 'chat', 'label' => 'Team Chat', 'icon' => 'messages-square', 'url' => '/chat', 'badge' => '3'],
+    ['id' => 'chat', 'label' => 'Team Chat', 'icon' => 'messages-square', 'url' => '/team-messages', 'badge' => '3'],
     ['section' => 'Administration', 'perm' => 'users.manage'],
     ['id' => 'admin-users-access', 'label' => 'Users & Access', 'icon' => 'users-round', 'url' => '/admin/users', 'perm' => 'users.manage'],
     ['id' => 'admin-kb', 'label' => 'KB Management', 'icon' => 'file-check', 'url' => '/admin/knowledge', 'perm' => 'knowledge.manage'],
@@ -58,6 +58,22 @@ foreach (explode(' ', $currentUser['name']) as $p) { $initials .= strtoupper(sub
 // App base path — centralised so clean URLs (/fielditservice/login), the legacy
 // /public style, and domain-root installs all resolve correctly.
 $urlBase = app_base();
+
+// The header avatar: the picture stored on the account, or the initials above.
+// Sessions that predate the picture (or a freshly uploaded one) are filled in
+// from the database once per session, then remembered.
+$avatarUrl = Auth::avatarUrl();
+if ($avatarUrl === null && empty($_SESSION['avatar_checked']) && (!defined('DEMO_MODE') || !DEMO_MODE)) {
+    try {
+        $avatarRow = Database::fetch("SELECT avatar_url FROM users WHERE id = ?", [Auth::userId()]);
+        Auth::setAvatar($avatarRow['avatar_url'] ?? null);
+        $avatarUrl = Auth::avatarUrl();
+    } catch (Throwable $e) {
+        // No picture is a fine answer — never break the page over it.
+    }
+}
+$avatarStyle = 'width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;'
+    . 'overflow:hidden;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:11px;font-weight:800;letter-spacing:.02em;';
 
 // Prepend base to all sidebar/nav URLs
 foreach ($sidebarItems as &$item) {
@@ -157,8 +173,14 @@ foreach ($sidebarItems as $item) {
                 </a>
             <?php endforeach; ?>
         </nav>
-        <div class="sidebar-user">
-            <a href="<?= $urlBase ?>profile" class="sidebar-user-avatar" aria-label="Open my profile" data-tooltip="My Profile" style="text-decoration:none;"><?= $initials ?></a>
+        <div class="sidebar-user<?= ($active_menu ?? '') === 'profile' ? ' active' : '' ?>">
+            <a href="<?= $urlBase ?>profile" class="sidebar-user-avatar" aria-label="Open my profile" data-tooltip="My Profile" style="text-decoration:none;overflow:hidden;">
+                <?php if ($avatarUrl): ?>
+                    <img src="<?= e($avatarUrl) ?>" alt="<?= e($currentUser['name']) ?>" style="width:100%;height:100%;object-fit:cover;">
+                <?php else: ?>
+                    <?= e($initials) ?>
+                <?php endif; ?>
+            </a>
             <a href="<?= $urlBase ?>profile" class="sidebar-user-info" style="text-decoration:none;" aria-label="Open my profile">
                 <div class="sidebar-user-name"><?= e($currentUser['name']) ?></div>
                 <div class="sidebar-user-role"><?= e($currentUser['role']) ?></div>
@@ -194,11 +216,20 @@ foreach ($sidebarItems as $item) {
                             <div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">Loading notifications...</div>
                         </div>
                         <div style="padding:12px 16px;border-top:1px solid #f1f5f9;text-align:center;">
-                            <a href="<?= $urlBase ?>admin/audit" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;">View all activity</a>
+                            <a href="<?= $urlBase ?>notifications" style="font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;">View all notifications</a>
                         </div>
                     </div>
                 </div>
-                <a href="<?= $urlBase ?>logout" class="header-btn" data-tooltip="Log out" aria-label="Log out" title="Log out">
+                <a href="<?= $urlBase ?>profile" class="header-btn" data-tooltip="My profile" aria-label="My profile" style="padding:3px;">
+                    <span style="<?= $avatarStyle ?>box-shadow:0 2px 8px rgba(37,99,235,.25);">
+                        <?php if ($avatarUrl): ?>
+                            <img src="<?= e($avatarUrl) ?>" alt="<?= e($currentUser['name']) ?>" style="width:100%;height:100%;object-fit:cover;">
+                        <?php else: ?>
+                            <?= e($initials) ?>
+                        <?php endif; ?>
+                    </span>
+                </a>
+                <a href="<?= $urlBase ?>logout" class="header-btn" data-tooltip="Log out" aria-label="Log out">
                     <i data-lucide="log-out" style="width:18px;height:18px;"></i>
                 </a>
             </div>

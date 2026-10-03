@@ -260,11 +260,11 @@ try {
         'reason' => $wasRescheduled ? $actionTaken : null,
     ]);
     Activity::notifyUsers(
-        Activity::managers(),
+        Activity::managers((int)$session['user_id']),
         $wasRescheduled ? 'ticket_rescheduled' : 'ticket_completed',
         ($wasRescheduled ? 'Ticket rescheduled: ' : 'Ticket completed: ') . ($session['ticket_number'] ?? ('SD' . $ticketId)),
         $wasRescheduled ? ('Reason: ' . $actionTaken) : 'A technician completed a field service report.',
-        '/admin/ticket-approvals'
+        '/tickets'
     );
 
     require_once APP_ROOT . '/includes/TicketRouteOrigin.php';

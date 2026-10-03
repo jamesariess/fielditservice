@@ -290,6 +290,10 @@ $severityColors = ['high'=>['bg'=>'#fef2f2','fg'=>'#dc2626'],'medium'=>['bg'=>'#
     .th-search-inner { flex-direction: column; padding: 12px; }
     .th-ai-btn { width: 100%; justify-content: center; }
     .th-hero h1 { font-size: 24px; }
+    /* The banner row is icon + text + button; on a phone the nowrap button
+       pushes the whole row past the screen edge. Stack it. */
+    .th-ai-banner { flex-wrap: wrap; }
+    .th-ai-banner .th-ai-btn { flex: 1 1 100%; }
 }
 </style>
 
@@ -307,7 +311,7 @@ $severityColors = ['high'=>['bg'=>'#fef2f2','fg'=>'#dc2626'],'medium'=>['bg'=>'#
                 <input type="text" id="th-search"
                        placeholder='Describe your issue (e.g., "Screen flickering", "WiFi not working")...'
                        oninput="handleSearch(this.value)">
-                <a href="<?= $urlBase ?>ai" class="th-ai-btn">
+                <a href="<?= $urlBase ?>team-messages?assistant=1" class="th-ai-btn">
                     <i data-lucide="sparkles"></i>
                     Ask AI
                 </a>
@@ -360,7 +364,7 @@ $severityColors = ['high'=>['bg'=>'#fef2f2','fg'=>'#dc2626'],'medium'=>['bg'=>'#
                 <h3 style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:2px;" class="dark:text-white">Can't find your issue?</h3>
                 <p style="font-size:13px;color:#475569;" class="dark:text-gray-300">Our IT Support AI can help you diagnose any problem step by step.</p>
             </div>
-            <a href="<?= $urlBase ?>ai" class="th-ai-btn" style="flex-shrink:0;"><i data-lucide="bot"></i> Ask AI</a>
+            <a href="<?= $urlBase ?>team-messages?assistant=1" class="th-ai-btn" style="flex-shrink:0;"><i data-lucide="bot"></i> Ask AI</a>
         </div>
     </div>
 
@@ -382,7 +386,7 @@ $severityColors = ['high'=>['bg'=>'#fef2f2','fg'=>'#dc2626'],'medium'=>['bg'=>'#
                 <h3 style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:2px;" class="dark:text-white">Can't find your issue?</h3>
                 <p style="font-size:13px;color:#475569;" class="dark:text-gray-300">Let our AI help you figure out what's wrong.</p>
             </div>
-            <a href="<?= $urlBase ?>ai" class="th-ai-btn" style="flex-shrink:0;"><i data-lucide="bot"></i> Ask AI</a>
+            <a href="<?= $urlBase ?>team-messages?assistant=1" class="th-ai-btn" style="flex-shrink:0;"><i data-lucide="bot"></i> Ask AI</a>
         </div>
     </div>
 </div>
@@ -548,3 +552,4 @@ function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g
 
 lucide.createIcons();
 </script>
+<?php require APP_ROOT . '/includes/layout_footer.php'; ?>

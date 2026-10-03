@@ -399,16 +399,17 @@ async function startTroubleshooting() {
                 issue_id: issueId,
                 session_id: sessionId,
                 answers: answers,
+                device: new URLSearchParams(location.search).get('device') || 'all',
             }),
         });
         if (data.error) { showError(data.error); return; }
         
         steps = data.steps || [];
         currentStepIndex = 0;
-        stepHistory = [];
+        stepHistory = questions.map(function(q) {return {type:'question',question:q.question,answer:answers[q.id],issue_title:document.querySelector('.wiz-title')?.textContent || ''};});
         
         // Count only non-terminal steps for progress
-        var totalSteps = steps.filter(function(s) { return !s.is_terminal && !s.result_type; }).length;
+        var totalSteps = steps.filter(function(s) { return !Number(s.is_terminal) && !s.result_type; }).length;
         
         // Switch to Phase 2
         document.getElementById('phase-questions').style.display = 'none';
@@ -425,7 +426,7 @@ function showStep(step) {
     if (!step) { showResult('escalated', {message:'No more steps'}); return; }
     
     // If this is a terminal node, show result directly (no YES/NO buttons)
-    if (step.is_terminal || step.result_type) {
+    if (Number(step.is_terminal) || step.result_type) {
         var type = step.result_type || 'escalation';
         var resultTitles = {
             solved: 'Problem Solved!',
@@ -449,7 +450,7 @@ function showStep(step) {
     var riskClass = step.risk || 'safe';
     
     // Count non-terminal steps for display
-    var totalNonTerminal = steps.filter(function(s) { return !s.is_terminal && !s.result_type; }).length;
+    var totalNonTerminal = steps.filter(function(s) { return !Number(s.is_terminal) && !s.result_type; }).length;
     
     var html = '<div class="wiz-step-card">';
     html += '<div class="wiz-step-badge">';
@@ -525,11 +526,6 @@ async function answerStep(answer) {
         time_spent: timeSpent,
     });
     
-    addLogEntry(
-        answer === 'worked' ? '✅ WORKED' : '❌ DID NOT WORK',
-        step.question
-    );
-    
     try {
         var data = await safeFetch(APP_BASE + 'api/troubleshooting/decision.php', {
             method: 'POST',
@@ -545,19 +541,24 @@ async function answerStep(answer) {
             }),
         });
         
+        if (data.error) throw new Error(data.error);
+        if (!['result', 'step'].includes(data.phase)) throw new Error('Unexpected response. Please retry.');
+        addLogEntry(answer === 'worked' ? '✅ WORKED' : '❌ DID NOT WORK', step.question);
         if (data.phase === 'result') {
             showResult(data.result_type || 'escalated', data);
         } else if (data.phase === 'step' && data.node) {
             currentNode = data.node;
             // Count total non-terminal steps
-            var totalSteps = steps.filter(function(s) { return !s.is_terminal && !s.result_type; }).length;
+            var totalSteps = steps.filter(function(s) { return !Number(s.is_terminal) && !s.result_type; }).length;
             updateProgress(completedSteps, totalSteps, 'Troubleshooting Steps');
             showStep(data.node);
         } else {
             showResult('escalated', {message:'No more steps available'});
         }
     } catch(e) {
-        showResult('escalated', {message:'Error: ' + e.message});
+        completedSteps--;
+        stepHistory.pop();
+        showError('Could not save this answer. Try again: ' + e.message);
     }
     answering = false;
 }
@@ -585,7 +586,7 @@ function showResult(type, data) {
     // Report
     if (data.report) {
         html += '<div class="wiz-report">';
-        html += '<div class="wiz-report-head"><h3>Troubleshooting Report</h3>';
+        html += '<div class="wiz-report-head"><h3>Action Taken</h3>';
         html += '<button onclick="copyReport()" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;"><i data-lucide="copy" style="width:13px;height:13px;"></i> Copy Report</button></div>';
         html += '<pre id="report-content">' + esc(data.report) + '</pre>';
         html += '</div>';

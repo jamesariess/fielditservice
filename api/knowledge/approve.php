@@ -4,7 +4,7 @@
  * POST /api/knowledge/approve.php
  * Body: { "article_id": 1, "action": "approve" | "reject" }
  */
-if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(dirname(__DIR__)))); }
+if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(__DIR__))); }
 require_once APP_ROOT . '/config/app.php';
 require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
@@ -13,6 +13,7 @@ require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
 Auth::requireLogin();
 Auth::requirePermission('knowledge.approve');
+require_once APP_ROOT . '/includes/Activity.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { json_response(['error' => 'POST required'], 405); exit; }
 
@@ -26,7 +27,7 @@ if (!$articleId || !in_array($action, ['approve', 'reject', 'delete'])) {
 }
 
 try {
-    $article = Database::fetch("SELECT id, title FROM knowledge_articles WHERE id = ?", [$articleId]);
+    $article = Database::fetch("SELECT id, title, author_id, status FROM knowledge_articles WHERE id = ?", [$articleId]);
     if (!$article) { json_response(['error' => 'Article not found'], 404); exit; }
 
     if ($action === 'delete') {
@@ -51,6 +52,7 @@ try {
         'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
     ]);
 
+    if ($article['status'] !== $newStatus) Activity::notifyUsers([(int)$article['author_id']], 'knowledge_review', 'Article '.$newStatus, $article['title'], $newStatus === 'published' ? '/knowledge/view?id='.$articleId : '/knowledge');
     json_response(['success' => true, 'status' => $newStatus]);
 } catch (Exception $e) {
     json_response(['error' => 'Failed to update article'], 500);

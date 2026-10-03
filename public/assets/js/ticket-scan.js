@@ -18,12 +18,13 @@ var TICKET_SCAN_LIBS = [
 
 // Labels that end the current field when OCR merges two printed columns into
 // one line (e.g. "Unit Reported: … Serial/CRTL No.: …").
-var TICKET_SCAN_STOP = '(?:contact\\s*person|contact\\s*nos?\\.?|address|company\\s*name|unit\\s*reported|serial|s\\s*\\/\\s*n|crtl|ctrl|request\\b|task\\s*description|action\\s*taken|replacement\\s*part|defective\\s*part|recommendation|status\\s*:|quick\\s*reminder|department|sched(?:uled)?\\s*(?:by|date)|assigned\\s*tech|warranty|charges|custref|part\\s*description)';
+var TICKET_SCAN_STOP = '(?:contact\\s*person|contact\\s*nos?\\.?|address|company\\s*name|unit\\s*reported|serial|s\\s*\\/\\s*n|crtl|ctrl|request\\b|task\\s*description|action\\s*taken|replacement\\s*part|defective\\s*part|recommendation|status\\s*:|quick\\s*reminder|department|sched(?:uled)?\\s*(?:by|date)|assigned\\s*tech|warranty|charges|custref|part\\s*description|customer\\s*request|instruction)';
 
 var ticketScanLibPromise = null;    // <script> loader for Tesseract.js
 var ticketScanWorkerPromise = null; // booting worker
 var ticketScanWorker = null;        // reused worker (booting it is slow)
 var ticketScanBusy = false;
+var ticketScanRevision = 0;
 var ticketScanPhoto = '';           // photo shown in the preview
 var ticketScanOcrPhoto = '';        // same photo, resized + contrast boosted
 var ticketScanRawText = '';         // raw OCR output (debug panel)
@@ -64,9 +65,11 @@ function ticketScanOpen() {
     openModal('ticket-scan-modal');
     ticketScanShowState('capture');
     ticketScanStartCamera();
+    ticketScanGetWorker().catch(function() {});
 }
 
 function ticketScanClose() {
+    ticketScanRevision++;
     ticketScanStopCamera();
     var modal = ticketScanEl('ticket-scan-modal');
     if (!modal) return;
@@ -77,10 +80,10 @@ function ticketScanClose() {
 }
 
 function ticketScanReset() {
+    ticketScanRevision++;
     ticketScanPhoto = '';
     ticketScanOcrPhoto = '';
     ticketScanRawText = '';
-    ticketScanBusy = false;
     ticketScanProgress(0, 'Starting the camera…');
     var img = ticketScanEl('ticket-scan-photo');
     if (img) img.removeAttribute('src');
@@ -205,6 +208,7 @@ function ticketScanFileChosen(input) {
 
 function ticketScanUsePhoto(dataUrl) {
     if (!dataUrl) return;
+    ticketScanRevision++;
     ticketScanStopCamera();
     ticketScanPhoto = dataUrl;
     ticketScanRawText = '';
@@ -279,12 +283,12 @@ function ticketScanGetWorker() {
 
 // Phone photos are big and often low on contrast: shrink them for speed and
 // stretch the levels so the printed lines come out black on white.
-function ticketScanPreparePhoto(dataUrl) {
+function ticketScanPreparePhoto(dataUrl, detailed) {
     return new Promise(function(resolve) {
         var img = new Image();
         img.onload = function() {
             try {
-                var maxSide = 2200;
+                var maxSide = detailed ? 2800 : 1800;
                 var scale = Math.min(1, maxSide / Math.max(img.width, img.height));
                 var w = Math.max(1, Math.round(img.width * scale));
                 var h = Math.max(1, Math.round(img.height * scale));
@@ -295,14 +299,26 @@ function ticketScanPreparePhoto(dataUrl) {
                 ctx.drawImage(img, 0, 0, w, h);
                 var imageData = ctx.getImageData(0, 0, w, h);
                 var px = imageData.data;
+                var histogram = new Uint32Array(256);
+                for (var sample = 0; sample < px.length; sample += 16) {
+                    histogram[Math.round(0.299 * px[sample] + 0.587 * px[sample + 1] + 0.114 * px[sample + 2])]++;
+                }
+                var total = Math.ceil(px.length / 16), cumulative = 0, low = 0, high = 255;
+                for (var level = 0; level < 256; level++) {
+                    cumulative += histogram[level];
+                    if (cumulative < total * 0.02) low = level;
+                    if (cumulative < total * 0.98) high = level;
+                }
+                var range = Math.max(64, high - low);
                 for (var i = 0; i < px.length; i += 4) {
                     var gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-                    var v = (gray - 62) * (255 / (232 - 62));
+                    var v = (gray - low) * (255 / range);
                     v = v < 0 ? 0 : (v > 255 ? 255 : v);
                     px[i] = px[i + 1] = px[i + 2] = v;
                 }
                 ctx.putImageData(imageData, 0, 0);
-                resolve(canvas.toDataURL('image/jpeg', 0.92));
+                // Keep the OCR pixels lossless; avoid another JPEG compression pass.
+                resolve(canvas);
             } catch (e) {
                 resolve(dataUrl);   // canvas blocked -> let OCR use the original photo
             }
@@ -312,23 +328,52 @@ function ticketScanPreparePhoto(dataUrl) {
     });
 }
 
+// The first pass uses the default page layout. When it cannot find the SD
+// number — the one field nothing else can replace, and the field that gets lost
+// first on a photo that is tilted or cropped at the edge — a second pass runs in
+// single-column mode (which tolerates that) and the two texts are merged. The
+// first result is never thrown away, so a failed second pass costs nothing.
+function ticketScanRecognize(worker, photo, original) {
+    return worker.setParameters({ tessedit_pageseg_mode: '3' }).then(function() {
+        return worker.recognize(photo);
+    }).then(function(result) {
+        var text = (result && result.data && result.data.text) || '';
+        var parsed = ticketScanParse(text);
+        if (ticketScanSdNumbers(text).length && parsed.read_count >= 5 && result.data.confidence >= 75) return result;
+        ticketScanProgress(60, 'Checking unclear details at higher resolution...');
+        return ticketScanPreparePhoto(original || ticketScanPhoto, true)
+            .then(function(detailed) {
+                return worker.setParameters({ tessedit_pageseg_mode: '6' }).then(function() { return worker.recognize(detailed); });
+            })
+            .then(function(second) {
+                var more = (second && second.data && second.data.text) || '';
+                if (!more) return result;
+                var firstScore = parsed.read_count + (ticketScanSdNumbers(text).length ? 2 : 0);
+                var secondScore = ticketScanParse(more).read_count + (ticketScanSdNumbers(more).length ? 2 : 0);
+                // Never concatenate conflicting IDs from independent readings.
+                return secondScore > firstScore || (secondScore === firstScore && second.data.confidence > result.data.confidence) ? second : result;
+            })
+            .catch(function() { return result; });
+    });
+}
+
 function ticketScanRead() {
     if (ticketScanBusy) return;
     if (!ticketScanPhoto) { showToast('Take or choose a photo of the work order first.', 'warning'); return; }
     ticketScanBusy = true;
+    var revision = ticketScanRevision;
+    var original = ticketScanPhoto;
     ticketScanShowState('reading');
     ticketScanProgress(2, 'Preparing the photo…');
-    ticketScanPreparePhoto(ticketScanPhoto)
-        .then(function(prepared) {
-            ticketScanOcrPhoto = prepared;
-            return ticketScanGetWorker();
-        })
-        .then(function(worker) {
+    Promise.all([ticketScanPreparePhoto(original), ticketScanGetWorker()])
+        .then(function(ready) {
+            ticketScanOcrPhoto = ready[0];
             ticketScanProgress(40, 'Reading the work order…');
-            return worker.recognize(ticketScanOcrPhoto);
+            return ticketScanRecognize(ready[1], ticketScanOcrPhoto, original);
         })
         .then(function(result) {
             ticketScanBusy = false;
+            if (revision !== ticketScanRevision) return;
             ticketScanRawText = (result && result.data && result.data.text) || '';
             var parsed = ticketScanParse(ticketScanRawText);
             ticketScanRenderResults(parsed);
@@ -336,11 +381,12 @@ function ticketScanRead() {
             if (parsed.read_count === 0) {
                 showToast('Nothing could be read from that photo — move closer, use better light, or type the details in manually.', 'warning');
             } else {
-                showToast('Work order scanned — check the detected fields before applying.', 'success');
+                showToast(result.data.confidence < 75 ? 'Some text is unclear. Verify ticket number and serial against the photo before applying.' : 'Work order read. Check the detected fields, then apply them to the form.', result.data.confidence < 75 ? 'warning' : 'info');
             }
         })
         .catch(function(err) {
             ticketScanBusy = false;
+            if (revision !== ticketScanRevision) return;
             ticketScanShowState('photo');
             if (err && err.message === 'Scanner unavailable') {
                 showToast('The scanner needs an internet connection the first time it runs. You can still type the details in manually.', 'error');
@@ -393,6 +439,13 @@ function ticketScanTidy(value, keepTail) {
     var v = String(value || '').replace(/\s{2,}/g, ' ').trim();
     v = v.replace(/^[|¦,;:._\-•·\s]+/, '').replace(/[|¦,;:_\-•·\s]+$/, '').trim();
     // Right-hand column noise often leaves a single letter at the end.
+    // Circled digits and other glyph junk OCR leaves behind the value
+    // ("Banco De Oro ②").
+    v = v.replace(/[\u2460-\u24FF\u2600-\u27BF\u00A9\u00AE\u2122\uFE0F\u20E3\uFFFD]/g, ' ')
+        .replace(/[\u200B-\u200F\u202A-\u202E]/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    v = ticketScanDropLabelTail(v);
     if (!keepTail) v = v.replace(/\s+[A-Za-z]$/, '');
     return v.trim();
 }
@@ -487,6 +540,7 @@ function ticketScanGuessDeviceType(unitText) {
         ['optiplex', 'Desktop'], ['thinkcentre', 'Desktop'], ['prodesk', 'Desktop'], ['elitedesk', 'Desktop'],
         ['printer', 'Printer'], ['laserjet', 'Printer'], ['deskjet', 'Printer'], ['ecotank', 'Printer'],
         ['scanner', 'Scanner'], ['monitor', 'Monitor'], ['display', 'Monitor'], ['projector', 'Projector'],
+        ['lfd', 'Monitor'], ['led panel', 'Monitor'], ['signage', 'Monitor'],
         ['ups', 'UPS'], ['avr', 'UPS'], ['server', 'Server'], ['poweredge', 'Server'], ['proliant', 'Server'],
         ['cctv', 'CCTV'], ['ip cam', 'CCTV'], ['nvr', 'CCTV'], ['dvr', 'CCTV'],
         ['router', 'Network'], ['switch', 'Network'], ['access point', 'Network'], ['firewall', 'Network'],
@@ -502,6 +556,158 @@ function ticketScanGuessDeviceType(unitText) {
     return '';
 }
 
+// A label can also be left half-read at the end of a merged line ("… Plaza
+// Drive, Customer" when the right column starts "Customer Request / …").
+var TICKET_SCAN_LABEL_WORDS = /^(?:customer|contact|unit|request|task|action|serial|part|parts|reported|address|charges|custref|department|status|assigned|warranty|note|recommendation|description|problem|person|ref|tech|no|nos|sched|scheduled)$/i;
+
+// The ticket number is the number printed next to SD (SD264613131 -> 264613131,
+// the form keeps "SD" as a fixed prefix). OCR slips in those digits (O for 0,
+// I/l for 1, S for 5) are mapped back and the topmost SD on the sheet wins — it
+// is always the first line of the page.
+var TICKET_SCAN_SD_RE = /\b[SD5][DO0][\s.:\-#]{0,3}([0-9OoIlQZBSGT|]{5,18})/gi;
+// Same, for a photo where OCR spaced the digits out ("SD 264 613 131"): the
+// strict pattern above is tried first so the loose one can never make it worse.
+var TICKET_SCAN_SD_SPACED_RE = /\b[SD5][DO0][\s.:\-#]{0,3}([0-9OoIlQZBSGT|][0-9OoIlQZBSGT|\s]{4,20})/gi;
+var TICKET_SCAN_OCR_DIGITS = { O: '0', Q: '0', D: '0', I: '1', L: '1', '|': '1', S: '5', B: '8', Z: '2', G: '6', T: '7' };
+
+function ticketScanSdDigits(raw, nextChar) {
+    var value = String(raw || '');
+    // OCR glues the next word's first letter onto the number ("1041036Request"
+    // or "264613131 Sched"): a trailing letter followed by a letter is that
+    // word, not a digit.
+    if (/[A-Za-z]/.test(String(nextChar || '')) && /[A-Za-z|]\s*$/.test(value)) {
+        value = value.replace(/[A-Za-z|]\s*$/, '');
+    }
+    value = value.replace(/\s+/g, '');
+    if ((value.match(/\d/g) || []).length < 5) return '';   // not a printed number
+    var digits = '';
+    for (var i = 0; i < value.length; i++) {
+        var ch = value.charAt(i).toUpperCase();
+        if (/\d/.test(ch)) digits += ch;
+        else if (TICKET_SCAN_OCR_DIGITS[ch]) digits += TICKET_SCAN_OCR_DIGITS[ch];
+        else return '';
+    }
+    if (digits.length < 6 || digits.length > 12) return '';
+    return digits;
+}
+
+function ticketScanSdMatches(text, pattern) {
+    var out = [], match;
+    var source = String(text || '');
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(source)) !== null) {
+        var digits = ticketScanSdDigits(match[1], source.charAt(match.index + match[0].length));
+        if (!digits || out.indexOf(digits) !== -1) continue;
+        out.push(digits);
+    }
+    return out;
+}
+
+function ticketScanSdNumbers(text) {
+    var strict = ticketScanSdMatches(text, TICKET_SCAN_SD_RE);
+    if (strict.length) return strict;
+    return ticketScanSdMatches(text, TICKET_SCAN_SD_SPACED_RE);
+}
+
+// When the "SD" itself is unreadable the number is still printed on the sheet,
+// so the long digit runs the scan did see are offered next to the field.
+function ticketScanNumberCandidates(text, exclude) {
+    var out = [];
+    var tokens = String(text || '').split(/[^0-9]+/);
+    for (var i = 0; i < tokens.length; i++) {
+        var token = tokens[i];
+        if (token.length < 6 || token.length > 12) continue;
+        if (exclude.indexOf(token) !== -1) continue;
+        if (/^0{2,}/.test(token)) continue;             // 00:00 timestamps
+        if (/^09\d{9}$/.test(token)) continue;          // mobile number (contact column)
+        if (/^(?:19|20)\d{6}$/.test(token)) continue;   // 20260926 date
+        if (out.indexOf(token) === -1) out.push(token);
+        if (out.length >= 3) break;
+    }
+    return out;
+}
+
+function ticketScanDropLabelTail(value) {
+    var words = String(value || '').trim().split(/\s+/);
+    while (words.length > 1) {
+        var last = words[words.length - 1].replace(/[^A-Za-z]/g, '');
+        if (!last || last.length > 12 || !TICKET_SCAN_LABEL_WORDS.test(last)) break;
+        words.pop();
+    }
+    return words.join(' ').trim();
+}
+
+// The right-hand column bleeds the contact row into the address
+// ("T 09178502783 …"): drop the phone numbers and their stray marker letters.
+function ticketScanStripPhones(value) {
+    return String(value || '')
+        .replace(/(^|\s)[T@©®]\s*(?=\d)/g, ' ')
+        .replace(/\+?\b\d{2,4}[\s\-.]?\d{3}[\s\-.]?\d{4}\b/g, ' ')
+        .replace(/\b(?:tel|telefax|fax|mobile|landline|contact\s*nos?)\b\.?\s*[:.]?/gi, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
+// OCR noise lines ("SESW [ls ws 1 PP) RA) 0 Rl 1") are not address text.
+function ticketScanLooksLikeJunk(line) {
+    var s = String(line || '').trim();
+    if (!s) return true;
+    if (/[[\]{}<>~^_=]/.test(s)) return true;
+    if (/[()]/.test(s) && !/\b(?:st|ave|cor|bldg|unit|rm|floor)\b/i.test(s)) return true;
+    return (s.split(/\s+/).filter(function(w) { return /[A-Za-z]{2,}/.test(w); }).length) < 1;
+}
+
+// Floors are misread as "GIF" / "G1F" / "G/F." — put the slash back.
+function ticketScanTidyAddress(value) {
+    var v = ticketScanStripPhones(value);
+    v = v.replace(/\b([GB])\s*(?:I|1|l|\||\/)\s*F(\.)?/gi, function(m, floor, dot) {
+        return floor.toUpperCase() + '/F' + (dot ? ',' : '');
+    });
+    v = v.replace(/\b([1-9])\s*(?:I|1|l|\||\/)\s*F\b/gi, function(m, floor) { return floor + '/F'; });
+    return ticketScanTidy(v, true);
+}
+
+// One line of the address block: cut at the next printed label, but keep the
+// comma that separated the left column from the right one.
+function ticketScanAddressPiece(raw) {
+    var text = String(raw || '');
+    var match = text.match(new RegExp('[\\s|¦,;]+' + TICKET_SCAN_STOP, 'i'));
+    if (match) {
+        var sep = match[0].replace(/[\s|¦]/g, '');
+        text = text.slice(0, match.index) + (sep.indexOf(',') !== -1 ? ',' : '');
+    }
+    return text.replace(/\s{2,}/g, ' ').replace(/^[\s:;•·|¦]+/, '').trim();
+}
+
+// The address is printed under its label (one or two lines) and the right-hand
+// column leaks into the same OCR line, so only text that still looks like an
+// address is collected.
+function ticketScanAddress(lines) {
+    var idx = -1, first = '';
+    for (var i = 0; i < lines.length; i++) {
+        var match = String(lines[i] || '').match(/^address\s*[:\-]?\s*/i);
+        if (!match) continue;
+        idx = i;
+        first = ticketScanAddressPiece(lines[i].slice(match[0].length));
+        break;
+    }
+    if (idx === -1) return '';
+
+    var parts = [];
+    var open = true;
+    if (first) { parts.push(first); open = /[,;]$/.test(first); }
+    for (var j = idx + 1; j < lines.length && parts.length < 3; j++) {
+        var raw = String(lines[j] || '').trim();
+        if (!raw || ticketScanIsStop(raw) || ticketScanLooksLikeJunk(raw)) break;
+        if (parts.length >= 2 && !open) break;   // the line above looked finished
+        var piece = ticketScanAddressPiece(raw);
+        if (!piece || !/[A-Za-z]{2,}/.test(piece)) break;
+        parts.push(piece);
+        open = /[,;]$/.test(piece);
+    }
+    return ticketScanTidyAddress(parts.join(' '));
+}
+
 // ==================== Work-order field extraction ====================
 function ticketScanParse(rawText) {
     var lines = ticketScanCleanLines(rawText);
@@ -514,8 +720,16 @@ function ticketScanParse(rawText) {
 
     // Work Order No. -> the ticket number ("SD1040842" -> "1040842", the form
     // keeps "SD" as a fixed prefix).
+    // The ticket number is the SD number printed at the top of the work order
+    // ("Order No.: SD1041040" / "Work Order No.: SD1041036"), so the topmost SD
+    // match wins. The label matches below are only a fallback for sheets that
+    // carry no SD number at all.
+    var sdNumbers = ticketScanSdNumbers(text);
+    if (sdNumbers.length) out.ticket_no = sdNumbers[0];
+    if (sdNumbers.length > 1) out.ticket_alt = sdNumbers[1];
+    if (!out.ticket_no) out.ticket_candidates = ticketScanNumberCandidates(text, sdNumbers);
     var wo = text.match(/(?:work\s*order|w\.?\s*o\.?|ticket|job)\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Za-z]{0,4}[\s\-]?\d{3,12})\b/i);
-    if (wo) {
+    if (wo && !out.ticket_no) {
         var digits = wo[1].match(/\d{3,12}/);
         out.ticket_no = digits ? digits[0] : '';
     }
@@ -532,7 +746,7 @@ function ticketScanParse(rawText) {
     out.company = ticketScanAfter(lines, /company\s*(?:name)?\s*[:\-]/i, { maxLines: 2 }).split('|')[0].trim();
 
     // Address (often printed on the line(s) under the label)
-    out.address = ticketScanAfter(lines, /address\s*[:\-]/i, { maxLines: 4 }).split('|')[0].trim();
+    out.address = ticketScanAddress(lines);
 
     // Unit Reported -> device / model (+ a device-type guess)
     out.unit = ticketScanAfter(lines, /unit\s*reported\s*[:\-]/i, { maxLines: 1, keepTail: true });
@@ -549,6 +763,12 @@ function ticketScanParse(rawText) {
     if (taskLines.length) {
         out.task = ticketScanTidy(taskLines[0], true).slice(0, 90);
         out.problem = taskLines.join(' ').replace(/\s{2,}/g, ' ').slice(0, 480).trim();
+    }
+
+    // "Unit Reported: Samsung ED40C" names no device by itself, but the task
+    // text usually does ("For dismantling of LFD") — use it as a second chance.
+    if (!out.device_type) {
+        out.device_type = ticketScanGuessDeviceType(out.unit + ' ' + out.task + ' ' + out.problem);
     }
 
     // Contact person (left column of the contact row)
@@ -688,7 +908,9 @@ function ticketScanRow(label, field, value, opts) {
         + '<label style="font-size:11.5px;font-weight:700;color:#374151;">' + escHtml(label) + (opts.required ? ' <span style="color:#dc2626;">*</span>' : '') + '</label>'
         + badge
         + '</div>' + input
-        + (opts.hint ? '<div style="font-size:10.5px;color:#94a3b8;margin-top:4px;">' + escHtml(opts.hint) + '</div>' : '')
+        + (opts.hintHtml
+            ? '<div style="font-size:10.5px;color:#94a3b8;margin-top:4px;">' + opts.hintHtml + '</div>'
+            : (opts.hint ? '<div style="font-size:10.5px;color:#94a3b8;margin-top:4px;">' + escHtml(opts.hint) + '</div>' : ''))
         + '</div>';
 }
 
@@ -701,7 +923,29 @@ function ticketScanRenderResults(parsed) {
     var deviceTypes = ticketScanDeviceTypes();
     if (data.device_type && deviceTypes.indexOf(data.device_type) === -1) deviceTypes.unshift(data.device_type);
     var html = '';
-    html += ticketScanRow('Ticket No. (Work Order No.)', 'ticket_no', data.ticket_no, { required: true, hint: 'SD is added automatically.' });
+    // When the sheet prints two SD numbers (an "Order No." line above the
+    // "Work Order No." row) the topmost one is filled in, and the other is
+    // offered here so it can be swapped with one tap.
+    var ticketHint = 'SD is added automatically.';
+    var ticketHintHtml = '';
+    if (data.ticket_alt && String(data.ticket_alt) !== String(data.ticket_no)) {
+        ticketHintHtml = 'SD is added automatically. Another SD number on this page: '
+            + '<button type="button" data-scan-use="' + escHtml(data.ticket_alt) + '" style="font:inherit;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:99px;padding:1px 8px;cursor:pointer;">SD'
+            + escHtml(data.ticket_alt) + '</button> — tap it if that is the ticket no.';
+    } else if (!data.ticket_no) {
+        // Nothing matched: say what the scan actually read, so it is obvious
+        // whether the sheet or the photo is at fault, and offer the numbers it
+        // did find (one tap fills the field).
+        var chips = (data.ticket_candidates || []).map(function(candidate) {
+            return '<button type="button" data-scan-use="' + escHtml(candidate) + '" style="font:inherit;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:99px;padding:1px 8px;cursor:pointer;">SD' + escHtml(candidate) + '</button>';
+        });
+        var hintBits = [];
+        if (chips.length) hintBits.push('Numbers read on this sheet: ' + chips.join(' '));
+        var firstLines = String(data.raw || '').split('\n').slice(0, 2).join(' / ').slice(0, 140);
+        if (firstLines) hintBits.push('What the scan read at the top: “' + escHtml(firstLines) + '” — if no SD number is in that text, retake the photo straight and close-up.');
+        ticketHintHtml = hintBits.join('<br>');
+    }
+    html += ticketScanRow('Ticket No. (Work Order No.)', 'ticket_no', data.ticket_no, { required: true, hint: ticketHint, hintHtml: ticketHintHtml });
     html += ticketScanRow('Company Name', 'company', data.company, { required: true, list: 'ticket-scan-company-list' });
     html += ticketScanRow('Device Type', 'device_type', data.device_type, { required: true, options: deviceTypes });
     html += ticketScanRow('Device / Model', 'model', data.model, {
@@ -720,6 +964,15 @@ function ticketScanRenderResults(parsed) {
     html += ticketScanDatalist('ticket-scan-task-list', ticketScanOptionValues('tt-task'));
     html += ticketScanDatalist('ticket-scan-model-list', ticketScanModelNames());
     wrap.innerHTML = html;
+    Array.prototype.forEach.call(wrap.querySelectorAll('[data-scan-use]'), function(btn) {
+        btn.addEventListener('click', function() {
+            var input = wrap.querySelector('[data-scan-field="ticket_no"]');
+            if (!input) return;
+            input.value = btn.getAttribute('data-scan-use') || '';
+            try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+            ticketScanRenderMissing();
+        });
+    });
     Array.prototype.forEach.call(wrap.querySelectorAll('[data-scan-field]'), function(el) {
         el.addEventListener('input', function() { ticketScanRenderMissing(); });
         el.addEventListener('change', function() { ticketScanRenderMissing(); });
@@ -748,6 +1001,28 @@ function ticketScanRenderMissing() {
     box.innerHTML = '<b>Not printed on the work order:</b> ' + escHtml(missing.join(', '))
         + ' — type or pick these on the ticket form as usual.';
     box.style.display = '';
+}
+
+// Copy the raw OCR text so a misread can be reported without retyping it.
+function ticketScanCopyRaw() {
+    var text = ticketScanRawText || '(nothing was read)';
+    function report(ok) {
+        showToast(ok
+            ? 'Scanned text copied — paste it into your message to support.'
+            : 'Copying is blocked here. Tap "Show / hide raw scanned text" and copy it by hand.',
+            ok ? 'success' : 'warning');
+    }
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function() {
+                report(true);
+            }, function() {
+                report(false);
+            });
+            return;
+        }
+    } catch (e) {}
+    report(false);
 }
 
 function ticketScanToggleRaw() {
@@ -891,7 +1166,9 @@ function ticketScanApply() {
     if (missing.length) {
         showToast('Work order scanned. Still to fill in: ' + missing.join(', ') + '.', 'warning');
     } else {
-        showToast('Work order scanned — the ticket form is filled. Check the values, then continue.', 'success');
+        // Deliberately NOT a green "success": the scan only fills the form —
+        // the ticket is not saved until Create Ticket is pressed on step 2.
+        showToast('Work order scanned — the form is filled in, but nothing is saved yet. Check the values, then tap Next and Create Ticket.', 'info');
     }
 }
 

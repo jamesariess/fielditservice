@@ -88,6 +88,8 @@ if ($method === 'POST' && $action === 'invite') {
                 'details' => json_encode(['full_name' => $name, 'email' => $email, 'role_id' => $roleId, 'department_id' => $deptId]),
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'created_at' => date('Y-m-d H:i:s')
             ]);
+            require_once APP_ROOT.'/includes/Activity.php';
+            Activity::notifyUsers([(int)$userId], 'account_updated', 'Your account was updated', 'An administrator updated your profile or access settings.', '/profile');
             json_response(['success' => true, 'message' => 'User updated']);
         } catch (Throwable $e) {
             error_log('Update user failed: ' . $e->getMessage());

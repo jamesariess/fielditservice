@@ -17,7 +17,7 @@ $currentUser = [
 $mainNav = [
     ['id' => 'dashboard', 'label' => 'Home', 'icon' => 'layout-dashboard', 'url' => '/'],
     ['id' => 'troubleshoot', 'label' => 'Fix', 'icon' => 'stethoscope', 'url' => '/troubleshoot'],
-    ['id' => 'ai', 'label' => 'AI', 'icon' => 'sparkles', 'url' => '/ai'],
+    ['id' => 'chat', 'label' => 'AI', 'icon' => 'sparkles', 'url' => '/team-messages?assistant=1'],
     ['id' => 'knowledge', 'label' => 'KB', 'icon' => 'book-open', 'url' => '/knowledge'],
     ['id' => 'tickets', 'label' => 'Tickets', 'icon' => 'ticket', 'url' => '/tickets'],
 ];
@@ -26,7 +26,6 @@ $sidebarItems = [
     ['section' => 'Main'],
     ['id' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'layout-dashboard', 'url' => '/'],
     ['id' => 'troubleshoot', 'label' => 'Troubleshoot', 'icon' => 'stethoscope', 'url' => '/troubleshoot'],
-    ['id' => 'ai', 'label' => 'IT Support AI', 'icon' => 'sparkles', 'url' => '/ai'],
     ['section' => 'Resources'],
     ['id' => 'knowledge', 'label' => 'Knowledge Base', 'icon' => 'book-open', 'url' => '/knowledge'],
     ['id' => 'equipment', 'label' => 'Equipment', 'icon' => 'package', 'url' => '/equipment'],
@@ -35,7 +34,7 @@ $sidebarItems = [
     ['section' => 'Work'],
     ['id' => 'tickets', 'label' => 'My Tickets', 'icon' => 'ticket', 'url' => '/tickets', 'badge' => '5'],
     ['id' => 'documentation', 'label' => 'Documentation', 'icon' => 'file-text', 'url' => '/documentation'],
-    ['id' => 'chat', 'label' => 'Team Chat', 'icon' => 'messages-square', 'url' => '/chat', 'badge' => '3'],
+    ['id' => 'chat', 'label' => 'Team Chat', 'icon' => 'messages-square', 'url' => '/team-messages', 'badge' => '3'],
     ['section' => 'Administration', 'perm' => 'users.manage'],
     ['id' => 'admin-users', 'label' => 'Users', 'icon' => 'users', 'url' => '/admin/users', 'perm' => 'users.manage'],
     ['id' => 'admin-roles', 'label' => 'Roles & Permissions', 'icon' => 'shield', 'url' => '/admin/roles', 'perm' => 'roles.manage'],
@@ -182,7 +181,7 @@ function layout_footer() {
                 <div class="sidebar-user-name"><?= e($currentUser['name']) ?></div>
                 <div class="sidebar-user-role"><?= e($currentUser['role']) ?></div>
             </div>
-            <a href="/logout" class="header-btn" data-tooltip="Logout" aria-label="Log out" title="Log out"><i data-lucide="log-out" style="width:16px;height:16px;"></i></a>
+            <a href="/logout" class="header-btn" data-tooltip="Logout" aria-label="Log out"><i data-lucide="log-out" style="width:16px;height:16px;"></i></a>
         </div>
     </aside>
     <div class="app-main">
@@ -199,7 +198,7 @@ function layout_footer() {
                     <i data-lucide="moon" style="width:18px;height:18px;" class="hidden dark:block"></i>
                 </button>
                 <button class="header-btn" data-tooltip="Notifications"><i data-lucide="bell" style="width:18px;height:18px;"></i><span class="dot"></span></button>
-                <a href="/logout" class="header-btn" data-tooltip="Log out" aria-label="Log out" title="Log out"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
+                <a href="/logout" class="header-btn" data-tooltip="Log out" aria-label="Log out"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
             </div>
         </header>
         <div class="page-content">

@@ -8,7 +8,7 @@
  * POST { action: 'answer_step', node_id, answer: 'worked'/'not_worked', step_history }
  *                       → Returns next step or final result
  */
-if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(dirname(__DIR__)))); }
+if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(__DIR__))); }
 require_once APP_ROOT . '/config/app.php';
 require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
@@ -16,6 +16,8 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Da
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
 Auth::requireLogin();
+require_once APP_ROOT.'/includes/DecisionFlow.php';
+require_once APP_ROOT.'/includes/TroubleshootingReport.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -38,16 +40,17 @@ if ($method === 'GET') {
 
     // Get device filter
     $device = $_GET['device'] ?? 'all';
-    $deviceFilter = ($device && $device !== 'all') ? " AND (device_type = 'all' OR device_type = '" . mysqli_real_escape_string(Database::$link, $device) . "')" : '';
+    $deviceFilter = ($device && $device !== 'all') ? " AND (device_type = 'all' OR device_type = ?)" : '';
+    $deviceParams = $deviceFilter ? [$issue['id'], $device] : [$issue['id']];
     
     // Get all questions (ordered by step_order) - filtered by device
     $questions = Database::fetchAll(
         "SELECT * FROM decision_nodes WHERE issue_id = ? AND node_type = 'question'{$deviceFilter} ORDER BY step_order ASC",
-        [$issue['id']]
+        $deviceParams
     );
 
     // Get all steps (for counting) - filtered by device
-    $totalSteps = Database::count('decision_nodes', 'issue_id = ? AND node_type = "step"' . $deviceFilter, [$issue['id']]);
+    $totalSteps = Database::count('decision_nodes', 'issue_id = ? AND node_type = "step"' . $deviceFilter, $deviceParams);
 
     // Create session
     $sessionId = Database::insert('troubleshooting_sessions', [
@@ -79,24 +82,30 @@ if ($method === 'POST') {
     if ($action === 'start') {
         $answers = $input['answers'] ?? []; // {q_id: 'yes'/'no'}
         
-        if (!$issueId || empty($answers)) {
+        if (!$issueId || !is_array($answers)) {
             json_response(['error' => 'issue_id and answers required'], 400); exit;
         }
 
         // Get device filter
         $device = $input['device'] ?? ($_GET['device'] ?? 'all');
-        $devFilter = ($device && $device !== 'all') ? " AND (device_type = 'all' OR device_type = '" . mysqli_real_escape_string(Database::$link, $device) . "')" : '';
+        $devFilter = ($device && $device !== 'all') ? " AND (device_type = 'all' OR device_type = ?)" : '';
+        $devParams = $devFilter ? [$issueId,$device] : [$issueId];
         
         // Get all questions to understand the flow - filtered by device
         $questions = Database::fetchAll(
             "SELECT * FROM decision_nodes WHERE issue_id = ? AND node_type = 'question'{$devFilter} ORDER BY step_order ASC",
-            [$issueId]
+            $devParams
         );
+        foreach ($questions as $question) {
+            if (!in_array($answers[$question['id']] ?? null, ['yes', 'no'], true)) {
+                json_response(['error'=>'Answer each diagnostic question before starting.'],400);
+            }
+        }
 
         // Get all steps for this issue - filtered by device
         $allSteps = Database::fetchAll(
             "SELECT * FROM decision_nodes WHERE issue_id = ? AND node_type = 'step'{$devFilter} ORDER BY step_order ASC",
-            [$issueId]
+            $devParams
         );
         
         // Filter steps based on visibility settings
@@ -131,7 +140,10 @@ if ($method === 'POST') {
             }
         }
         
-        $steps = $relevantSteps;
+        $steps = DecisionFlow::steps($allSteps, $answers);
+        $owned = Database::fetch('SELECT id FROM troubleshooting_sessions WHERE id=? AND user_id=? AND issue_id=?',[$sessionId,Auth::userId(),$issueId]);
+        if (!$owned) json_response(['error'=>'Troubleshooting session not found'],404);
+        $_SESSION['decision_plans'][$sessionId] = ['steps'=>$steps,'visited'=>[],'issue_id'=>$issueId];
         
         // Update session with question answers
         if ($sessionId) {
@@ -173,6 +185,11 @@ if ($method === 'POST') {
         
         $node = Database::fetch("SELECT * FROM decision_nodes WHERE id = ?", [$nodeId]);
         if (!$node) { json_response(['error' => 'Node not found'], 404); exit; }
+        $plan = $_SESSION['decision_plans'][$sessionId] ?? null;
+        if (!$plan || !Database::fetch('SELECT id FROM troubleshooting_sessions WHERE id=? AND user_id=?',[$sessionId,Auth::userId()])) json_response(['error'=>'Restart diagnostic questions to restore this session.'],409);
+        if (!in_array($nodeId,array_map('intval',array_column($plan['steps'],'id')),true)) json_response(['error'=>'Step is not part of your diagnostic path'],400);
+        if (in_array($nodeId,$plan['visited'],true)) json_response(['error'=>'This step has already been recorded'],409);
+        $_SESSION['decision_plans'][$sessionId]['visited'][]=$nodeId;
         
         // Record this step completion
         if ($sessionId) {
@@ -187,52 +204,15 @@ if ($method === 'POST') {
             } catch (Exception $e) {}
         }
         
-        // If worked and terminal → SOLVED
-        if ($answer === 'worked' && $node['is_terminal']) {
-            try { if ($sessionId) updateSession($sessionId, $stepHistory, $answer, $node); } catch (Exception $e) {}
-            json_response(buildResult($node, $stepHistory, $sessionId));
-            exit;
+        if ($answer === 'not_worked') {
+            $next=DecisionFlow::next($plan['steps'],$node,$plan['visited']);
+            if ($next) json_response(['phase'=>'step','node'=>$next,'previous_worked'=>false,'previous_step'=>$node['question']]);
+            $result=['result_type'=>'escalation','question'=>'Further diagnosis required','description'=>'All applicable checks in this diagnostic path were unsuccessful. Record the test results and arrange model-specific diagnostics or an authorized hardware assessment.','result_solution'=>'Do not repeat failed checks. Attach the session report for the next technician.'];
+        } else {
+            $result=['result_type'=>'solved','question'=>'Issue resolved','description'=>'Verify the original symptom is gone during normal use.','result_solution'=>$node['question']];
         }
-        
-        // If worked and has yes_next → go to next step
-        if ($answer === 'worked' && $node['yes_next']) {
-            $nextNode = Database::fetch("SELECT * FROM decision_nodes WHERE id = ?", [$node['yes_next']]);
-            if ($nextNode && $nextNode['node_type'] === 'step') {
-                json_response([
-                    'phase' => 'step',
-                    'node' => $nextNode,
-                    'previous_worked' => true,
-                    'previous_step' => $node['question'],
-                ]);
-                exit;
-            }
-        }
-        
-        // If not worked and has no_next → go to next step
-        if ($answer === 'not_worked' && $node['no_next']) {
-            $nextNode = Database::fetch("SELECT * FROM decision_nodes WHERE id = ?", [$node['no_next']]);
-            if ($nextNode && $nextNode['node_type'] === 'step') {
-                json_response([
-                    'phase' => 'step',
-                    'node' => $nextNode,
-                    'previous_worked' => false,
-                    'previous_step' => $node['question'],
-                ]);
-                exit;
-            }
-        }
-        
-        // Terminal or no more steps → RESULT
-        if ($node['is_terminal'] || (!$node['yes_next'] && !$node['no_next'])) {
-            try { if ($sessionId) updateSession($sessionId, $stepHistory, $answer, $node); } catch (Exception $e) {}
-            json_response(buildResult($node, $stepHistory, $sessionId));
-            exit;
-        }
-        
-        // Fallback → RESULT
-        try { if ($sessionId) updateSession($sessionId, $stepHistory, $answer, $node); } catch (Exception $e) {}
-        json_response(buildResult($node, $stepHistory, $sessionId));
-        exit;
+        json_response(buildResult($result,$stepHistory,$sessionId));
+
     }
 
     json_response(['error' => 'Unknown action'], 400);
@@ -273,6 +253,12 @@ function collectStepChain($startId, $issueId) {
 
 function buildResult($node, $stepHistory, $sessionId) {
     $resultType = $node['result_type'] ?? 'escalation';
+    $performed = array_values(array_filter($stepHistory, function($s) { return ($s['type'] ?? '') === 'step'; }));
+    $last = $performed ? $performed[count($performed) - 1] : null;
+    if (($last['answer'] ?? '') === 'worked') {
+        $resultType = 'solved';
+        $node['result_type'] = 'solved';
+    }
     
     // Build report
     $report = "TROUBLESHOOTING REPORT\n";
@@ -318,7 +304,8 @@ function buildResult($node, $stepHistory, $sessionId) {
         'message' => $node['question'] ?? 'Complete',
         'solution' => $node['result_solution'] ?? '',
         'detail' => $node['description'] ?? '',
-        'report' => $report,
+        'report' => TroubleshootingReport::actions($stepHistory),
+        'full_report' => $report,
         'steps_completed' => count($stepsDone),
         'session_id' => $sessionId,
     ];

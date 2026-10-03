@@ -62,7 +62,8 @@ $_SESSION['ai_requests'][] = $now;
 $input = json_decode(file_get_contents('php://input'), true);
 $message = trim($input['message'] ?? '');
 $sessionId = $input['session_id'] ?? 'session_' . $userId . '_' . date('Ymd');
-$conversationHistory = $input['history'] ?? [];
+$postedHistory = is_array($input['history'] ?? null) ? $input['history'] : [];
+$conversationHistory = $postedHistory;
 if (empty($message)) { json_response(['error' => 'Message required'], 400); exit; }
 
 $message = strip_tags(substr($message, 0, 2000));
@@ -72,7 +73,9 @@ $lowerMsg = strtolower($message);
 $blocked = ['ignore previous', 'system prompt', 'reveal', 'api key', 'password', 'ignore all', 'you are now'];
 foreach ($blocked as $p) { if (stripos($lowerMsg, $p) !== false) { json_response(['response' => "I can only assist with IT troubleshooting. What's going on with your device?", 'confidence' => 'low', 'session_id' => $sessionId, 'quota' => $quota]); exit; } }
 
-// Always load conversation history from DB for context
+// Load conversation history from DB, then merge the browser's fresh context.
+// The browser may contain turns that are not in the DB yet, especially when the
+// user says "still not working" immediately after a bot step.
 $conversationHistory = [];
 if (!(defined('DEMO_MODE') && DEMO_MODE)) {
     try {
@@ -83,17 +86,20 @@ if (!(defined('DEMO_MODE') && DEMO_MODE)) {
         }
     } catch (Exception $e) {}
 }
+$conversationHistory = mergeAiHistory($conversationHistory, $postedHistory);
 $preCtx = buildConversationContext($conversationHistory);
 
 // ===== CHECK CONVERSATIONAL PATTERNS FIRST (before database search) =====
 $conversationalReply = checkConversationalPatterns($lowerMsg, $message, $preCtx);
 if ($conversationalReply !== null) {
     // Try Groq first so small-talk gets natural, smart replies; template is only a fallback
-    $groqReply = tryGroqChat($message, $conversationHistory);
+    $groqReply = isFailedStepFollowup($lowerMsg) ? false : tryGroqChat($message, $conversationHistory);
     if ($groqReply !== false) {
+        persistAiConversation($sessionId, $userId, $message, $groqReply, ['AI Assistant'], 'high');
         json_response(['response' => $groqReply, 'confidence' => 'high', 'sources' => ['AI Assistant'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot', 'quota' => $quota]);
         exit;
     }
+    persistAiConversation($sessionId, $userId, $message, $conversationalReply, ['IT Bot'], 'high');
     json_response(['response' => $conversationalReply, 'confidence' => 'high', 'sources' => ['IT Bot'], 'session_id' => $sessionId, 'bot_name' => 'IT Bot', 'quota' => $quota]);
     exit;
 }
@@ -236,6 +242,39 @@ function detectCategory($msg) {
         }
     }
     return null;
+}
+
+function mergeAiHistory(array $dbHistory, array $postedHistory): array {
+    $merged = [];
+    $seen = [];
+    foreach (array_merge($dbHistory, $postedHistory) as $msg) {
+        $role = strtolower((string)($msg['role'] ?? ''));
+        $content = trim((string)($msg['content'] ?? ''));
+        if (!in_array($role, ['user', 'assistant'], true) || $content === '') continue;
+        $key = $role . '|' . substr($content, 0, 500);
+        if (isset($seen[$key])) continue;
+        $seen[$key] = true;
+        $merged[] = ['role' => $role, 'content' => $content];
+    }
+    return array_slice($merged, -14);
+}
+
+function isFailedStepFollowup($lowerMsg): bool {
+    return (bool)preg_match('/\b(still\s+not\s+work(?:ing)?|not\s+working|didn\'?t\s+work|did\s+not\s+work|same\s+issue|no\s+change|didn\'?t\s+fix|did\s+not\s+fix|not\s+helpful|failed)\b/i', $lowerMsg);
+}
+
+function persistAiConversation($sessionId, $userId, $message, $response, array $sources, $confidence) {
+    if (defined('DEMO_MODE') && DEMO_MODE) return;
+    try {
+        AIDatabase::insert('ai_conversation_logs', [
+            'session_id' => $sessionId,
+            'user_id' => $userId,
+            'message' => $message,
+            'response' => $response,
+            'sources_used' => implode(',', $sources),
+            'confidence' => $confidence
+        ]);
+    } catch (Exception $e) {}
 }
 
 function extractKeywords($msg) {
@@ -456,6 +495,17 @@ function buildConversationalResponse($query, $category, $botName, $context, $his
             $device = 'your computer';
             if (strpos($q, 'laptop') !== false) $device = 'your laptop';
             if (strpos($q, 'desktop') !== false || strpos($q, 'pc') !== false) $device = 'your desktop';
+
+            if (preg_match('/(auto|automatic|automatically|random|itself).*(shutdown|restart|reboot)|(?:shutdown|restart|reboot).*(own|itself|automatic|random)/i', $q)) {
+                return "That symptom is **not a simple no-power case**. If the unit automatically shuts down and restarts on its own, treat it as an **intermittent power/thermal/board fault**.\n\n" .
+                    "Since you are Lenovo field IT and authorized to replace parts, move past the basic cable checks and isolate hardware:\n\n" .
+                    "1. **Check thermals first** — confirm fan spin, heatsink seating, dust blockage, and CPU/GPU temperature in BIOS/diagnostics if it stays on long enough.\n" .
+                    "2. **Run Lenovo diagnostics** from BIOS/UEFI or Lenovo tools. Note any motherboard, memory, storage, fan, or thermal codes.\n" .
+                    "3. **Reseat and isolate RAM** — test one known-good RAM stick at a time. If restart persists with known-good RAM, stop blaming memory.\n" .
+                    "4. **Test with known-good PSU/adapter**. For desktop, swap PSU. For laptop, test known-good Lenovo adapter and battery path.\n" .
+                    "5. If it still auto-restarts after known-good power and RAM, suspect **system board / VRM / thermal sensor / CPU-GPU fault**. For authorized service, prepare board-level replacement or FRU escalation.\n\n" .
+                    "Tell me the exact Lenovo model and whether it restarts **before BIOS**, **inside BIOS**, or only **inside Windows**. That decides whether we chase OS/driver or replace hardware.";
+            }
 
             $noPowerReplies = [
                 "Won't turn on? That's frustrating. Let's figure this out together.\n\n" .
@@ -689,9 +739,12 @@ function checkConversationalPatterns($lowerMsg, $originalMsg, $ctx = null) {
         }
     }
 
-    $noPatterns = ['^no$', '^nope', '^n$', 'didnt work', 'did not work', 'still broken', 'still not working', 'same issue', 'no change', 'did not fix', 'didnt fix'];
+    $noPatterns = ['^no$', '^nope', '^n$', 'didnt work', 'did not work', 'not working', 'still broken', 'still not working', 'still not work', 'same issue', 'no change', 'did not fix', 'didnt fix', 'not helpful', 'failed'];
     foreach ($noPatterns as $np) {
         if (preg_match('/' . $np . '/i', trim($lowerMsg))) {
+            if ($ctx && (!empty($ctx['topic']) || !empty($ctx['last_step']))) {
+                return buildFailedStepResponse($originalMsg, $ctx);
+            }
             if ($ctx && !empty($ctx['last_step'])) {
                 return pickRandom([
                     "Okay, **{$ctx['last_step']}** didn't do it. Let's try the next approach. Can you tell me what happened when you tried it?",
@@ -751,6 +804,50 @@ function checkConversationalPatterns($lowerMsg, $originalMsg, $ctx = null) {
     return null;
 }
 
+function buildFailedStepResponse($message, $ctx) {
+    $topic = $ctx['topic'] ?: detectCategory(strtolower($message));
+    $lastStep = trim((string)($ctx['last_step'] ?? 'that step'));
+    $tried = $ctx['steps_tried'] ?? [];
+    $intro = $lastStep && $lastStep !== 'that step'
+        ? "Got it — **{$lastStep}** did not fix it, so I will not send you back to that same step."
+        : "Got it — that step did not fix it, so let's move forward instead of repeating it.";
+
+    if ($topic === 'display') {
+        return $intro . "\n\n" .
+            "Since you are Lenovo field IT and authorized for hardware replacement, use the next isolation path:\n\n" .
+            "1. **Known-good monitor and cable** only once. If already tested, skip it.\n" .
+            "2. **Reseat RAM and test one DIMM at a time**. No display after known-good RAM points away from simple memory seating.\n" .
+            "3. **Remove discrete GPU and test onboard video** if the model supports it. If onboard works, replace GPU. If onboard also fails, suspect board/CPU path.\n" .
+            "4. **Check POST indicators/beep codes/Lenovo diagnostics**. Record the exact code before replacing parts.\n" .
+            "5. If power is stable but no POST/no video after known-good RAM/display path, prepare **system board replacement**. If display works externally on a laptop but internal LCD is blank, isolate **LCD cable/panel** first.\n\n" .
+            "Tell me the Lenovo model and whether it has **fans/lights**, **POST beep/code**, and whether **external display** works.";
+    }
+
+    if ($topic === 'power') {
+        return $intro . "\n\n" .
+            "At this point, stop repeating outlet/cable checks. Treat it as hardware isolation:\n\n" .
+            "1. **Known-good adapter/PSU**. If the issue follows the unit, continue.\n" .
+            "2. **Minimal boot**: board + CPU + one RAM + display only. Remove storage, extra cards, USB devices.\n" .
+            "3. If it **auto shuts down/restarts**, check **fan/heatsink/thermal sensor** and run Lenovo diagnostics if possible.\n" .
+            "4. Swap **known-good RAM**. If unchanged, suspect board power rail/VRM.\n" .
+            "5. For authorized Lenovo service, replace the likely FRU: **PSU/adapter first if unstable**, otherwise **system board** when known-good power/RAM still fails.\n\n" .
+            "Important: does it restart **before Lenovo logo**, **in BIOS**, or only after Windows loads?";
+    }
+
+    if ($topic === 'network') {
+        return $intro . "\n\n" .
+            "Next path: stop resetting the same adapter. Check whether this is **hardware NIC/WiFi**, **driver**, or **network side**:\n\n" .
+            "1. Test with a known-good cable/port or hotspot.\n" .
+            "2. Check Device Manager for warning icons and driver version.\n" .
+            "3. Boot to BIOS/diagnostics or WinPE if available. If the adapter fails outside Windows, replace the WLAN/NIC module or board path.\n" .
+            "4. If it works outside Windows, reinstall Lenovo network driver package and reset TCP/IP.\n\n" .
+            "Tell me if Ethernet/WiFi is failing and whether Device Manager detects the adapter.";
+    }
+
+    return $intro . "\n\n" .
+        "Give me the exact symptom after the failed step and I will continue from there, not from the beginning. For Lenovo field service, include model, lights/fans/beep code, and whether the issue happens in BIOS or only in Windows.";
+}
+
 // ===== BUILD CONVERSATION CONTEXT =====
 function buildConversationContext($history) {
     $ctx = [
@@ -780,10 +877,13 @@ function buildConversationContext($history) {
         } else {
             $allBotText .= ' ' . $textLower;
             $steps = [];
-            if (preg_match_all('/(?:try|check|run|open|type|restart|click|unplug|reseat|test|swap|plug)\s+(.{10,80})/i', $text, $m)) {
+            if (preg_match_all('/(?:try|check|run|open|type|restart|click|unplug|reseat|test|swap|plug|replace|remove)\s+(.{10,100})/i', $text, $m)) {
                 $steps = $m[0];
             }
-            if (!empty($steps)) $ctx['last_step'] = end($steps);
+            if (!empty($steps)) {
+                $ctx['last_step'] = end($steps);
+                foreach ($steps as $step) $ctx['steps_tried'][] = trim($step);
+            }
             $lines = explode("\n", $text);
             foreach (array_reverse($lines) as $line) {
                 $line = trim($line);

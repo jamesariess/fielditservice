@@ -44,6 +44,37 @@ var APP_BASE = (function() {
     };
 })();
 
+// ==================== Missing-file reporter ====================
+// A bare "Failed to load resource: 404" in the console never says WHICH file
+// is missing, which makes shared-hosting problems hard to pin down. Record the
+// full URL of every first-party resource the browser cannot fetch and log it
+// with a readable prefix. Read the list any time with:
+//     fielditMissingResources
+(function() {
+    window.fielditMissingResources = window.fielditMissingResources || [];
+    var seen = {};
+    function note(url, kind) {
+        if (!url) return;
+        try {
+            var resolved = new URL(url, window.location.href);
+            if (resolved.origin !== window.location.origin) return; // CDN/third party
+            url = resolved.href;
+        } catch (e) { /* keep the raw value */ }
+        if (seen[url]) return;
+        seen[url] = true;
+        window.fielditMissingResources.push(url);
+        console.warn('[Field IT] missing ' + (kind || 'file') + ' - the server returned 404 for: ' + url +
+            '\nThis file was not uploaded (or the path is wrong on this host).');
+    }
+    // Capture phase is required: resource load errors do not bubble.
+    window.addEventListener('error', function(event) {
+        var target = event && event.target;
+        if (!target || target === window) return;
+        if (target.tagName === 'SCRIPT' || target.tagName === 'LINK') note(target.src || target.href, target.tagName.toLowerCase());
+        else if (target.tagName === 'IMG') note(target.currentSrc || target.src, 'image');
+    }, true);
+})();
+
 // ==================== Page Load Progress Bar ====================
 // Slim gradient bar at the very top of every page: animates while loading,
 // completes and fades out when the page is ready.
@@ -167,6 +198,7 @@ function toggleNotifications(e) {
     var dd = document.getElementById('notif-dropdown');
     if (!dd) return;
     dd.classList.toggle('open');
+    if (dd.classList.contains('open')) loadNotifications();
 }
 function closeNotifications() {
     var dd = document.getElementById('notif-dropdown');
@@ -174,30 +206,43 @@ function closeNotifications() {
 }
 function markAllNotificationsRead(e) {
     if (e) e.stopPropagation();
-    // Visually mark every item as read + hide the bell dot immediately
-    document.querySelectorAll('#notif-list .notif-dot-unread').forEach(function(d) {
+    api('/api/notifications', { method: 'PUT', body: { all: true } }).then(function() {
+    document.querySelectorAll('.notif-dot-unread').forEach(function(d) {
         d.classList.remove('notif-dot-unread');
         d.classList.add('notif-dot-read');
     });
     var dot = document.getElementById('notif-dot');
     if (dot) dot.style.display = 'none';
-    // Persist to the server (best effort, never blocks the UI)
-    try {
-        api('/api/notifications', { method: 'PUT', body: { all: true } }).catch(function() {});
-    } catch (err) {}
+    loadNotifications();
+    }).catch(function(err) { showToast(err.message || 'Could not mark notifications read.', 'error'); });
 }
+function notificationUrl(value) {
+    var base = new URL(APP_BASE, location.origin);
+    if (!value) return base.href + 'notifications';
+    var target = value.charAt(0) === '/' && value.indexOf('//') !== 0 && value.indexOf(base.pathname) !== 0 ? new URL(base.href + value.replace(/^\/+/, '')) : new URL(value, base);
+    return target.origin === base.origin && target.pathname.indexOf(base.pathname) === 0 ? target.href : base.href + 'notifications';
+}
+function openNotification(button) {
+    api('/api/notifications', {method:'PUT',body:{id:Number(button.dataset.notificationId)}}).then(function() {
+        location.href = notificationUrl(button.dataset.notificationUrl || '');
+    }).catch(function(err) { showToast(err.message || 'Could not open notification.', 'error'); });
+}
+var notificationsLoading = false;
 function loadNotifications() {
     var list = document.getElementById('notif-list');
-    if (!list) return;
+    if (!list || notificationsLoading) return;
+    notificationsLoading = true;
     api('/api/notifications').then(function(data) {
         var items = data.notifications || data;
+        var dot = document.getElementById('notif-dot');
+        if (dot) { dot.style.display = Number(data.unread_count) > 0 ? '' : 'none'; dot.classList.toggle('animate-pulse', Number(data.unread_count) > 0); }
         if (!items || !items.length) {
             list.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">No notifications yet</div>';
             return;
         }
         var html = '';
         items.forEach(function(n) {
-            var readClass = n.is_read ? 'notif-dot-read' : 'notif-dot-unread';
+            var readClass = Number(n.is_read) ? 'notif-dot-read' : 'notif-dot-unread';
             var time = '';
             if (n.created_at) {
                 var diff = (Date.now() - new Date(n.created_at).getTime()) / 1000;
@@ -206,19 +251,19 @@ function loadNotifications() {
                 else if (diff < 86400) time = Math.floor(diff/3600) + 'h ago';
                 else time = Math.floor(diff/86400) + 'd ago';
             }
-            html += '<div class="notif-item">' +
+            html += '<button type="button" class="notif-item" style="width:100%;text-align:left;" data-notification-id="' + Number(n.id) + '" data-notification-url="' + ttEsc(n.url || '') + '" onclick="openNotification(this)">' +
                 '<div class="' + readClass + '"></div>' +
                 '<div style="flex:1;min-width:0;">' +
-                    '<div style="font-size:13px;font-weight:600;color:#111827;">' + (n.title || 'Notification') + '</div>' +
-                    '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">' + (n.message || '') + '</div>' +
+                    '<div style="font-size:13px;font-weight:600;color:#111827;">' + ttEsc(n.title || 'Notification') + '</div>' +
+                    '<div style="font-size:12px;color:#64748b;margin-top:2px;overflow-wrap:anywhere;">' + ttEsc(n.message || '') + '</div>' +
                     '<div style="font-size:11px;color:#cbd5e1;margin-top:4px;">' + time + '</div>' +
                 '</div>' +
-            '</div>';
+            '</button>';
         });
         list.innerHTML = html;
         var dot = document.getElementById('notif-dot');
         if (dot) {
-            var unread = items.filter(function(n) { return !n.is_read; }).length;
+            var unread = Number(data.unread_count);
             dot.style.display = unread > 0 ? '' : 'none';
             // Pulse the dot if there are new notifications
             if (unread > 0) {
@@ -228,12 +273,12 @@ function loadNotifications() {
             }
         }
     }).catch(function() {
-        list.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">No notifications</div>';
-    });
+        list.innerHTML = '<div style="padding:24px;text-align:center;color:#64748b;font-size:13px;">Could not load notifications. Try opening the bell again.</div>';
+    }).finally(function() { notificationsLoading = false; });
 }
 
 // Start periodic notification updates (every 2 minutes)
-setInterval(loadNotifications, 2 * 60 * 1000);
+setInterval(function() { if (!document.hidden) loadNotifications(); }, 30000);
 // Close the dropdown when clicking anywhere outside it (or the bell button)
 document.addEventListener('click', function(e) {
     var dd = document.getElementById('notif-dropdown');
@@ -296,8 +341,18 @@ function api(endpoint, options) {
             }
             if (!response.ok) {
                 if (response.status === 401) {
+                    // Send the user to the login page AND reject. Resolving here
+                    // used to hand callers `undefined`, which surfaced as confusing
+                    // "Cannot read properties of undefined" errors mid-form.
                     window.location.href = APP_BASE + 'login';
-                    return;
+                    throw new Error('Your session expired. Please sign in again.');
+                }
+                if (response.status === 404) {
+                    // Name the endpoint: a bare console 404 gives no clue which
+                    // call failed. Usually a file the host does not have yet.
+                    console.warn('[Field IT] API endpoint not found (404): ' + endpoint +
+                        '\nThe matching file is missing on the server. Re-upload the api/ folder.');
+                    if (window.fielditMissingResources) window.fielditMissingResources.push(endpoint);
                 }
                 throw new Error((data && data.error) || 'Request failed');
             }
@@ -364,6 +419,27 @@ function performSearch(query) {
 }
 
 // ==================== Modal System ====================
+/**
+ * Show a modal panel, using the layout the current width needs.
+ *
+ * On a phone a sheet is a flex column whose inner body scrolls (see the
+ * .ftd-modal / .modal-panel rules in app.css). Handing such a panel a plain
+ * display:block makes its body grow to the whole content height, so nothing is
+ * left to scroll and the panel clips the rest - the sheet looks frozen. Use
+ * this instead of setting display by hand.
+ */
+function ftShowModal(el) {
+    if (typeof el === 'string') el = document.getElementById(el);
+    if (!el) return null;
+    el.style.display = window.matchMedia('(max-width: 767px)').matches ? 'flex' : 'block';
+    return el;
+}
+/** Hide a modal panel again (see ftShowModal). */
+function ftHideModal(el) {
+    if (typeof el === 'string') el = document.getElementById(el);
+    if (el) el.style.display = 'none';
+    return el;
+}
 function openModal(id) {
     var m = document.getElementById(id);
     if (m) {
@@ -522,6 +598,19 @@ function kbRateArticle(rating) {
 }
 
 // ==================== Ticket Filters / Search / Sort ====================
+// Statuses that own a filter chip of their own. Anything else a ticket can be
+// in (unsolved, cancelled, legacy rows) is reachable through the "Unsolved /
+// Cancelled" chip, so no ticket is ever invisible behind the filter row.
+var TICKET_KNOWN_STATUSES = ['new', 'in_progress', 'solved', 'partial', 'escalated'];
+
+function ticketCardMatchesFilter(card, filter) {
+    if (!filter || filter === 'all') return true;
+    var filterStatus = card.dataset.filterStatus || card.dataset.status || '';
+    var status = card.dataset.status || '';
+    if (filter === 'other') return filterStatus === 'other' || TICKET_KNOWN_STATUSES.indexOf(status) === -1;
+    return filterStatus === filter;
+}
+
 function filterTickets(status) { ticketFilter(status); }
 function ticketFilter(status) {
     window.ticketActiveFilter = status;
@@ -529,6 +618,22 @@ function ticketFilter(status) {
         btn.classList.toggle('active', btn.dataset.filter === status);
     });
     ticketApplyFilters();
+}
+
+// On a phone the filter row is a horizontal scroller, so the chip that is
+// actually selected can sit off-screen. Bring it back into view.
+function ticketScrollActiveFilterIntoView() {
+    var row = document.querySelector('.tickets-filter-row');
+    if (!row) return;
+    if (row.scrollWidth <= row.clientWidth + 4) return;
+    var active = row.querySelector('.filter-btn.active');
+    if (!active) return;
+    var target = active.offsetLeft - (row.clientWidth - active.offsetWidth) / 2;
+    if (typeof row.scrollTo === 'function') {
+        row.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+    } else {
+        row.scrollLeft = Math.max(0, target);
+    }
 }
 
 // Combined filter (status chips) + search + sort over the ticket card grid.
@@ -542,7 +647,7 @@ function ticketApplyFilters() {
     var sort = sortEl ? sortEl.value : 'newest';
     var cards = Array.prototype.slice.call(grid.querySelectorAll('.ft-ticket-card'));
     cards.forEach(function(card) {
-        var okFilter = card.dataset.status === filter;
+        var okFilter = ticketCardMatchesFilter(card, filter);
         var okSearch = !q || (card.dataset.search || '').indexOf(q) !== -1;
         card.style.display = (okFilter && okSearch) ? '' : 'none';
     });
@@ -569,25 +674,31 @@ function ticketApplyFilters() {
     }
     if (window.ticketTravelLoaded) ticketMarkFirstStop();
     if (typeof window.ticketWorkspaceSync === 'function') window.ticketWorkspaceSync();
+    ticketScrollActiveFilterIntoView();
 }
 
+// Clearing the filters should reveal the most, not the least: land on "All" so
+// the ticket someone just created can never stay hidden behind an empty chip.
 function ticketClearFilters() {
     var searchEl = document.getElementById('ticket-search');
     if (searchEl) searchEl.value = '';
-    window.ticketActiveFilter = ticketDefaultFilter();
-    document.querySelectorAll('.filter-btn').forEach(function(btn) {
-        btn.classList.toggle('active', btn.dataset.filter === window.ticketActiveFilter);
-    });
-    ticketApplyFilters();
+    ticketFilter('all');
 }
 
+// What to show before the technician taps anything. Prefer the status that
+// actually has work in it; if the queue holds none of the chip statuses, fall
+// back to "all" instead of rendering a convincingly empty ticket list.
 function ticketDefaultFilter() {
     var grid = document.getElementById('tickets-grid');
     if (!grid) return 'new';
-    if (grid.querySelector('.ft-ticket-card[data-status="new"]')) return 'new';
-    if (grid.querySelector('.ft-ticket-card[data-status="in_progress"]')) return 'in_progress';
-    if (grid.querySelector('.ft-ticket-card[data-status="escalated"]')) return 'escalated';
-    return 'new';
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.ft-ticket-card'));
+    if (!cards.length) return 'new';
+    if (grid.querySelector('.ft-ticket-card[data-filter-status="new"]')) return 'new';
+    if (grid.querySelector('.ft-ticket-card[data-filter-status="in_progress"]')) return 'in_progress';
+    if (grid.querySelector('.ft-ticket-card[data-filter-status="other"]')) return 'other';
+    if (grid.querySelector('.ft-ticket-card[data-filter-status="escalated"]')) return 'escalated';
+    if (grid.querySelector('.ft-ticket-card[data-filter-status="partial"]')) return 'partial';
+    return 'all';
 }
 
 function ticketInitDefaultFilter() {
@@ -2256,7 +2367,9 @@ function ticketSubmitTimeIn() {
     }
     api('/api/tickets/timein', { method: 'POST', body: body }).then(function(res) {
         if (res.success) {
-            showToast('Ticket ' + res.ticket_number + ' created — time in at ' + res.time_in, 'success');
+            // started_at stays NULL until the technician starts the timer, so only
+            // mention a time when the server actually sent one.
+            showToast('Ticket ' + res.ticket_number + ' created' + (res.time_in ? ' — time in at ' + res.time_in : '') + '.', 'success');
             closeModal('new-ticket-modal');
             ticketReloadPreservingState(1200);
         } else {
@@ -2354,7 +2467,7 @@ function openTicketDrawer(ticketId) {
     h += '<div class="ft-co-ico"><i data-lucide="building-2"></i></div>';
     h += '<div style="min-width:0;">';
     h += '<div id="ticket-drawer-title" style="font-size:17px;font-weight:800;color:#111827;word-break:break-word;">' + ttEsc(S.company_name || 'Company not specified') + '</div>';
-    h += '<div style="font-size:12px;color:#64748b;font-weight:600;margin-top:3px;">Ticket #' + ttEsc(S.ticket_number || '') + (S.serial_number ? '<span style="margin-left:10px;">SN: ' + ttEsc(S.serial_number) + '</span>' : '') + '</div>';
+    h += '<div class="ftd-head-sub" style="font-size:12px;color:#64748b;font-weight:600;margin-top:3px;">Ticket #' + ttEsc(S.ticket_number || '') + (S.serial_number ? '<span style="margin-left:10px;">SN: ' + ttEsc(S.serial_number) + '</span>' : '') + '</div>';
     if (S.owner_name) h += '<div class="ftd-owner-line"><i data-lucide="user-round"></i> Assigned to ' + ttEsc(S.owner_name) + (readOnly ? '<span>View only</span>' : '') + '</div>';
     h += '</div></div>';
     h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + ttStatusBadge(status)
@@ -2508,9 +2621,13 @@ function openTicketDrawer(ticketId) {
     var addInput = document.getElementById('chk-add-' + ticketId);
     if (addInput) { addInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); ttAddStep(ticketId); } }); }
     if (drawer) {
-        drawer.style.display = 'block';
+        // ftShowModal asks for the layout this width needs: a plain display:block
+        // would beat the sheet's flex rule and leave the ticket unscrollable.
+        ftShowModal(drawer);
         drawer.scrollTop = 0;
     }
+    // On phones the scrolling element is the inner body, not the sheet itself.
+    body.scrollTop = 0;
     if (overlay) overlay.style.display = 'block';
     document.body.style.overflow = 'hidden';
     ticketRenderReport(ticketId);
@@ -2550,25 +2667,67 @@ function ttApplyMemoryChoice(ticketId, key, value) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+// A dead "Map is unavailable right now." box is 190px of nothing on a phone and
+// leaves the technician with no way to reach the site. When the map cannot be
+// drawn, fall back to the saved address plus a tappable Maps link instead.
+function ttRenderMapFallback(el, S, reason) {
+    var address = S.address || S.location || '';
+    el.classList.add('is-map-fallback');
+    if (!address) {
+        el.innerHTML = '<div class="ftd-map-note">No address saved for this ticket yet.</div>';
+        return;
+    }
+    var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+    el.innerHTML = '<div class="ftd-map-note">' + ttEsc(reason || 'Map preview unavailable.') + '</div>'
+        + '<div class="ftd-map-address">' + ttEsc(address) + '</div>'
+        + '<div class="ftd-map-actions">'
+        +   '<a class="btn btn-sm btn-primary" href="' + mapsUrl + '" target="_blank" rel="noopener"><i data-lucide="map-pin"></i> Open in Maps</a>'
+        +   '<button type="button" class="btn btn-sm btn-secondary" data-tt-copy="' + ttEsc(address) + '"><i data-lucide="copy"></i> Copy address</button>'
+        + '</div>';
+    var copyBtn = el.querySelector('[data-tt-copy]');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+            var text = copyBtn.getAttribute('data-tt-copy') || '';
+            if (!text || !navigator.clipboard) {
+                showToast('Copy blocked — press and hold the address to copy it.', 'warning');
+                return;
+            }
+            navigator.clipboard.writeText(text)
+                .then(function() { showToast('Address copied.', 'success'); })
+                .catch(function() { showToast('Copy blocked — press and hold the address to copy it.', 'warning'); });
+        });
+    }
+    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+}
+
 function ttInitTicketLocationMap(ticketId, S) {
     var el = document.getElementById('ticket-location-map-' + ticketId);
-    if (!el || !window.L) return;
+    if (!el) return;
+    if (!window.L) { ttRenderMapFallback(el, S, 'Map preview unavailable offline.'); return; }
     if (!S.latitude || !S.longitude) {
         var address = S.address || S.location || '';
-        if (!address) return;
+        if (!address) { ttRenderMapFallback(el, S, ''); return; }
         el.innerHTML = '<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;">Locating saved address…</div>';
         api('/api/geocode?q=' + encodeURIComponent(address))
             .then(function(result){
+                if (!result || result.lat === undefined || result.lng === undefined) {
+                    ttRenderMapFallback(el, S, 'Could not locate this address.');
+                    return;
+                }
                 S.latitude = result.lat; S.longitude = result.lng;
                 ttInitTicketLocationMap(ticketId, S);
-            }).catch(function(){ el.innerHTML = '<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;">Map is unavailable right now.</div>'; });
+            }).catch(function(){ ttRenderMapFallback(el, S, 'Could not locate this address.'); });
         return;
     }
     var point = [parseFloat(S.latitude), parseFloat(S.longitude)];
     el.innerHTML = '';
     var map = L.map(el, { zoomControl:true, attributionControl:false, dragging:true }).setView(point, 16);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
-    L.marker(point).addTo(map).bindPopup('<b>' + ttEsc(S.company_name || 'Ticket location') + '</b><br>' + ttEsc(S.address || S.location || '')).openPopup();
+    // Use the inline SVG pin (divIcon) instead of Leaflet's default icon:
+    // the default icon needs assets/lib/images/marker-*.png, which the shipped
+    // Leaflet build never included, so every map with a plain marker used to
+    // fire a 404 for a missing marker image.
+    L.marker(point, { icon: ttBlueIcon() }).addTo(map).bindPopup('<b>' + ttEsc(S.company_name || 'Ticket location') + '</b><br>' + ttEsc(S.address || S.location || '')).openPopup();
     setTimeout(function(){ map.invalidateSize(); }, 100);
 }
 
@@ -3460,7 +3619,7 @@ function wireNewTicketModal() {
 // ==================== End New Ticket ==================== 
 
 function ticketCopyNewList() {
-    var cards = Array.prototype.slice.call(document.querySelectorAll('.ft-ticket-card[data-status="new"]'));
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.ft-ticket-card[data-filter-status="new"]'));
     if (!cards.length) { showToast('No new tickets match the current filters.', 'warning'); return; }
     var rows = cards.map(function(card) {
         var number = (card.querySelector('.ft-tnum') || {}).textContent || '';
@@ -3489,15 +3648,15 @@ function chatSendMessage(e) {
     if (!input) return;
     var msg = input.value.trim();
     if (!msg) return;
-    var conversationId = input.dataset.conversationId || '1';
-    // Add message to UI immediately
-    chatAddMsgToUI(msg, 'out');
-    input.value = '';
+    var conversationId = input.dataset.conversationId;
+    if (!conversationId || conversationId === '0' || input.dataset.sending) return;
+    input.dataset.sending = '1';
     api('/api/chat/send', { method: 'POST', body: { conversation_id: conversationId, message: msg } }).then(function() {
-        showToast('Message sent', 'success');
+        chatAddMsgToUI(msg, 'out');
+        if (input.value.trim() === msg) input.value = '';
     }).catch(function(err) {
         showToast('Failed to send: ' + err.message, 'error');
-    });
+    }).finally(function() { delete input.dataset.sending; });
 }
 function chatAddMsgToUI(text, direction) {
     var container = document.getElementById('chat-messages');
@@ -3506,7 +3665,7 @@ function chatAddMsgToUI(text, direction) {
     var html = '<div style="display:flex;' + (isOut ? 'justify-content:flex-end;' : '') + 'margin-bottom:12px;">';
     html += '<div style="max-width:70%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.5;' +
         (isOut ? 'background:#2563eb;color:#fff;border-bottom-right-radius:4px;' : 'background:#f1f5f9;color:#111827;border-bottom-left-radius:4px;') + '">';
-    html += text;
+    html += ttEsc(text);
     html += '<div style="font-size:10px;margin-top:4px;opacity:0.6;">Just now</div>';
     html += '</div></div>';
     container.insertAdjacentHTML('beforeend', html);

@@ -355,7 +355,7 @@ $notifCount = count($notifications);
             <a href="<?= $urlBase ?>troubleshoot" class="btn btn-primary" style="border-radius:100px;padding:10px 20px;">
                 <i data-lucide="stethoscope" style="width:15px;height:15px;"></i> New Session
             </a>
-            <a href="<?= $urlBase ?>ai" class="btn btn-secondary" style="border-radius:100px;padding:10px 20px;">
+            <a href="<?= $urlBase ?>team-messages?assistant=1" class="btn btn-secondary" style="border-radius:100px;padding:10px 20px;">
                 <i data-lucide="sparkles" style="width:15px;height:15px;"></i> Ask AI
             </a>
         </div>
@@ -574,7 +574,7 @@ $notifCount = count($notifications);
                 <?php
                 $actions = [
                     ['icon'=>'stethoscope','label'=>'Start Troubleshooting','url'=>'/troubleshoot'],
-                    ['icon'=>'sparkles','label'=>'Ask IT Support AI','url'=>'/ai'],
+                    ['icon'=>'sparkles','label'=>'Ask FieldMate','url'=>'/team-messages?assistant=1'],
                     ['icon'=>'book-open','label'=>'Knowledge Base','url'=>'/knowledge'],
                     ['icon'=>'package','label'=>'Find Device','url'=>'/equipment'],
                     ['icon'=>'terminal','label'=>'CMD Reference','url'=>'/commands'],
@@ -660,6 +660,14 @@ $notifCount = count($notifications);
 @media (max-width: 640px) {
     .stats-grid { grid-template-columns: 1fr !important; }
     .tc-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+/* Phone: the card header's two badges sit beside the title and force the row
+   past the screen edge. Stack the badges under the title instead. */
+@media (max-width: 480px) {
+    .dash-main-grid { grid-template-columns: minmax(0, 1fr) !important; }
+    .dash-main-grid > * { min-width: 0; }
+    .dash-main-grid .glass-card > div[style*="justify-content:space-between"] { flex-wrap: wrap; row-gap: 8px; }
+    .dash-main-grid .glass-card .badge { white-space: nowrap; }
 }
 @keyframes wave {
     0%, 60%, 100% { transform: rotate(0deg); }

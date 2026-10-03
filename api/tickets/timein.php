@@ -295,7 +295,7 @@ try {
     }
 
     Activity::log('CREATE', 'ticket', (int)$sessionId, ['ticket_number' => $ticketNum, 'company' => $companyName, 'problem' => $task]);
-    Activity::notifyUsers(Activity::managers(), 'new_ticket', 'New ticket: ' . $ticketNum, $companyName . ' - ' . $task, '/admin/ticket-approvals');
+    Activity::notifyUsers(Activity::managers(), 'new_ticket', 'New ticket: ' . $ticketNum, $companyName . ' - ' . $task, '/tickets');
     json_response([
         'success'        => true,
         'ticket_id'      => $sessionId,

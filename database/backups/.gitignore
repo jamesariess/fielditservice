@@ -1,0 +1,4 @@
+# Backups written by database/db-tool.php hold real user rows and password
+# hashes — they never belong in git. Keep them on your PC / a drive instead.
+*.sql
+!sync-live-database.sql

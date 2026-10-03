@@ -7,7 +7,7 @@
  * POST { title, submission_type, ... } - create new submission
  * POST { id, action: approve/reject }  - approve/reject (admin)
  */
-if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(dirname(__DIR__)))); }
+if (!defined('APP_ROOT')) { define('APP_ROOT', dirname(dirname(__DIR__))); }
 require_once APP_ROOT . '/config/app.php';
 require_once APP_ROOT . '/config/demo.php';
 require_once APP_ROOT . '/includes/helpers.php';
@@ -15,6 +15,7 @@ if (!defined('DEMO_MODE') || !DEMO_MODE) { require_once APP_ROOT . '/includes/Da
 require_once APP_ROOT . '/includes/Auth.php';
 Auth::start();
 Auth::requireLogin();
+require_once APP_ROOT.'/includes/Activity.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $userId = Auth::userId();
@@ -196,6 +197,7 @@ if ($method === 'POST') {
             }
         }
         
+        if ($sub['status'] !== $newStatus) Activity::notifyUsers([(int)$sub['submitted_by']], 'steps_review', 'Troubleshooting submission '.$newStatus, $sub['title'], '/troubleshoot/submit');
         json_response(['message' => "Submission {$newStatus}", 'status' => $newStatus]);
         exit;
     }
@@ -230,6 +232,7 @@ if ($method === 'POST') {
         'nodes_data' => $nodesData ? json_encode($nodesData) : null,
     ]);
     
+    Activity::notifyUsers(Activity::managers(), 'steps_submission', 'Troubleshooting submission needs review', $input['title'], '/admin/troubleshoot');
     json_response(['id' => $id, 'status' => 'pending', 'message' => 'Submission created. Waiting for admin approval.'], 201);
     exit;
 }

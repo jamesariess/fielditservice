@@ -1,0 +1,23 @@
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert');
+const context = {console, Uint32Array, Promise, document: {getElementById: () => null, addEventListener: () => {}}, window: {}, navigator: {}};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('public/assets/js/ticket-scan.js','utf8'),context);
+context.ticketScanPreparePhoto = async () => 'detail';
+context.ticketScanParse = text => ({read_count: text.includes('complete') ? 6 : 2});
+context.ticketScanSdNumbers = text => text.includes('SD') ? ['12345'] : [];
+(async () => {
+ const modes=[]; const images=[];
+ const worker={setParameters:async p=>modes.push(p.tessedit_pageseg_mode),recognize:async image=>{images.push(image);return {data:{text:'complete SD12345',confidence:90}};}};
+ await context.ticketScanRecognize(worker,'fast','original');
+ assert.deepEqual(images,['fast']); assert.deepEqual(modes,['3']);
+ let calls=0;
+ worker.recognize=async()=>{calls++;return {data:{text:calls===1?'unclear':'complete SD12345',confidence:calls===1?30:85}};};
+ assert.equal((await context.ticketScanRecognize(worker,'fast','original')).data.text,'complete SD12345');
+ assert.equal(calls,2);
+ calls=0; worker.recognize=async()=>{calls++;if(calls===2)throw Error('retry failed');return {data:{text:'unclear',confidence:30}};};
+ assert.equal((await context.ticketScanRecognize(worker,'fast','original')).data.text,'unclear');
+ assert.equal(modes[modes.length-2],'3');
+ console.log('PASS: clear scan skips retry; unclear scan retries; failed retry preserves text; each document resets layout');
+})().catch(error=>{console.error(error);process.exitCode=1;});

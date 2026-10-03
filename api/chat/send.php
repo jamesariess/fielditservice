@@ -13,6 +13,7 @@ require_once APP_ROOT . '/includes/Auth.php';
 require_once APP_ROOT . '/includes/Activity.php';
 Auth::start();
 Auth::requireLogin();
+require_once APP_ROOT . '/includes/ChatAccess.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { json_response(['error' => 'POST required'], 405); exit; }
 
@@ -31,7 +32,8 @@ try {
         "SELECT id FROM chat_participants WHERE conversation_id = ? AND user_id = ?",
         [$convId, Auth::userId()]
     );
-    if (!$participant) { json_response(['error' => 'Not a member of this conversation'], 403); exit; }
+    if (!$participant || !ChatAccess::conversationAllowed($convId, (int)Auth::userId())) { json_response(['error' => 'Chat access requires department approval'], 403); exit; }
+    ChatAccess::touch();
 
     $msgId = Database::insert('chat_messages', [
         'conversation_id' => $convId,
@@ -40,7 +42,7 @@ try {
     ]);
     Activity::log('CREATE', 'chat_message', (int)$msgId, ['conversation_id' => $convId]);
     $recipients = array_column(Database::fetchAll('SELECT user_id FROM chat_participants WHERE conversation_id = ? AND user_id <> ?', [$convId, Auth::userId()]), 'user_id');
-    Activity::notifyUsers($recipients, 'chat_message', 'New team message', trim(strip_tags($message)), '/chat?conversation_id=' . $convId);
+    Activity::notifyUsers($recipients, 'chat_message', 'New team message', trim(strip_tags($message)), '/team-messages?conversation_id=' . $convId);
 
     json_response(['success' => true, 'message_id' => $msgId]);
 } catch (Exception $e) {

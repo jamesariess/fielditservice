@@ -1,0 +1,4 @@
+﻿C:\xampp\htdocs\fielditservice\_fixstage\public\assets\js\ticket-scan.js
+C:\xampp\htdocs\fielditservice\_fixstage\public\pages\tickets.php
+C:\xampp\htdocs\fielditservice\_fixstage\tests\ticket-scan-apply.html
+C:\xampp\htdocs\fielditservice\_fixstage\tests\ticket-scan-parse.html

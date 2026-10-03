@@ -1,0 +1,23 @@
+/* Legacy inline neutral colors must follow the selected theme. */
+.dark body { color-scheme: dark; }
+.dark :is(.page-content,.modal-overlay,#dv-panel,#notif-dropdown) :is([style*="color:#111827"],[style*="color: #111827"],[style*="color:#0f172a"],[style*="color: #0f172a"],[style*="color:#172033"],[style*="color:#101827"]) { color:#f3f4f6 !important; }
+.dark :is(.page-content,.modal-overlay,#dv-panel,#notif-dropdown) :is([style*="color:#475569"],[style*="color: #475569"],[style*="color:#64748b"],[style*="color: #64748b"],[style*="color:#4b5563"],[style*="color:#6b7280"]) { color:#bac7d6 !important; }
+.dark :is(.page-content,.modal-overlay,#dv-panel,#notif-dropdown) :is([style*="color:#94a3b8"],[style*="color:#9ca3af"],[style*="color:#cbd5e1"]) { color:#aebdd0 !important; }
+.dark :is(.page-content,.modal-overlay,#dv-panel,#notif-dropdown) :is([style*="background:#fff;"],[style$="background:#fff"],[style*="background: #fff;"],[style*="background:#ffffff"],[style*="background: #ffffff"],[style*="background:white"]) { background:#182230 !important; }
+.dark :is(.page-content,.modal-overlay,#dv-panel,#notif-dropdown) :is([style*="background:#f8fafc"],[style*="background: #f8fafc"],[style*="background:#f1f5f9"],[style*="background: #f1f5f9"],[style*="background:#f9fafb"],[style*="background:#f3f4f6"]) { background:#243244 !important; }
+.dark :is(.page-content,.modal-overlay,#dv-panel,#notif-dropdown) :is([style*="solid #e5e7eb"],[style*="solid #f1f5f9"],[style*="solid #e2e8f0"],[style*="solid #dbe3ef"]) { border-color:#3b4b60 !important; }
+.dark :is(.page-content,.modal-overlay,#dv-panel) :is([style*="background:#fffbeb"],[style*="background:#fef3c7"]) { background:#3a2d18 !important; border-color:#80642d !important; }
+.dark :is(.page-content,.modal-overlay,#dv-panel) :is([style*="color:#b45309"],[style*="color:#92400e"]) { color:#fcd77a !important; }
+.dark :is(.page-content,.modal-overlay,#dv-panel) :is([style*="color:#1d4ed8"],[style*="color:#2563eb"]) { color:#93c5fd !important; }
+.dark #cat-tabs .cmd-btn:not(.active),.dark #type-tabs .eq-chip:not(.is-active) { background:#243244 !important;color:#dbe7f5 !important;border-color:#3b4b60 !important; }
+.dark #cat-tabs .cmd-btn.active,.dark #type-tabs .eq-chip.is-active { background:#2563eb !important;color:#fff !important;border-color:#60a5fa !important; }
+.dark #device-table-wrap > div { background:#182230 !important;border-color:#3b4b60 !important; }
+.dark #dv-panel { background:#182230 !important;color:#f3f4f6; }
+.dark #device-table-wrap thead tr { background:#243244 !important; }
+.dark #device-table-wrap .device-row:hover { background:#283b50 !important; }
+.dark #tools-grid h3 { color:#f3f4f6 !important; }
+.dark #cmds-list code { color:#93c5fd !important;overflow-wrap:anywhere; }
+.dark #cmds-list .card-body > button { background:#243244 !important;color:#dbe7f5 !important;border-color:#3b4b60 !important; }
+.dark .notif-item { background:#182230 !important; }
+.dark :is(.page-content,.modal-overlay) input::placeholder,.dark :is(.page-content,.modal-overlay) textarea::placeholder { color:#aebdd0;opacity:1; }
+@media print { .dark .page-content { color-scheme:light; } }

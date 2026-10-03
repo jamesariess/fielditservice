@@ -1,7 +1,8 @@
 <?php
 if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
 
-$page_title = 'IT Support AI';
+redirect(app_base().'team-messages?assistant=1');
+$page_title = 'FieldMate';
 $active_menu = 'ai';
 require APP_ROOT . '/includes/layout_header.php';
 ?>
@@ -13,6 +14,7 @@ require APP_ROOT . '/includes/layout_header.php';
     display: flex;
     flex-direction: column;
     min-height: calc(100vh - 8rem);
+    min-height: calc(100dvh - 8rem); /* visible viewport on a phone */
     padding: 12px 0 0;
 }
 .chat-card {

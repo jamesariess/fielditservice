@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>ticket-scan parser test</title></head>
+<!--
+  Work-order OCR parser test (no test runner needed).
+
+  Run it by opening this file in a browser, or headless:
+    msedge --headless=new --disable-gpu --dump-dom tests/ticket-scan-parse.html
+  Every line in <pre id="out"> must start with PASS.
+-->
+<body>
+<pre id="out">running</pre>
+<div id="ticket-scan-results"></div>
+<div id="ticket-scan-missing" style="display:none;"></div>
+<script>
+var scanErrors = [];
+window.onerror = function (msg, src, line, col) { scanErrors.push('JS-ERROR ' + msg + ' @' + line + ':' + col); };
+function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function showToast() {}
+function ttNormalizeName(v) { return String(v || '').toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9&.\- ]/g, '').trim(); }
+window.ttEqData = [
+    { id: 1, manufacturer: 'Lenovo', model_name: 'ThinkPad T14 Gen 3', device_type: 'Laptop', serial_number: 'PWOEX84C', asset_tag: 'A-100', location: 'Room 201' },
+    { id: 2, manufacturer: 'HP', model_name: 'LaserJet Pro M404', device_type: 'Printer', serial_number: 'HPLCJ404X', asset_tag: '', location: '' }
+];
+</script>
+<script src="../public/assets/js/ticket-scan.js"></script>
+<script>
+// What Tesseract normally returns for the printed work order (columns merged,
+// faint dots read as '·', the sticky checklist glued onto the right edge).
+var SAMPLE = [
+    'Work Order No.: SD1040842',
+    'Request Date: Sched Date: Assigned Tech: Sched by: Department:',
+    'Sep 23, 2026 9/25 Pmon michelleann.cadiz Field Service',
+    "Warranty: In Add'l: KYD Charges: N/A",
+    'Contact Person: John Niel Laurenciano | MARK BACUMAG Contact Nos.: 02893000000 loc. 412',
+    'Company Name: Commonwealth Hospital and Medical Center T',
+    'Address:',
+    'DCD 7th Floor, Neopolitan Business Park, Regalado Highway,',
+    'Brgy. Greater Lagro, Quezon, Metro Manila, NCR',
+    'Unit Reported: Lenovo 21L2S4VS00 L14 Gen 5 Serial/CRTL No.: PW0EX84C',
+    'Request: · Repair / Service CustRef No.:',
+    'Task Description / Reported Problem: Slow performance',
+    'For onsite visit',
+    'Action Taken:',
+    '- CHECKED THE UNIT',
+    'Recommendation / Remarks:',
+    '- FOR REQUEST SSD REPLACEMENT',
+    'Status: Completed O Burn-In Test O Unit for Delivery'
+].join('\n');
+
+var out = [];
+try {
+    var p = ticketScanParse(SAMPLE);
+    var checks = [
+        ['ticket_no', p.ticket_no, '1040842'],
+        ['serial', p.serial, 'PW0EX84C'],
+        ['company', p.company, 'Commonwealth Hospital and Medical Center'],
+        ['address', p.address, 'DCD 7th Floor, Neopolitan Business Park, Regalado Highway, Brgy. Greater Lagro, Quezon, Metro Manila, NCR'],
+        ['unit', p.unit, 'Lenovo 21L2S4VS00 L14 Gen 5'],
+        ['manufacturer', p.manufacturer, 'Lenovo'],
+        ['device_type', p.device_type, 'Laptop'],
+        ['task', p.task, 'Slow performance'],
+        ['problem', p.problem, 'Slow performance For onsite visit'],
+        ['customer', p.customer, 'John Niel Laurenciano'],
+        ['note', p.note, 'Request: Repair / Service · Contact No.: 02893000000 loc. 412']
+    ];
+    out.push('read_count=' + p.read_count + ' model=' + p.model);
+    for (var i = 0; i < checks.length; i++) {
+        var ok = String(checks[i][1]) === String(checks[i][2]);
+        out.push((ok ? 'PASS ' : 'FAIL ') + checks[i][0] + ' => [' + checks[i][1] + ']' + (ok ? '' : ' expected [' + checks[i][2] + ']'));
+    }
+    // Serial OCR slips (O/0, I/1) must still find the equipment record.
+    var eq = ticketScanMatchEquipment('PW0EX84C', 'L14 Gen 5');
+    out.push((eq && eq.id === 1 ? 'PASS ' : 'FAIL ') + 'equipment match by serial => ' + (eq ? eq.serial_number : 'none'));
+    var eq2 = ticketScanMatchEquipment('', 'HP LaserJet Pro M404dn');
+    out.push((eq2 && eq2.id === 2 ? 'PASS ' : 'FAIL ') + 'equipment match by model => ' + (eq2 ? eq2.model_name : 'none'));
+    var sparse = ticketScanParse('Work Order No: WO-55123\nUnit Reported: HP LaserJet Pro M404dn\nSerial No: HPLCJ404X');
+    out.push((sparse.ticket_no === '55123' ? 'PASS ' : 'FAIL ') + 'sparse ticket_no => ' + sparse.ticket_no);
+    out.push((sparse.company === '' && sparse.task === '' ? 'PASS ' : 'FAIL ') + 'missing fields stay empty (company=[' + sparse.company + '] task=[' + sparse.task + '])');
+    // ---- Zenshi work order: TWO SD numbers, right column bleeding into the address ----
+    // (This is the sheet that came back with "not read" for the ticket no. and a
+    //  phone number glued to the front of the address.)
+    var SHEET = [
+        'Order No.: SD1041040',
+        'Work Order No.: SD1041036',
+        'Request Date: Sched Date: Assigned Tech: Sched by: Department: Vend Ref No.',
+        'Sep 25, 2026 9/26/2026 James Aries jannelleaira antonio Field Service',
+        "Warranty: Out Add'l: Charges: N/A",
+        'Contact Person: Jan Michael Lukban - (Makati) Contact Nos.',
+        'T 09178502783',
+        'Company Name: Banco De Oro ②',
+        'Address:',
+        'T 09178502783 GIF. Power Plant Mall, Rockwell Center, Plaza Drive, Customer Request / Instruction:',
+        'Brgy Poblacion, Makati, Metro Manila, NCR',
+        'Unit Reported: Samsung ED40C Serial/CRTL No.: ZXVCHMFD600053B',
+        'Request: · Repair / Service · Dismantling CustRef No.: 9915585',
+        'Task Description / Reported Problem:',
+        'Availability 10PM',
+        'For dismantling of LFD.',
+        'Action Taken:',
+        'Quick Reminder:',
+        '1. Check equipment Serial Number'
+    ].join('\n');
+    var p2 = ticketScanParse(SHEET);
+    var checks2 = [
+        ['sheet ticket_no (topmost SD)', p2.ticket_no, '1041040'],
+        ['sheet ticket_alt (the other SD)', p2.ticket_alt, '1041036'],
+        ['sheet company (no glyph)', p2.company, 'Banco De Oro'],
+        ['sheet address', p2.address, 'G/F, Power Plant Mall, Rockwell Center, Plaza Drive, Brgy Poblacion, Makati, Metro Manila, NCR'],
+        ['sheet customer', p2.customer, 'Jan Michael Lukban - (Makati)'],
+        ['sheet unit', p2.unit, 'Samsung ED40C'],
+        ['sheet serial', p2.serial, 'ZXVCHMFD600053B'],
+        ['sheet device_type (from \"LFD\")', p2.device_type, 'Monitor'],
+        ['sheet task', p2.task, 'Availability 10PM'],
+        ['sheet problem', p2.problem, 'Availability 10PM For dismantling of LFD.']
+    ];
+    out.push('sheet read_count=' + p2.read_count + ' model=' + p2.model + ' note=[' + p2.note + ']');
+    for (var c2 = 0; c2 < checks2.length; c2++) {
+        var ok2 = String(checks2[c2][1]) === String(checks2[c2][2]);
+        out.push((ok2 ? 'PASS ' : 'FAIL ') + checks2[c2][0] + ' => [' + checks2[c2][1] + ']' + (ok2 ? '' : ' expected [' + checks2[c2][2] + ']'));
+    }
+    var noisyAddress = p2.address;
+    out.push((noisyAddress.indexOf('09178502783') === -1 ? 'PASS ' : 'FAIL ') + 'phone number not glued to the address');
+    out.push((noisyAddress.indexOf('Customer') === -1 ? 'PASS ' : 'FAIL ') + 'half-read label not glued to the address');
+    out.push((String(p2.note).indexOf('9915585') === -1 ? 'PASS ' : 'FAIL ') + 'right-hand column does not leak into the note => [' + p2.note + ']');
+
+    // OCR slips inside the SD digits (O for 0) must still resolve.
+    var slip = ticketScanParse('Order No.: SD1O41O36 Company Name: Banco De Oro');
+    out.push((slip.ticket_no === '1041036' ? 'PASS ' : 'FAIL ') + 'OCR slips in the SD number => ' + slip.ticket_no);
+    // The label fallback still works for a sheet with no SD number at all.
+    var noSd = ticketScanParse('Work Order No.: TK-77401\nUnit Reported: HP LaserJet Pro M404dn');
+    out.push((noSd.ticket_no === '77401' ? 'PASS ' : 'FAIL ') + 'label fallback without SD => ' + noSd.ticket_no);
+} catch (e) {
+    scanErrors.push('THROWN ' + e.name + ': ' + e.message);
+}    // The ticket number is the number next to SD: SD264613131 -> 264613131.
+    var sdPlain = ticketScanParse('Order No.: SD264613131\nCompany Name: Banco De Oro');
+    out.push((sdPlain.ticket_no === '264613131' ? 'PASS ' : 'FAIL ') + 'SD264613131 => ' + sdPlain.ticket_no);
+    var sdSlips = ticketScanParse('Work Order No.: SD2646l3l3l\nCompany Name: Banco De Oro');
+    out.push((sdSlips.ticket_no === '264613131' ? 'PASS ' : 'FAIL ') + 'SD2646l3l3l (OCR slips) => ' + sdSlips.ticket_no);
+    var sdSpaced = ticketScanParse('Work Order No.: SD 264 613 131\nCompany Name: Banco De Oro');
+    out.push((sdSpaced.ticket_no === '264613131' ? 'PASS ' : 'FAIL ') + 'SD 264 613 131 (spaced out) => ' + sdSpaced.ticket_no);
+    var sdGlued = ticketScanParse('Work Order No.: SD264613131Sched Date: 9/26/2026');
+    out.push((sdGlued.ticket_no === '264613131' ? 'PASS ' : 'FAIL ') + 'SD264613131Sched (glued word) => ' + sdGlued.ticket_no);
+    var noPrefix = ticketScanParse('Zen Shi Systems Corporation\n264613131\nCompany Name: Banco De Oro');
+    out.push(((noPrefix.ticket_no === '' && (noPrefix.ticket_candidates || [])[0] === '264613131') ? 'PASS ' : 'FAIL ')
+        + 'unreadable SD prefix offers the number => [' + noPrefix.ticket_no + ' | ' + noPrefix.ticket_candidates + ']');
+    var phoneOnly = ticketScanParse('Contact Nos.\nT 09178502783\nCompany Name: Banco De Oro');
+    out.push(((phoneOnly.ticket_candidates || []).indexOf('09178502783') === -1 ? 'PASS ' : 'FAIL ')
+        + 'phone number is never offered as a ticket no => [' + phoneOnly.ticket_candidates + ']');
+
+    // The second OCR pass (used when the first pass finds no SD number) must
+    // merge the two texts and keep the first result if the retry fails.
+    var passes = 0;
+    var fakeWorker = {
+        recognize: function() {
+            passes++;
+            return Promise.resolve({ data: { text: passes === 1 ? 'Company Name: Banco De Oro' : 'Order No.: SD1041040' } });
+        },
+        setParameters: function() { return Promise.resolve(); }
+    };
+    var deadWorker = {
+        recognize: function() { return Promise.resolve({ data: { text: 'Company Name: Banco De Oro' } }); },
+        setParameters: function() { return Promise.reject(new Error('psm refused')); }
+    };
+    function renderOut() { document.getElementById('out').textContent = out.join('\n'); }
+    Promise.all([
+        ticketScanRecognize(fakeWorker, 'photo').then(function(result) {
+            var ticket = ticketScanParse((result && result.data && result.data.text) || '').ticket_no;
+            out.push((ticket === '1041040' && passes === 2 ? 'PASS ' : 'FAIL ') + 'second OCR pass merges both texts => ' + ticket + ' (passes=' + passes + ')');
+        }),
+        ticketScanRecognize(deadWorker, 'photo').then(function(result) {
+            var text = (result && result.data && result.data.text) || '';
+            out.push((text.indexOf('Banco De Oro') !== -1 ? 'PASS ' : 'FAIL ') + 'failed retry keeps the first result => [' + text + ']');
+        })
+    ]).then(renderOut, function(err) { out.push('FAIL second pass test threw ' + err.message); renderOut(); });
+
+    out.push('errors=' + (scanErrors.length ? scanErrors.join(' | ') : 'none'));
+document.getElementById('out').textContent = out.join('\n');
+</script>
+</body>
+</html>

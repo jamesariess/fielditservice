@@ -1,3 +1,0 @@
-﻿real placeholders: 0
-scan-body id line: 370
-temp files: []

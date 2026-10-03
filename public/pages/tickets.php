@@ -1,16 +1,55 @@
 <?php
 if (!defined('APP_ROOT')) { @header('Location: /fielditservice/'); exit; }
 
-// This route is always the signed-in user's work queue. Managers and admins
-// use Ticket Management when they need to review the full team queue.
-$canViewAllTickets = false;
-$page_title = 'My Tickets';
+// Whose tickets this page shows.
+//
+//   scope=mine  -> only the signed-in user's tickets (everyone's default)
+//   scope=all   -> the whole team's queue (admin / manager / supervisor only)
+//
+// This used to be hardcoded to "mine", which meant a manager had no way at all
+// to see a ticket that someone else created or that was assigned to them out of
+// their own queue. The choice is kept in the URL so it can be bookmarked and so
+// the page needs no JavaScript to switch.
+$canSeeAllTickets = Auth::canViewAllTickets();
+$ticketScope = (string)($_GET['scope'] ?? '');
+if (!$canSeeAllTickets) {
+    $ticketScope = 'mine';
+} elseif ($ticketScope !== 'mine' && $ticketScope !== 'all') {
+    // Managers open this page to work the queue, so the team view is the default.
+    $ticketScope = 'all';
+}
+$canViewAllTickets = $ticketScope === 'all';
+$page_title = $canViewAllTickets ? 'Team Tickets' : 'My Tickets';
 $active_menu = 'tickets';
 require APP_ROOT . '/includes/layout_header.php';
 ?>
-<link rel="stylesheet" href="<?= $urlBase ?>assets/css/workspace-refresh.css?v=<?= filemtime(APP_ROOT . '/public/assets/css/workspace-refresh.css') ?>">
-<script src="<?= $urlBase ?>assets/js/ticket-workspace.js?v=<?= filemtime(APP_ROOT . '/public/assets/js/ticket-workspace.js') ?>"></script>
-<script src="<?= $urlBase ?>assets/js/ticket-scan.js?v=<?= filemtime(APP_ROOT . '/public/assets/js/ticket-scan.js') ?>"></script>
+<?php
+// Optional page extras are printed ONLY when the file really exists on this
+// server. Emitting the tag anyway used to make the browser request a file the
+// host does not have, which shows up as a bare "Failed to load resource: 404"
+// with no clue about which file is missing - and each tag also raised a PHP
+// warning from filemtime().
+$ticketAssetFiles = [
+    ['css', 'assets/css/workspace-refresh.css'],
+    ['js',  'assets/js/ticket-workspace.js'],
+    ['js',  'assets/js/ticket-scan.js'],
+];
+foreach ($ticketAssetFiles as $ticketAsset) {
+    list($ticketAssetKind, $ticketAssetRel) = $ticketAsset;
+    $ticketAssetPath = APP_ROOT . '/public/' . $ticketAssetRel;
+    if (is_file($ticketAssetPath)) {
+        $ticketAssetUrl = e($urlBase . $ticketAssetRel . '?v=' . filemtime($ticketAssetPath));
+        echo $ticketAssetKind === 'css'
+            ? '<link rel="stylesheet" href="' . $ticketAssetUrl . '">' . "\n"
+            : '<script src="' . $ticketAssetUrl . '"></script>' . "\n";
+    } else {
+        // Say it out loud instead of failing silently.
+        echo '<script>console.error("[Field IT] ' . $ticketAssetRel
+            . ' is missing on this server. Upload it from the fix package or this feature will not work.");</script>' . "\n";
+    }
+}
+unset($ticketAssetFiles, $ticketAsset, $ticketAssetKind, $ticketAssetRel, $ticketAssetPath, $ticketAssetUrl);
+?>
 <?php
 $demo = !defined('DEMO_MODE') || DEMO_MODE;
 $tickets = [];
@@ -181,7 +220,13 @@ if (!$demo) {
              ORDER BY ts.id DESC",
             $ticketParams
         );
-    } catch (Exception $e) {}
+    } catch (Exception $e) {
+        // Never let a failing query masquerade as an empty queue: the page used
+        // to render "No tickets yet" for a database problem, which is exactly
+        // what a technician sees when their newly created ticket is missing.
+        $ticketsError = $e->getMessage();
+        error_log('Tickets list query failed: ' . $ticketsError);
+    }
 }
 
 // Fallback demo data only when there are genuinely no rows (fresh install)
@@ -193,14 +238,40 @@ if ($demo && empty($tickets)) {
     ];
 }
 
-$total = count($tickets);
-$solved = 0; $inProgress = 0; $escalated = 0; $newCount = 0;
-foreach ($tickets as $t) {
-    if ($t['status'] === 'solved' || $t['status'] === 'partial') $solved++;
-    elseif ($t['status'] === 'in_progress') $inProgress++;
-    elseif ($t['status'] === 'escalated') $escalated++;
-    else $newCount++;
+function ticket_filter_status(array $ticket): string {
+    $status = strtolower((string)($ticket['status'] ?? 'new'));
+    $createdRaw = (string)($ticket['created_at'] ?? $ticket['started_at'] ?? '');
+    $createdDay = $createdRaw !== '' ? date('Y-m-d', strtotime($createdRaw)) : '';
+    $today = date('Y-m-d');
+    $hasTimeOut = trim((string)($ticket['ended_at'] ?? '')) !== '';
+    $isClosed = in_array($status, ['solved', 'partial', 'cancelled', 'unsolved', 'escalated'], true);
+
+    if (($status === 'new' || $status === 'in_progress') && !$hasTimeOut && $createdDay !== '' && $createdDay !== $today) {
+        return 'other';
+    }
+    if ($status === 'new') return $createdDay === $today ? 'new' : 'other';
+    if (in_array($status, ['in_progress', 'solved', 'partial', 'escalated'], true)) return $status;
+    if (!$isClosed && !$hasTimeOut) return 'other';
+    return 'other';
 }
+
+$total = count($tickets);
+$solved = 0; $inProgress = 0; $escalated = 0; $newCount = 0; $partialCount = 0; $otherCount = 0;
+foreach ($tickets as $t) {
+    switch (ticket_filter_status($t)) {
+        case 'new':         $newCount++;     break;
+        case 'in_progress': $inProgress++;   break;
+        case 'solved':      $solved++;       break;
+        case 'partial':     $partialCount++; break;
+        case 'escalated':   $escalated++;    break;
+        // unsolved / cancelled / any future status: still needs a way to be seen
+        default:            $otherCount++;   break;
+    }
+}
+// Every ticket must be reachable from the filter row. "Solved" used to count
+// partial repairs too while the chip filtered on status = solved only, so those
+// extra tickets were invisible (and unsolved / cancelled had no chip at all).
+$extraTicketCount = $partialCount + $otherCount;
 ?>
 
 <div id="new-ticket-modal" class="modal-overlay" style="display:none;">
@@ -415,7 +486,10 @@ foreach ($tickets as $t) {
                     <button type="button" onclick="ticketScanApply()" class="btn btn-primary" style="flex:1;"><i data-lucide="check" style="width:16px;height:16px;"></i> Fill the ticket form</button>
                     <button type="button" onclick="ticketScanRetake()" class="btn btn-secondary">Rescan</button>
                 </div>
-                <button type="button" onclick="ticketScanToggleRaw()" class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;">Show / hide raw scanned text</button>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <button type="button" onclick="ticketScanToggleRaw()" class="btn btn-ghost btn-sm" style="flex:1;">Show / hide raw scanned text</button>
+                    <button type="button" onclick="ticketScanCopyRaw()" class="btn btn-ghost btn-sm" style="flex:1;">Copy what was read</button>
+                </div>
                 <pre id="ticket-scan-raw" style="display:none;margin:8px 0 0;max-height:180px;overflow:auto;background:#0f172a;color:#e2e8f0;font-size:10.5px;line-height:1.5;padding:10px;border-radius:8px;white-space:pre-wrap;"></pre>
             </div>
         </div>
@@ -434,6 +508,12 @@ foreach ($tickets as $t) {
             </div>
         </div>
         <div class="page-hero-actions">
+            <?php if ($canSeeAllTickets): ?>
+            <div class="tickets-scope" role="tablist" aria-label="Whose tickets to show">
+                <a role="tab" class="tickets-scope-btn<?= $canViewAllTickets ? '' : ' is-active' ?>" aria-selected="<?= $canViewAllTickets ? 'false' : 'true' ?>" href="?scope=mine">Mine</a>
+                <a role="tab" class="tickets-scope-btn<?= $canViewAllTickets ? ' is-active' : '' ?>" aria-selected="<?= $canViewAllTickets ? 'true' : 'false' ?>" href="?scope=all">All tickets</a>
+            </div>
+            <?php endif; ?>
             <button onclick="openNewTicketModal()" class="btn btn-primary"><i data-lucide="plus" style="width:16px;height:16px;"></i> New Ticket</button>
         </div>
     </div>
@@ -471,10 +551,17 @@ foreach ($tickets as $t) {
     </div>
     <div class="tickets-toolbar">
         <div class="tickets-filter-row">
+            <button onclick="ticketFilter('all')" class="btn btn-sm btn-secondary filter-btn" data-filter="all">All (<?= $total ?>)</button>
             <button onclick="ticketFilter('new')" class="btn btn-sm filter-btn active" data-filter="new">New (<?= $newCount ?>)</button>
             <button onclick="ticketFilter('in_progress')" class="btn btn-sm btn-secondary filter-btn" data-filter="in_progress">In Progress (<?= $inProgress ?>)</button>
             <button onclick="ticketFilter('solved')" class="btn btn-sm btn-secondary filter-btn" data-filter="solved">Solved (<?= $solved ?>)</button>
             <button onclick="ticketFilter('escalated')" class="btn btn-sm btn-secondary filter-btn" data-filter="escalated">Escalated (<?= $escalated ?>)</button>
+            <?php if ($partialCount > 0): ?>
+            <button onclick="ticketFilter('partial')" class="btn btn-sm btn-secondary filter-btn" data-filter="partial">Partial (<?= $partialCount ?>)</button>
+            <?php endif; ?>
+            <?php if ($otherCount > 0): ?>
+            <button onclick="ticketFilter('other')" class="btn btn-sm btn-secondary filter-btn" data-filter="other">Unsolved / Cancelled (<?= $otherCount ?>)</button>
+            <?php endif; ?>
         </div>
         <div class="tickets-search-wrap">
             <i data-lucide="search" class="ft-search-ico"></i>
@@ -513,6 +600,7 @@ foreach ($tickets as $t) {
             $ticketNum = 'SD' . $ticketNumberMatch[1];
         }
         $status        = $t['status'] ?? 'new';
+        $filterStatus  = ticket_filter_status($t);
         $priority      = $t['priority'] ?? 'medium';
         $problem       = $t['problem_description'] ?? '';
         $model         = $t['model'] ?? '';
@@ -559,8 +647,9 @@ foreach ($tickets as $t) {
         }
         // Human-readable title: model is the hero; fall back to the problem text
         $title = $model ? $model : (($t['issue_title'] ?? $t['issue_slug'] ?? '') . ($problem ? ' — ' . $problem : ''));
-        $statusColor = $status === 'solved' ? '#16a34a' : ($status === 'escalated' ? '#dc2626' : ($status === 'in_progress' ? '#2563eb' : '#d97706'));
-        $statusBg    = $status === 'solved' ? '#f0fdf4' : ($status === 'escalated' ? '#fef2f2' : ($status === 'in_progress' ? '#eff6ff' : '#fffbeb'));
+        $displayStatusLabel = $filterStatus === 'other' && ($status === 'new' || $status === 'in_progress') ? 'Unresolved' : ucwords(str_replace('_',' ', $status));
+        $statusColor = $filterStatus === 'other' ? '#c2410c' : ($status === 'solved' ? '#16a34a' : ($status === 'escalated' ? '#dc2626' : ($status === 'in_progress' ? '#2563eb' : '#d97706')));
+        $statusBg    = $filterStatus === 'other' ? '#fff7ed' : ($status === 'solved' ? '#f0fdf4' : ($status === 'escalated' ? '#fef2f2' : ($status === 'in_progress' ? '#eff6ff' : '#fffbeb')));
         $priorityColor = $priority === 'high' ? '#dc2626' : ($priority === 'low' ? '#16a34a' : '#d97706');
         $timeAgo = $startTime ? date('M d, g:i A', strtotime($startTime)) : '—';
         $assignee = $customerName ?: 'You';
@@ -616,7 +705,7 @@ foreach ($tickets as $t) {
     ];
     ?>
     <script>window.ttTicketData = window.ttTicketData || {}; window.ttTicketData[<?= (int)$ticketId ?>] = <?= json_encode($reportData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;</script>
-    <article class="card ft-ticket-card" data-id="<?= (int)$ticketId ?>" data-status="<?= e($status) ?>" data-owner="<?= e($ownerName) ?>" data-created="<?= $createdTs ?>" data-updated="<?= $updatedTs ?>" data-lat="<?= e($latitude) ?>" data-lng="<?= e($longitude) ?>" data-address="<?= e($address ?: $location) ?>" data-search="<?= e($searchBlob) ?>">
+    <article class="card ft-ticket-card" data-id="<?= (int)$ticketId ?>" data-status="<?= e($status) ?>" data-filter-status="<?= e($filterStatus) ?>" data-owner="<?= e($ownerName) ?>" data-created="<?= $createdTs ?>" data-updated="<?= $updatedTs ?>" data-lat="<?= e($latitude) ?>" data-lng="<?= e($longitude) ?>" data-address="<?= e($address ?: $location) ?>" data-search="<?= e($searchBlob) ?>">
         <!-- Header: company + ticket # | status -->
         <div class="ft-card-head">
             <div class="ft-card-identity">
@@ -627,7 +716,7 @@ foreach ($tickets as $t) {
                     <?php if ($canViewAllTickets): ?><div class="ft-owner"><i data-lucide="user-round"></i><?= e($ownerName) ?><?= $isOwner ? ' (You)' : '' ?></div><?php endif; ?>
                 </div>
             </div>
-            <span class="badge" style="background:<?= $statusBg ?>;color:<?= $statusColor ?>;flex-shrink:0;"><?= e(ucwords(str_replace('_',' ',$status))) ?></span>
+            <span class="badge" style="background:<?= $statusBg ?>;color:<?= $statusColor ?>;flex-shrink:0;"><?= e($displayStatusLabel) ?></span>
         </div>
         <!-- Device information (only fields that actually exist) -->
         <?php if ($deviceName || $serial || $deviceTypeVal): ?>
@@ -793,7 +882,18 @@ foreach ($tickets as $t) {
             <button type="button" class="btn btn-secondary" onclick="ticketClearFilters()"><i data-lucide="rotate-ccw"></i> Clear filters</button>
         </div>
     <?php endif; ?>
-    <?php if (!$tickets): ?>
+    <?php if (!$tickets && !empty($ticketsError)): ?>
+        <?php // Query failed — say so instead of pretending the queue is empty. ?>
+        <div class="tickets-empty">
+            <span><i data-lucide="alert-triangle"></i></span>
+            <h2>The ticket list could not be loaded</h2>
+            <p>The ticket list failed to load from the server. Retry in a moment &mdash; if it keeps happening, the ticket data needs attention.</p>
+            <?php if (APP_ENV !== 'production'): ?>
+                <p style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#b91c1c;margin-top:8px;word-break:break-word;"><?= e($ticketsError) ?></p>
+            <?php endif; ?>
+            <button type="button" class="btn btn-primary" onclick="window.location.reload()"><i data-lucide="rotate-ccw"></i> Retry</button>
+        </div>
+    <?php elseif (!$tickets): ?>
         <div class="tickets-empty">
             <span><i data-lucide="inbox"></i></span>
             <h2>No tickets yet</h2>
@@ -826,8 +926,18 @@ foreach ($tickets as $t) {
 .tickets-search-wrap { flex:1; min-width:220px; position:relative; }
 .tickets-sort { width:auto; padding:8px 12px; font-size:13px; border-radius:10px; color:#374151; }
 
+/* ===== Scope switch: my queue vs the whole team ===== */
+.tickets-scope { display:inline-flex; gap:2px; padding:3px; border-radius:12px; background:#eef2f7; border:1px solid #dbe2ea; }
+.tickets-scope-btn { padding:7px 13px; border-radius:9px; font-size:12.5px; font-weight:700; color:#475569; text-decoration:none; white-space:nowrap; line-height:1; }
+.tickets-scope-btn:hover { color:#1d4ed8; }
+.tickets-scope-btn.is-active { background:#2563eb; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.18); }
+.tickets-scope-btn.is-active:hover { color:#fff; }
+.dark .tickets-scope { background:#16243a; border-color:#2b3b52; }
+.dark .tickets-scope-btn { color:#cbd5e1; }
+.dark .tickets-scope-btn.is-active { background:#2563eb; color:#fff; }
+
 /* ===== Ticket cards ===== */
-.tickets-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:16px; align-items:stretch; }
+.tickets-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr)); gap:16px; align-items:stretch; }
 @media (max-width:760px) { .tickets-grid { grid-template-columns:1fr; } }
 .ft-ticket-card { display:flex; flex-direction:column; border-radius:16px; padding:22px 24px; border:1px solid #e5e7eb; box-shadow:0 1px 2px rgba(15,23,42,.04); transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
 .ft-ticket-card:hover { transform:translateY(-3px); box-shadow:0 10px 28px rgba(15,23,42,.10); border-color:#cbd5e1; }
@@ -898,6 +1008,18 @@ foreach ($tickets as $t) {
 @media (max-width:900px) { .ftd-grid { grid-template-columns:1fr; } }
 .ftd-timebox { background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; }
 .ftd-ticket-map { height:190px; overflow:hidden; border:1px solid #dbe2ea; border-radius:7px; background:#eef2f7; }
+/* No map tiles (offline, bad address, geocoder down)? Shrink to a compact card
+   with the saved address and a Maps link, instead of a tall empty grey box. */
+.ftd-ticket-map.is-map-fallback { height:auto; padding:12px; display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+.ftd-map-note { font-size:11.5px; font-weight:600; color:#64748b; }
+.ftd-map-address { font-size:12.5px; line-height:1.5; color:#1f2937; overflow-wrap:anywhere; }
+.ftd-map-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.ftd-map-actions .btn { display:inline-flex; align-items:center; gap:6px; text-decoration:none; }
+.ftd-map-actions svg { width:14px; height:14px; }
+.dark .ftd-ticket-map { background:#0f172a; border-color:#1e293b; }
+.dark .ftd-ticket-map.is-map-fallback { background:#111c2e; }
+.dark .ftd-map-note { color:#94a3b8; }
+.dark .ftd-map-address { color:#e2e8f0; }
 .ft-guide-symptoms { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:12px; }
 .ft-guide-symptoms span { padding:4px 7px; border:1px solid #d8e1ec; border-radius:999px; color:#45546a; background:#fff; font-size:10.5px; }
 .ft-guide-cause { margin-bottom:10px; padding:9px 10px; border-left:3px solid #2563eb; color:#344258; background:#eef4ff; font-size:11px; line-height:1.5; }
@@ -960,9 +1082,33 @@ foreach ($tickets as $t) {
     .ft-divider { margin:12px 0; }
     .ft-spacer { min-height:10px; }
     .ft-footer { align-items:center; }
-    #ticket-drawer { top:9px; bottom:9px; width:calc(100vw - 18px) !important; max-height:none; border-radius:14px; }
-    #ticket-drawer-body { padding:0 16px 18px !important; }
-    .ftd-modal-head { padding:14px 0 12px; }
+    /* app.css already turns #ticket-drawer into a phone sheet: position:relative,
+       width:100%, max-height between the header and the tab bar, with
+       #ticket-drawer-body as the scroller. Do NOT set width/top/bottom here -
+       the old calc(100vw - 18px) was wider than the overlay's padded content box
+       (100vw - 24px), so the card was pushed outside the viewport: its right-hand
+       side got clipped and the overlay showed a sideways scrollbar, which is what
+       made the ticket look cut off on a phone. */
+    #ticket-drawer-body { padding:0 16px 22px !important; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+    #ticket-drawer .ftd-modal-head { padding:14px 16px !important; }
+    #ticket-drawer .ftd-ticket-map { height:160px; }
+    /* The 160px above outranks .is-map-fallback (an id beats a class), which
+       clipped the address + Maps link. Let the fallback size itself here. */
+    #ticket-drawer .ftd-ticket-map.is-map-fallback { height:auto; }
+    #ticket-drawer .ftd-map-actions .btn { min-height:36px; }
+}
+
+/* Same width as the phone sheet in app.css (and the check in app.js). */
+@media (max-width: 767px) {
+    /* The sheet must be a flex column, or its inner body - the thing that
+       actually scrolls - is sized to its whole content and the sheet just clips
+       it, leaving the ticket unscrollable on a phone. app.js asks for flex at
+       this width; this rule is the backstop that keeps an older cached app.js
+       (which set display:block inline) working as well. When the sheet is
+       closed the inline value is "none", nothing here matches, and the close
+       button keeps working. */
+    #ticket-drawer[style*="display: block"],
+    #ticket-drawer[style*="display:block"] { display:flex !important; }
 }
 
 @media (max-width: 430px) {
@@ -1118,7 +1264,7 @@ foreach ($tickets as $t) {
 .tt-checklist-bulkbar { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
 .tt-checklist-bulkbar label { display:flex; align-items:center; gap:6px; color:#53647a; font-size:11px; font-weight:700; }
 .tt-checklist-bulkbar > span { flex:1; }
-.tt-approval-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:8px; }
+.tt-approval-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr)); gap:8px; }
 .tt-approval-row { display:flex; align-items:flex-start; gap:9px; min-width:0; padding:10px; border:1px solid #dbe4f0; border-radius:7px; background:#fff; cursor:pointer; }
 .tt-approval-row:hover { border-color:#9eb9e6; }
 .tt-approval-row input { flex:0 0 auto; margin-top:2px; }
@@ -1271,6 +1417,38 @@ foreach ($tickets as $t) {
     gap:6px;
 }
 .ft-footer .btn-primary svg { width:13px; height:13px; }
+.ftd-section .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    font-weight: 800;
+    border-radius: 8px;
+}
+.ftd-section .btn-warning {
+    background: #d97706 !important;
+    color: #fff !important;
+    border: 1px solid #d97706 !important;
+    box-shadow: 0 8px 18px rgba(217,119,6,.22);
+}
+.ftd-section .btn-outline {
+    background: #fff !important;
+    color: #1e293b !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 4px 12px rgba(15,23,42,.08);
+}
+.ftd-section .btn-success {
+    background: #16a34a !important;
+    color: #fff !important;
+    border: 1px solid #16a34a !important;
+    box-shadow: 0 8px 18px rgba(22,163,74,.2);
+}
+.dark .ftd-section .btn-outline {
+    background: #172033 !important;
+    color: #e2e8f0 !important;
+    border-color: #334155 !important;
+}
 .ft-card-guide {
     margin: 14px -18px -18px;
     padding: 10px 18px;
@@ -1436,9 +1614,14 @@ foreach ($tickets as $t) {
         border-radius: 7px;
         scrollbar-width: thin;
     }
-    .ft-stats .card-body { min-height: 68px; padding: 10px !important; }
+    .ft-stats .card-body { min-height: 68px; padding: 10px !important; column-gap: 8px; padding-inline: 8px !important; }
+    /* "ESCALATED" is wider than the 112px card gives it: the 34px icon column
+       plus two 8px gaps leave ~60px, and the label needs 61px. Give the value
+       column its own grid line so text can never push the card wider. */
+    .ft-stats .card-body { grid-template-columns: 30px minmax(0, 1fr); }
+    .ft-stat-lbl { letter-spacing: .2px; }
     .ft-stat-ico { width: 30px; height: 30px; }
-    .ft-stat-num { font-size: 19px; }
+    .ft-stat-num { font-size: 19px; min-width: 0; }
     .tickets-toolbar { grid-template-columns: minmax(0, 1fr) 132px; padding: 8px; }
     .tickets-filter-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; }
     .tickets-filter-row .btn { flex: 0 0 auto; }
@@ -1446,8 +1629,43 @@ foreach ($tickets as $t) {
     .tickets-grid { grid-template-columns:1fr; }
     .ft-ticket-card { min-height: 0; padding: 16px; }
     .ft-card-guide { margin: 12px -16px -16px; padding: 10px 16px; }
-    #ticket-drawer { width: calc(100vw - 14px) !important; border-radius: 8px; }
-    #ticket-drawer-body { padding: 0 15px 18px !important; }
+    /* Keep every value inside the card: a pasted address, a long serial or a
+       report line must wrap, never widen the sheet past the screen. */
+    #ticket-drawer .ftd-grid,
+    #ticket-drawer .ftd-grid > * { min-width: 0; }
+    #ticket-drawer .ftd-row { flex-wrap: wrap; row-gap: 2px; }
+    #ticket-drawer .ftd-val,
+    #ticket-drawer .ftd-steps,
+    #ticket-drawer .ftd-title,
+    #ticket-drawer .ft-tip { overflow-wrap: anywhere; min-width: 0; }
+
+    /* Report rows are a fixed 150px label column + value column, written inline
+       by app.js. On a phone that squeezes the value into ~150px and letter-
+       breaks the label ("Acti / on Tak / en"), so stack the two lines instead. */
+    #ticket-drawer [id^="report-"] > div { grid-template-columns: minmax(0, 1fr) !important; gap: 2px !important; }
+    #ticket-drawer [id^="report-"] > div > span:last-child { overflow-wrap: anywhere; min-width: 0; }
+
+    /* The sheet header turns blue on a phone, but its text keeps the screen
+       colours app.js writes inline (dark grey on white), which is unreadable on
+       the gradient. Force white, and keep the long serial on one line - the full
+       value is already listed under Device. */
+    #ticket-drawer .ftd-modal-head #ticket-drawer-title { color: #fff !important; }
+    #ticket-drawer .ftd-modal-head .ftd-head-sub,
+    #ticket-drawer .ftd-modal-head .ftd-owner-line { color: rgba(255, 255, 255, .86) !important; }
+    #ticket-drawer .ftd-modal-head .ftd-head-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #ticket-drawer .ftd-modal-head .ftd-owner-line span { color: #0f172a !important; background: rgba(255, 255, 255, .84) !important; }
+    #ticket-drawer .ftd-modal-head .ft-co-ico { background: rgba(255, 255, 255, .2) !important; }
+    #ticket-drawer .ftd-modal-head .ftd-owner-line svg { color: #fff !important; stroke: currentColor !important; }
+
+    #ticket-drawer input.form-input,
+    #ticket-drawer select.form-input,
+    #ticket-drawer textarea.form-input { width: 100% !important; max-width: 100% !important; }
+
+    /* The table view is a 980px-wide grid - unusable on a phone. Hide the
+       card/table switch and always render cards here, whatever was saved. */
+    .tickets-page .tickets-view-toggle { display: none !important; }
+    .tickets-page.table-view .tickets-table-wrap { display: none !important; }
+    .tickets-page.table-view .tickets-grid { display: grid !important; }
 }
 @media (max-width: 430px) {
     .tickets-page .page-hero-sub { max-width: 245px; }
