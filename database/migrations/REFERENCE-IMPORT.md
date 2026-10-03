@@ -8,6 +8,8 @@ Review drafts in KB Management before publishing. Equipment entries are referenc
 
 Import `20261002_team_chat.sql` separately to enable presence and department access requests. It preserves messages and does not grant cross-department access automatically.
 
-Accounts/access are not changed by this content import. The supplied export already contains user ID 4 (Carlo Reyes); clarify whether the request is to enable that account or create four new users before importing account changes. New account creation requires names, emails, departments and intended roles. Do not assign administrator permissions or use shared passwords as a shortcut.
+The user authorized four new testing accounts. Import `20261003_test_users.sql` after the chat migration. It adds four clearly labeled test technicians with the existing Field IT role in Asset & Deployment. Existing user ID 4 is not modified. Same-department chat is available; cross-department approval remains required. See `TEST-ACCOUNT-LOGINS.txt` for unique temporary passwords. Non-deliverable .invalid emails cannot receive password-reset emails. Deactivate all four accounts when testing finishes.
+
+Keep this bundle private: never upload the ZIP, SQL files or credentials text to a public website directory. Import order: `20261002_team_chat.sql`, `20261003_reference_content.sql`, `20261003_test_users.sql`. Account insertion is skipped if the expected role/department is missing or an email already exists; the final query shows the resulting accounts.
 
 The SQL was matched to the supplied export schema, but has not been imported into the live database. Connection configuration is unchanged.

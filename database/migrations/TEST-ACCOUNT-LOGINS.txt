@@ -1,0 +1,19 @@
+PRIVATE - TEST ACCOUNTS ONLY
+Do not upload this file, the import ZIP or SQL files to a public website folder.
+Deactivate all four accounts in Users & Access after testing.
+These .invalid email addresses cannot receive mail or password-reset emails.
+Role: Field IT. Department: Asset & Deployment. No administrator privileges.
+All four can chat with the existing zodiacaries account in that department.
+Online status appears only after the account actually signs in and sends presence updates.
+
+fieldit.test01@example.invalid
+Temporary password: 74f0fe2568f82ad03e99fdf0
+
+fieldit.test02@example.invalid
+Temporary password: df7ac3dfde72f739639ee22a
+
+fieldit.test03@example.invalid
+Temporary password: 5dae5d6f6172461b3769cae8
+
+fieldit.test04@example.invalid
+Temporary password: dfcea00c1519cbe5f3bad2f8
